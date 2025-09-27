@@ -27,6 +27,17 @@ class LoginViewModel extends GetxController {
       if (response.isSuccess && response.result != null) {
         await storage.write('accessToken', response.result!.accessToken);
         await storage.write('refreshToken', response.result!.refreshToken);
+
+        final surveyStatus = await _authRepository.hasCompletedSurvey();
+        if (surveyStatus != null) {
+
+          await storage.write('surveyCompleted', surveyStatus.hasCompletedSurvey);
+
+          if (surveyStatus.survey != null) {
+            await storage.write('surveyData', surveyStatus.survey);
+          }
+        }
+
         print(" Login successful - tokens saved");
         return true;
       } else {
@@ -40,5 +51,34 @@ class LoginViewModel extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  Future<bool> loginWithGG(String idToken) async {
+    try{
+      final response = await _authRepository.loginWithGoogle(idToken);
+      if (response.isSuccess && response.result != null) {
+        await storage.write('accessToken', response.result!.accessToken);
+        await storage.write('refreshToken', response.result!.refreshToken);
+        return true;
+      } else {
+        return false;
+      }
+    }catch(e){
+      debugPrint('Sign-in error: $e');
+      return false;
+    }
+  }
+
+  String? getAccessToken() {
+    return storage.read('accessToken');
+  }
+
+  String? getRefreshToken() {
+    return storage.read('refreshToken');
+  }
+
+  void logout() {
+    storage.remove('accessToken');
+    storage.remove('refreshToken');
   }
 }

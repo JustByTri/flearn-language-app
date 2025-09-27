@@ -30,4 +30,17 @@ class OtpViewModel extends GetxController {
         }
     }
 
+    Future<void> resendOtp(String email) async {
+        try {
+            isLoading.value = true;
+            await _authRepository.resendOtp(email);
+            print("Resend OTP successful");
+        } catch (e) {
+            print("Resend OTP exception: $e");
+            rethrow;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
 }

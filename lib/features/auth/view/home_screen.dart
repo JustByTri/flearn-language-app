@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:get_storage/get_storage.dart';
+import 'profile_screen.dart';
+import 'topic_screen.dart';
+import 'course_screen.dart';
+import 'survey_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -12,9 +16,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
+
+
   final List<Lesson> lessonsInProgress = [
     Lesson(
       title: "English Pronunciation",
+      topic: "Pronunciation",
       progress: 0.7,
       completedTasks: 12,
       totalTasks: 15,
@@ -24,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ),
     Lesson(
       title: "Japanese Basics",
+      topic: "Vocabulary",
       progress: 0.4,
       completedTasks: 8,
       totalTasks: 20,
@@ -33,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ),
     Lesson(
       title: "Chinese Vocabulary",
+      topic: "Vocabulary",
       progress: 0.2,
       completedTasks: 3,
       totalTasks: 10,
@@ -66,30 +75,55 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isTabletOrLarger = size.width >= 600;
+    final fontScale = isTabletOrLarger ? 1.2 : 1.0;
+    final padding = size.width * 0.05;
     const fptOrange = Color(0xFFFF8300);
     const fptBlue = Color(0xFF0055A5);
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: CustomScrollView(
-            slivers: [
-              _buildSliverAppBar(fptOrange),
-              _buildContent(fptOrange, fptBlue),
-            ],
-          ),
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        body: CustomScrollView(
+          slivers: [
+            _buildSliverAppBar(fptOrange, size, fontScale),
+            _buildContent(fptOrange, fptBlue, size, fontScale, padding),
+            if (GetStorage().read('surveyCompleted') != true)
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text("Vui lòng hoàn thành khảo sát để có trải nghiệm tốt hơn!"),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SurveyScreen())),
+                        child: const Text("Hoàn thành ngay"),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
+        bottomNavigationBar: _buildBottomNavigation(fptOrange),
       ),
-      bottomNavigationBar: _buildBottomNavigation(fptOrange),
     );
   }
 
-  Widget _buildSliverAppBar(Color fptOrange) {
+  Widget _buildSliverAppBar(Color fptOrange, Size size, double fontScale) {
     return SliverAppBar(
-      expandedHeight: 200,
+      expandedHeight: size.height * 0.25,
       floating: false,
       pinned: true,
       flexibleSpace: FlexibleSpaceBar(
@@ -103,13 +137,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(size.width * 0.025),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(),
-                  const SizedBox(height: 20),
-                  _buildStreak(),
+                  _buildHeader(size, fontScale),
+                  SizedBox(height: size.width * 0.025),
+                  _buildStreak(fontScale),
                 ],
               ),
             ),
@@ -119,56 +153,69 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(Size size, double fontScale) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Xin chào! 👋",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Xin chào! 👋",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24 * fontScale,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            Text(
-              "Sẵn sàng luyện tập hôm nay?",
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
-                fontSize: 16,
+              Text(
+                "Sẵn sàng luyện tập hôm nay?",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 16 * fontScale,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        CircleAvatar(
-          radius: 25,
-          backgroundColor: Colors.white.withOpacity(0.2),
-          child: const Icon(Icons.person, color: Colors.white, size: 30),
+        SizedBox(width: 16 * fontScale),
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfileScreen()),
+            );
+          },
+          child: CircleAvatar(
+            radius: size.width * 0.05,
+            backgroundColor: Colors.white.withOpacity(0.2),
+            child: Icon(Icons.person, color: Colors.white, size: size.width * 0.06),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildStreak() {
+  Widget _buildStreak(double fontScale) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 16 * fontScale, vertical: 8 * fontScale),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.2),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.local_fire_department, color: Colors.white, size: 20),
-          SizedBox(width: 8),
+          Icon(Icons.local_fire_department, color: Colors.white, size: 20 * fontScale),
+          SizedBox(width: 8 * fontScale),
           Text(
             "Streak: 7 ngày",
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
+              fontSize: 14 * fontScale,
             ),
           ),
         ],
@@ -176,27 +223,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildContent(Color fptOrange, Color fptBlue) {
+  Widget _buildContent(Color fptOrange, Color fptBlue, Size size, double fontScale, double padding) {
     return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildQuickActions(fptBlue),
-            const SizedBox(height: 32),
-            _buildLessonsSection("Bài học miễn phí", lessonsInProgress.where((lesson) => lesson.isFree).toList()),
-            const SizedBox(height: 32),
-            _buildLessonsSection("Bài học có phí", lessonsInProgress.where((lesson) => !lesson.isFree).toList()),
-            const SizedBox(height: 32),
-            _buildTodaysGoal(fptOrange, fptBlue),
-          ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600),
+        child: Padding(
+          padding: EdgeInsets.all(padding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildQuickActions(fptBlue, size, fontScale, padding),
+              SizedBox(height: padding * 1.6),
+              _buildLessonsSection("Bài học miễn phí", lessonsInProgress.where((lesson) => lesson.isFree).toList(), size, fontScale, padding),
+              SizedBox(height: padding * 1.6),
+              _buildLessonsSection("Bài học có phí", lessonsInProgress.where((lesson) => !lesson.isFree).toList(), size, fontScale, padding),
+              SizedBox(height: padding * 1.6),
+              _buildTodaysGoal(fptOrange, fptBlue, size, fontScale),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildQuickActions(Color fptBlue) {
+  Widget _buildQuickActions(Color fptBlue, Size size, double fontScale, double padding) {
     return Row(
       children: [
         Expanded(
@@ -205,17 +255,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             title: "Luyện phát âm",
             subtitle: "15 phút",
             color: fptBlue,
-            onTap: () {},
+            size: size,
+            fontScale: fontScale,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CourseScreen(topic: "Pronunciation")),
+              );
+            },
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: padding * 0.6),
         Expanded(
           child: _buildQuickAction(
             icon: Icons.headphones,
             title: "Nghe nói",
             subtitle: "10 phút",
             color: const Color(0xFF9C27B0),
-            onTap: () {},
+            size: size,
+            fontScale: fontScale,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CourseScreen()),
+              );
+            },
           ),
         ),
       ],
@@ -227,12 +291,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     required String title,
     required String subtitle,
     required Color color,
+    required Size size,
+    required double fontScale,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(size.width * 0.05),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -247,28 +313,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(size.width * 0.03),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: size.width * 0.06),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: size.width * 0.03),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 14 * fontScale,
               ),
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: size.width * 0.01),
             Text(
               subtitle,
               style: TextStyle(
                 color: Colors.grey[600],
-                fontSize: 12,
+                fontSize: 12 * fontScale,
               ),
             ),
           ],
@@ -277,157 +345,171 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildLessonsSection(String title, List<Lesson> lessons) {
+  Widget _buildLessonsSection(String title, List<Lesson> lessons, Size size, double fontScale, double padding) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
           style: TextStyle(
-            fontSize: 22,
+            fontSize: 22 * fontScale,
             fontWeight: FontWeight.bold,
             color: Colors.grey[800],
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: padding),
         ...lessons.asMap().entries.map((entry) {
           int index = entry.key;
           Lesson lesson = entry.value;
           return Padding(
-            padding: EdgeInsets.only(bottom: index == lessons.length - 1 ? 0 : 16),
-            child: _buildLessonCard(lesson),
+            padding: EdgeInsets.only(bottom: index == lessons.length - 1 ? 0 : padding),
+            child: _buildLessonCard(lesson, size, fontScale),
           );
         }).toList(),
       ],
     );
   }
 
-  Widget _buildLessonCard(Lesson lesson) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: lesson.color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(30),
+  Widget _buildLessonCard(Lesson lesson, Size size, double fontScale) {
+    return GestureDetector(
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Mở khóa học: ${lesson.title}")),
+        );
+      },
+      child: Container(
+        padding: EdgeInsets.all(size.width * 0.05),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: size.width * 0.15,
+                  height: size.width * 0.15,
+                  decoration: BoxDecoration(
+                    color: lesson.color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(size.width * 0.075),
+                  ),
+                  child: Center(
+                    child: Icon(Icons.book, color: lesson.color, size: size.width * 0.07),
+                  ),
                 ),
-                child: Center(
-                  child: Icon(Icons.book, color: lesson.color, size: 28),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      lesson.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      lesson.description,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.task, size: 16, color: Colors.grey[500]),
-                        const SizedBox(width: 4),
-                        Text(
-                          "${lesson.completedTasks}/${lesson.totalTasks} nhiệm vụ",
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
+                SizedBox(width: size.width * 0.04),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        lesson.title,
+                        style: TextStyle(
+                          fontSize: 18 * fontScale,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: lesson.color,
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Text(
-                  lesson.isFree ? "Học miễn phí" : "Học ngay",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 4 * fontScale),
+                      Text(
+                        lesson.description,
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14 * fontScale,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 8 * fontScale),
+                      Row(
+                        children: [
+                          Icon(Icons.task, size: 16 * fontScale, color: Colors.grey[500]),
+                          SizedBox(width: 4 * fontScale),
+                          Expanded(
+                            child: Text(
+                              "${lesson.completedTasks}/${lesson.totalTasks} nhiệm vụ",
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12 * fontScale,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Tiến độ",
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: size.width * 0.03, vertical: 6 * fontScale),
+                  decoration: BoxDecoration(
+                    color: lesson.color,
+                    borderRadius: BorderRadius.circular(15),
                   ),
-                  Text(
-                    "${(lesson.progress * 100).toInt()}%",
+                  child: Text(
+                    lesson.isFree ? "Miễn phí" : "Học ngay",
                     style: TextStyle(
-                      color: lesson.color,
-                      fontSize: 14,
+                      color: Colors.white,
+                      fontSize: 12 * fontScale,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: lesson.progress,
-                backgroundColor: Colors.grey[200],
-                valueColor: AlwaysStoppedAnimation<Color>(lesson.color),
-                minHeight: 6,
-              ),
-            ],
-          ),
-        ],
+                ),
+              ],
+            ),
+            SizedBox(height: size.width * 0.04),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Tiến độ",
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 14 * fontScale,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      "${(lesson.progress * 100).toInt()}%",
+                      style: TextStyle(
+                        color: lesson.color,
+                        fontSize: 14 * fontScale,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8 * fontScale),
+                LinearProgressIndicator(
+                  value: lesson.progress,
+                  backgroundColor: Colors.grey[200],
+                  valueColor: AlwaysStoppedAnimation<Color>(lesson.color),
+                  minHeight: 6 * fontScale,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildTodaysGoal(Color fptOrange, Color fptBlue) {
+  Widget _buildTodaysGoal(Color fptOrange, Color fptBlue, Size size, double fontScale) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(size.width * 0.06),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [fptBlue.withOpacity(0.1), fptOrange.withOpacity(0.1)],
@@ -437,29 +519,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       child: Column(
         children: [
-          Icon(Icons.emoji_events, size: 48, color: fptOrange),
-          const SizedBox(height: 12),
+          Icon(Icons.emoji_events, size: 48 * fontScale, color: fptOrange),
+          SizedBox(height: 12 * fontScale),
           Text(
             "Mục tiêu hôm nay",
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 18 * fontScale,
               fontWeight: FontWeight.bold,
               color: Colors.grey[800],
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8 * fontScale),
           Text(
             "Hoàn thành 2/3 bài học",
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 14 * fontScale,
               color: Colors.grey[600],
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16 * fontScale),
           LinearProgressIndicator(
             value: 0.67,
             backgroundColor: Colors.grey[300],
             valueColor: AlwaysStoppedAnimation<Color>(fptOrange),
+            minHeight: 6 * fontScale,
           ),
         ],
       ),
@@ -484,10 +567,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         elevation: 0,
         selectedItemColor: fptOrange,
         unselectedItemColor: Colors.grey,
+        currentIndex: 0,
+        onTap: (index) {
+          switch (index) {
+            case 0:
+            // Stay on HomeScreen
+              break;
+            case 1:
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const TopicScreen()));
+              break;
+            case 2:
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const CourseScreen()));
+              break;
+            case 3:
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+              break;
+          }
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Trang chủ"),
-          BottomNavigationBarItem(icon: Icon(Icons.book), label: "Bài học"),
-          BottomNavigationBarItem(icon: Icon(Icons.mic), label: "Luyện tập"),
+          BottomNavigationBarItem(icon: Icon(Icons.category), label: "Chủ đề"),
+          BottomNavigationBarItem(icon: Icon(Icons.book), label: "Khóa học"),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Hồ sơ"),
         ],
       ),
@@ -497,6 +597,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
 class Lesson {
   final String title;
+  final String topic;
   final double progress;
   final int completedTasks;
   final int totalTasks;
@@ -506,6 +607,7 @@ class Lesson {
 
   Lesson({
     required this.title,
+    required this.topic,
     required this.progress,
     required this.completedTasks,
     required this.totalTasks,
