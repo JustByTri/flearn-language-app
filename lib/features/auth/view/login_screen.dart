@@ -1,6 +1,10 @@
+import 'package:flearn_app/features/auth/view/survey_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:get_storage/get_storage.dart';
 
 import '../../../shared/widgets/app_loading.dart';
 import '../../../core/constants/colors.dart';
@@ -18,13 +22,16 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  final loginViewModel = Get.put(LoginViewModel(Get.find())); // Sử dụng GetX
+  final loginViewModel = Get.put(LoginViewModel(Get.find()));
   bool _obscurePassword = true;
   bool _rememberMe = false;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   @override
   void initState() {
@@ -79,6 +86,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (!mounted) return;
 
     if (success) {
+      if (_rememberMe) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('email', emailController.text.trim());
+        await prefs.setString('password', passwordController.text.trim());
+      }
+
+      final box = GetStorage();
+      final surveyDone = box.read('surveyCompleted') ?? false;
+      final destination = surveyDone ? const HomeScreen() : const SurveyScreen();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -100,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       Navigator.pushAndRemoveUntil(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+          pageBuilder: (context, animation, secondaryAnimation) => destination,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
               opacity: animation,
@@ -167,14 +184,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Widget _buildBackgroundCircles() {
+    final size = MediaQuery.of(context).size;
+
     return Stack(
       children: [
         Positioned(
-          top: -50,
-          right: -50,
+          top: -size.height * 0.03,
+          right: -size.width * 0.08,
           child: Container(
-            width: 150,
-            height: 150,
+            width: size.width * 0.3,
+            height: size.width * 0.3,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white.withOpacity(0.1),
@@ -182,11 +201,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           ),
         ),
         Positioned(
-          bottom: -30,
-          left: -30,
+          bottom: -size.height * 0.02,
+          left: -size.width * 0.05,
           child: Container(
-            width: 100,
-            height: 100,
+            width: size.width * 0.2,
+            height: size.width * 0.2,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white.withOpacity(0.1),
@@ -235,18 +254,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Widget _buildLogo() {
+    final size = MediaQuery.of(context).size;
+    final logoSize = size.width * 0.25;
+
     return Hero(
       tag: 'app_logo',
       child: Container(
-        width: 120,
-        height: 120,
+        width: logoSize,
+        height: logoSize,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(60),
+          borderRadius: BorderRadius.circular(logoSize / 2),
           boxShadow: [
             BoxShadow(
               color: AppColors.primary.withOpacity(0.3),
@@ -255,7 +277,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
           ],
         ),
-        child: const Icon(Icons.school_rounded, size: 60, color: Colors.white),
+        child: Icon(
+            Icons.school_rounded,
+            size: logoSize * 0.5,
+            color: Colors.white
+        ),
       ),
     );
   }
@@ -265,8 +291,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       controller: emailController,
       label: "Email hoặc tên người dùng",
       icon: Icons.email_outlined,
-      keyboardType: TextInputType.emailAddress,
-      textInputAction: TextInputAction.next,
+      textInputAction: TextInputAction.done,
     );
   }
 
@@ -338,46 +363,70 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Widget _buildRememberMeAndForgotPassword(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Row(
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: Checkbox(
-                value: _rememberMe,
-                onChanged: (value) => setState(() => _rememberMe = value ?? false),
-                activeColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        Flexible(
+          flex: 3,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: Checkbox(
+                  value: _rememberMe,
+                  onChanged: (value) => setState(() => _rememberMe = value ?? false),
+                  activeColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => setState(() => _rememberMe = !_rememberMe),
-              child: Text(
-                'Ghi nhớ đăng nhập',
-                style: TextStyle(color: Colors.grey[700], fontSize: 14, fontWeight: FontWeight.w500),
+              const SizedBox(width: 6),
+              Flexible(
+                child: GestureDetector(
+                  onTap: () => setState(() => _rememberMe = !_rememberMe),
+                  child: Text(
+                    'Ghi nhớ đăng nhập',
+                    style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: size.width * 0.035,
+                        fontWeight: FontWeight.w500
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const Spacer(),
-        TextButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Tính năng quên mật khẩu đang phát triển'),
-                backgroundColor: Colors.orange,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        const SizedBox(width: 8),
+
+        Flexible(
+          flex: 2,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Tính năng quên mật khẩu đang phát triển'),
+                    backgroundColor: Colors.orange,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              },
+              child: Text(
+                "Quên mật khẩu?",
+                style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: size.width * 0.035
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
-            );
-          },
-          child: Text(
-            "Quên mật khẩu?",
-            style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 14),
+            ),
           ),
         ),
       ],
@@ -446,6 +495,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Widget _buildGoogleLoginButton(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Container(
       width: double.infinity,
       height: 56,
@@ -461,39 +512,152 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           ),
         ],
       ),
-      child: ElevatedButton(
+      child: Obx(() => ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         ),
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.info, color: Colors.white),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text("Tính năng đăng nhập Google đang phát triển")),
-                ],
-              ),
-              backgroundColor: Colors.blue,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          );
-        },
-        child: Row(
+        onPressed: loginViewModel.isLoading.value ? null : () => _onGoogleLoginPressed(),
+        child: loginViewModel.isLoading.value
+            ? Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            SvgPicture.asset('assets/icons/google-icon-logo-svgrepo-com.svg', width: 24, height: 24),
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
             const SizedBox(width: 12),
-            const Text(
-              "Đăng nhập với Google",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+            Flexible(
+              child: Text(
+                "Đang đăng nhập...",
+                style: TextStyle(
+                    fontSize: size.width * 0.04,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        )
+            : Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(
+                'assets/icons/google-icon-logo-svgrepo-com.svg',
+                width: 24,
+                height: 24
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                "Đăng nhập với Google",
+                style: TextStyle(
+                    fontSize: size.width * 0.04,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
+      )),
+    );
+  }
+
+
+  Future<void> _onGoogleLoginPressed() async {
+    try {
+
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+      if (googleUser == null) {
+
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        _showErrorSnackBar("Không thể lấy thông tin từ Google");
+        return;
+      }
+
+
+      final success = await loginViewModel.loginWithGG(idToken);
+
+      if (!mounted) return;
+
+      if (success) {
+        _showSuccessSnackBar("Đăng nhập Google thành công!");
+
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const SurveyScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(1.0, 0.0),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(parent: animation, curve: Curves.easeInOut)),
+                  child: child,
+                ),
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 500),
+          ),
+              (route) => false,
+        );
+      } else {
+        _showErrorSnackBar("Đăng nhập Google thất bại");
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar("Lỗi đăng nhập Google: $e");
+      }
+    }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(message),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(message),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }

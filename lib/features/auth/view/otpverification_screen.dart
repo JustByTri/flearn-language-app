@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flearn_app/features/auth/view/survey_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -20,6 +23,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final List<FocusNode> _focusNodes = [];
   late final OtpViewModel otpViewModel;
 
+  int _secondsLeft = 60;
+  Timer? _timer;
+  bool _canResend = false;
+
+
+
   @override
   void initState() {
     super.initState();
@@ -35,7 +44,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         });
       }
     });
+    _startTimer();
   }
+
+  void _startTimer() {
+    setState(() {
+      _secondsLeft = 60;
+      _canResend = false;
+    });
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsLeft > 0) {
+        setState(() {
+          _secondsLeft--;
+        });
+      } else {
+        setState(() {
+          _canResend = true;
+        });
+        timer.cancel();
+      }
+    });
+  }
+
 
   @override
   void dispose() {
@@ -46,6 +77,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       focusNode.dispose();
     }
     Get.delete<OtpViewModel>();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -93,9 +125,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     );
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      MaterialPageRoute(builder: (context) => const SurveyScreen()),
           (route) => false,
     );
+  }
+
+  Future<void> _resendOtp() async {
+    if (!_canResend) return;
+    try {
+      final otpViewModel = Get.find<OtpViewModel>();
+      await otpViewModel.resendOtp(widget.email);
+      _startTimer();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Đã gửi lại mã OTP")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gửi lại mã thất bại: $e")),
+        );
+      }
+    }
   }
 
   void _clearAll() {
@@ -109,102 +161,116 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: _buildAppBar(),
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              _buildIcon(),
-              const SizedBox(height: 32),
-              _buildTitle(),
-              const SizedBox(height: 8),
-              _buildSubtitle(),
-              const SizedBox(height: 40),
-              _buildOtpInput(),
-              const SizedBox(height: 40),
-              _buildVerifyButton(),
-              const SizedBox(height: 20),
-              _buildActionButtons(),
-              const SizedBox(height: 40),
-            ],
-          ),
+    final size = MediaQuery.of(context).size;
+    final isTabletOrLarger = size.width >= 600;
+    final fontScale = isTabletOrLarger ? 1.2 : 1.0;
+    final padding = size.width * 0.06; // 6% of screen width
+    final fieldSize = size.width * 0.12; // Scale OTP field size
+
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: _buildAppBar(fontScale),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: EdgeInsets.all(padding),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Column(
+                  children: [
+                    SizedBox(height: 40 * fontScale),
+                    _buildIcon(size, fontScale),
+                    SizedBox(height: 32 * fontScale),
+                    _buildTitle(fontScale),
+                    SizedBox(height: 8 * fontScale),
+                    _buildSubtitle(fontScale),
+                    SizedBox(height: 40 * fontScale),
+                    _buildOtpInput(fieldSize, fontScale),
+                    SizedBox(height: 40 * fontScale),
+                    _buildVerifyButton(fontScale),
+                    SizedBox(height: 20 * fontScale),
+                    _buildActionButtons(fontScale),
+                    SizedBox(height: 40 * fontScale),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar(double fontScale) {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
-        icon: const Icon(Icons.arrow_back, color: Colors.black),
+        icon: Icon(Icons.arrow_back, color: Colors.black, size: 24 * fontScale),
       ),
-      title: const Text("Xác thực Email", style: TextStyle(color: Colors.black)),
+      title: Text(
+        "Xác thực Email",
+        style: TextStyle(color: Colors.black, fontSize: 20 * fontScale),
+      ),
     );
   }
 
-
-  Widget _buildIcon() {
+  Widget _buildIcon(Size size, double fontScale) {
+    final iconSize = size.width * 0.2; // 20% of screen width
     return Container(
-      width: 80,
-      height: 80,
+      width: iconSize.clamp(60, 100),
+      height: iconSize.clamp(60, 100),
       decoration: BoxDecoration(
         color: AppColors.primary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(40),
+        borderRadius: BorderRadius.circular(iconSize / 2),
       ),
       child: Icon(
         Icons.email_outlined,
-        size: 40,
+        size: iconSize * 0.5,
         color: AppColors.primary,
       ),
     );
   }
 
-  Widget _buildTitle() {
-    return const Text(
+  Widget _buildTitle(double fontScale) {
+    return Text(
       "Xác thực Email",
       style: TextStyle(
-        fontSize: 24,
+        fontSize: 24 * fontScale,
         fontWeight: FontWeight.bold,
       ),
     );
   }
 
-
-  Widget _buildSubtitle() {
+  Widget _buildSubtitle(double fontScale) {
     return Text(
       "Nhập mã 6 số đã gửi đến\n${widget.email}",
       textAlign: TextAlign.center,
       style: TextStyle(
-        fontSize: 16,
+        fontSize: 16 * fontScale,
         color: Colors.grey[600],
       ),
     );
   }
 
-
-  Widget _buildOtpInput() {
+  Widget _buildOtpInput(double fieldSize, double fontScale) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: fieldSize * 0.2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: List.generate(6, (index) => _buildOtpField(index)),
+        children: List.generate(6, (index) => _buildOtpField(index, fieldSize, fontScale)),
       ),
     );
   }
 
-  Widget _buildOtpField(int index) {
+  Widget _buildOtpField(int index, double fieldSize, double fontScale) {
     return Container(
-      width: 45,
-      height: 55,
-      margin: const EdgeInsets.symmetric(horizontal: 2),
+      width: fieldSize.clamp(40, 60), // Scale between 40 and 60
+      height: fieldSize.clamp(48, 68), // Scale between 48 and 68
+      margin: EdgeInsets.symmetric(horizontal: fieldSize * 0.05),
       decoration: BoxDecoration(
         border: Border.all(
           color: _focusNodes[index].hasFocus
@@ -228,7 +294,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
             maxLength: 1,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 18 * fontScale, fontWeight: FontWeight.bold),
             decoration: const InputDecoration(
               border: InputBorder.none,
               counterText: '',
@@ -243,11 +309,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     );
   }
 
-  Widget _buildVerifyButton() {
+  Widget _buildVerifyButton(double fontScale) {
     return GetX<OtpViewModel>(
       builder: (controller) => SizedBox(
         width: double.infinity,
-        height: 50,
+        height: 50 * fontScale,
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
@@ -257,18 +323,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           ),
           onPressed: controller.isLoading.value ? null : _verifyOtp,
           child: controller.isLoading.value
-              ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
+              ? SizedBox(
+            width: 20 * fontScale,
+            height: 20 * fontScale,
+            child: const CircularProgressIndicator(
               color: Colors.white,
               strokeWidth: 2,
             ),
           )
-              : const Text(
+              : Text(
             "Xác thực",
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 16 * fontScale,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
@@ -278,7 +344,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(double fontScale) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -286,18 +352,17 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           onPressed: _clearAll,
           child: Text(
             "Xóa tất cả",
-            style: TextStyle(color: Colors.grey[600]),
+            style: TextStyle(color: Colors.grey[600], fontSize: 14 * fontScale),
           ),
         ),
         TextButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Đã gửi lại mã")),
-            );
-          },
+          onPressed: _resendOtp,
           child: Text(
-            "Gửi lại mã",
-            style: TextStyle(color: AppColors.primary),
+            "Gửi lại mã (${_secondsLeft}s)",
+            style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 14 * fontScale,
+            ),
           ),
         ),
       ],
