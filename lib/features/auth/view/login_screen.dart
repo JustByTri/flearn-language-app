@@ -1,4 +1,4 @@
-import 'package:flearn_app/features/auth/view/survey_screen.dart';
+import 'package:flearn_app/features/survey/view/survey_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
@@ -8,9 +8,12 @@ import 'package:get_storage/get_storage.dart';
 
 import '../../../shared/widgets/app_loading.dart';
 import '../../../core/constants/colors.dart';
+import '../../../shared/widgets/my_textField.dart';
 import '../viewmodel/login_viewmodel.dart';
+import 'forgotpassword_screen.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,7 +32,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-
 
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
@@ -86,15 +88,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (!mounted) return;
 
     if (success) {
-      if (_rememberMe) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('email', emailController.text.trim());
-        await prefs.setString('password', passwordController.text.trim());
-      }
-
       final box = GetStorage();
       final surveyDone = box.read('surveyCompleted') ?? false;
-      final destination = surveyDone ? const HomeScreen() : const SurveyScreen();
+      final destination = surveyDone ? const SurveyScreen() : const SurveyScreen();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -154,30 +150,35 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    void _dismissKeyboard() => FocusScope.of(context).unfocus();
+
     final size = MediaQuery.of(context).size;
     final padding = size.width * 0.06;
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primary.withOpacity(0.9),
-              AppColors.primary.withOpacity(0.6),
-              AppColors.primary.withOpacity(0.3),
-              Colors.white,
-            ],
-            stops: const [0.0, 0.3, 0.6, 1.0],
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      child: Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.primary.withOpacity(0.9),
+                AppColors.primary.withOpacity(0.6),
+                AppColors.primary.withOpacity(0.3),
+                Colors.white,
+              ],
+              stops: const [0.0, 0.3, 0.6, 1.0],
+            ),
           ),
-        ),
-        child: Stack(
-          children: [
-            _buildBackgroundCircles(),
-            _buildMainContent(context, padding),
-            _buildLoadingOverlay(context),
-          ],
+          child: Stack(
+            children: [
+              _buildBackgroundCircles(),
+              _buildMainContent(context, padding),
+              _buildLoadingOverlay(context),
+            ],
+          ),
         ),
       ),
     );
@@ -287,19 +288,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Widget _buildEmailField() {
-    return _buildTextField(
+    return MyTextField(
       controller: emailController,
-      label: "Email hoặc tên người dùng",
-      icon: Icons.email_outlined,
+      hintText: "Email hoặc tên người dùng",
       textInputAction: TextInputAction.done,
     );
   }
 
   Widget _buildPasswordField() {
-    return _buildTextField(
+    return MyTextField(
       controller: passwordController,
-      label: "Mật khẩu",
-      icon: Icons.lock_outline,
+      hintText: "Mật khẩu",
       obscureText: _obscurePassword,
       suffixIcon: IconButton(
         icon: Icon(
@@ -310,55 +309,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       ),
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => _onLoginPressed(),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    TextInputType? keyboardType,
-    TextInputAction? textInputAction,
-    Function(String)? onSubmitted,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: Colors.grey[600]),
-          prefixIcon: Icon(icon, color: AppColors.primary),
-          suffixIcon: suffixIcon,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide(color: AppColors.primary, width: 2),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        ),
-        obscureText: obscureText,
-        keyboardType: keyboardType,
-        textInputAction: textInputAction,
-        onSubmitted: onSubmitted,
-      ),
     );
   }
 
@@ -408,12 +358,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Tính năng quên mật khẩu đang phát triển'),
-                    backgroundColor: Colors.orange,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ForgotPasswordScreen(),
                   ),
                 );
               },
@@ -434,45 +382,34 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Widget _buildLoginButton(BuildContext context) {
-    return Obx(
-          () => Container(
-        width: double.infinity,
-        height: 56,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withOpacity(0.4),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
         ),
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
-          onPressed: loginViewModel.isLoading.value ? null : () => _onLoginPressed(),
-          child: loginViewModel.isLoading.value
-              ? const SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              strokeWidth: 2,
-            ),
-          )
-              : const Text(
-            "Đăng nhập",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
+        ],
+      ),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+        onPressed: loginViewModel.isLoading.value ? null : () => _onLoginPressed(),
+        child: const Text(
+          "Đăng nhập",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
         ),
       ),
     );
@@ -512,72 +449,47 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           ),
         ],
       ),
-      child: Obx(() => ElevatedButton(
+      child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         ),
         onPressed: loginViewModel.isLoading.value ? null : () => _onGoogleLoginPressed(),
-        child: loginViewModel.isLoading.value
-            ? Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Text(
-                "Đang đăng nhập...",
-                style: TextStyle(
-                    fontSize: size.width * 0.04,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        )
-            : Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             SvgPicture.asset(
-                'assets/icons/google-icon-logo-svgrepo-com.svg',
-                width: 24,
-                height: 24
+              'assets/icons/google-icon-logo-svgrepo-com.svg',
+              width: 24,
+              height: 24,
             ),
             const SizedBox(width: 12),
             Flexible(
               child: Text(
                 "Đăng nhập với Google",
                 style: TextStyle(
-                    fontSize: size.width * 0.04,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87
+                  fontSize: size.width * 0.04,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-      )),
+      ),
     );
   }
 
-
   Future<void> _onGoogleLoginPressed() async {
+    loginViewModel.isLoading.value = true;
     try {
-
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
-
+        loginViewModel.isLoading.value = false;
         return;
       }
 
@@ -586,9 +498,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
       if (idToken == null) {
         _showErrorSnackBar("Không thể lấy thông tin từ Google");
+        loginViewModel.isLoading.value = false;
         return;
       }
-
 
       final success = await loginViewModel.loginWithGG(idToken);
 
@@ -596,8 +508,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
       if (success) {
         _showSuccessSnackBar("Đăng nhập Google thành công!");
-
-
         Navigator.pushAndRemoveUntil(
           context,
           PageRouteBuilder(
@@ -625,6 +535,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       if (mounted) {
         _showErrorSnackBar("Lỗi đăng nhập Google: $e");
       }
+    } finally {
+      loginViewModel.isLoading.value = false;
     }
   }
 
@@ -701,23 +613,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Widget _buildLoadingOverlay(BuildContext context) {
     return Obx(
           () => loginViewModel.isLoading.value
-          ? Container(
-        color: Colors.black.withOpacity(0.3),
-        child: const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text("Đang đăng nhập...", style: TextStyle(fontSize: 16)),
-                ],
-              ),
-            ),
-          ),
-        ),
+          ? AppLoading(
+        message: "Đang đăng nhập...",
+        backgroundColor: Colors.black.withOpacity(0.3),
+        size: 48,
       )
           : const SizedBox.shrink(),
     );

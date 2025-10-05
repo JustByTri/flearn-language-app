@@ -1,13 +1,13 @@
 import 'dart:async';
 
-import 'package:flearn_app/features/auth/view/survey_screen.dart';
+import 'package:flearn_app/features/survey/view/survey_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 
 import '../../../core/constants/colors.dart';
 import '../viewmodel/otp_viewmodel.dart';
-import 'login_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
@@ -123,6 +123,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         backgroundColor: Colors.green,
       ),
     );
+    await GetStorage().remove('surveyCompleted');
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const SurveyScreen()),

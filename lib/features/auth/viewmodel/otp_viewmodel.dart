@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 
 import '../data/auth_repository.dart';
 
@@ -21,7 +22,9 @@ class OtpViewModel extends GetxController {
             } else {
                 print("Email confirmation failed - isSuccess: ${response.isSuccess}");
             }
-
+            final storage = GetStorage();
+            await storage.write('accessToken', response.result!.accessToken);
+            await storage.write('refreshToken', response.result!.refreshToken);
 
         } catch (e) {
             print(" Confirm email exception: $e");

@@ -1,14 +1,19 @@
 import 'dart:convert';
+import 'package:flearn_app/features/topic/view/topic_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import '../../../core/constants/colors.dart';
+import '../../../shared/widgets/mainBottomNavbar.dart';
 import '../model/user.dart';
 import '../data/auth_repository.dart';
 import '../view/login_screen.dart';
 import '../viewmodel/login_viewmodel.dart';
 import '../viewmodel/user_viewmodel.dart';
+import '../../../shared/widgets/app_scaffold.dart';
+import '../../course/view/course_screen.dart';
+import 'home_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -39,8 +44,10 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _animationController.forward();
-    _fetchUserProfile();
-    _loadSurveyData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchUserProfile();
+      _loadSurveyData();
+    });
   }
 
   void _loadSurveyData() {
@@ -109,33 +116,37 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final padding = size.width * 0.06;
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primary.withOpacity(0.9),
-              AppColors.primary.withOpacity(0.6),
-              AppColors.primary.withOpacity(0.3),
-              Colors.white,
-            ],
-            stops: const [0.0, 0.3, 0.6, 1.0],
-          ),
+    return AppScaffold(
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: AppColors.textLight),
+          onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen())),
         ),
-        child: Stack(
-          children: [
-            _buildBackgroundCircles(),
-            _buildMainContent(padding),
-            _buildLoadingOverlay(),
-          ],
-        ),
+      ),
+      body: Stack(
+        children: [
+          _buildBackgroundCircles(),
+          _buildMainContent(padding),
+          _buildLoadingOverlay(),
+        ],
+      ),
+      bottomNavigationBar: MainBottomNavBar(
+        currentIndex: 3,
+        onTap: (index) {
+
+          if (index == 0) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+          if (index == 1) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CourseScreen()));
+          if (index == 2) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TopicScreen()));
+          if (index == 3) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+        },
       ),
     );
   }

@@ -9,9 +9,10 @@ import "../../../config/api_config.dart";
 import "../../../utils/decode_token.dart";
 import "../model/login_request.dart";
 import "../model/login_response.dart";
-import "../model/survey_option.dart";
-import "../model/survey_request.dart";
-import "../model/survey_status.dart";
+import "../../survey/model/survey_option.dart";
+import "../../survey/model/survey_request.dart";
+import "../../survey/model/survey_status.dart";
+import "../../topic/model/topic.dart";
 import "../model/user.dart";
 import '../model/response.dart';
 import "auth_repository.dart";
@@ -214,68 +215,38 @@ class AuthService implements IAuthRepository {
 
 
   @override
-  Future<SurveyOptions?> getSurveyOptions() async {
-    final storage = GetStorage();
-    final accessToken = storage.read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.surveyOptionsUrl}');
-
+  Future<bool> forgotPassword(String email) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.forgotPassword}');
     try {
-      print("Getting survey options...");
-
-      final response = await http.get(
+      final response = await http.post(
         url,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $accessToken",
-        },
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"EmailOrUsername": email}),
       );
-
-      print("Survey options response status: ${response.statusCode}");
-      print("Survey options response body: ${response.body}");
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return SurveyOptions.fromJson(data);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error["message"] ?? "Failed to get survey options");
-      }
+      print('ForgotPassword response: ${response.statusCode} - ${response.body}');
+      return response.statusCode == 200;
     } catch (e) {
-      print("Survey options error: $e");
-      return null;
+      return false;
     }
   }
 
   @override
-  Future<bool> completeSurvey(SurveyRequest request) async {
-    final storage = GetStorage();
-    final accessToken = storage.read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.surveyCompleteUrl}');
-
+  Future<bool> resetPassword(String email, String otp, String newPassword, String confirmPassword) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.resetPassword}');
     try {
-      print("Survey request: ${jsonEncode(request.toJson())}");
-
       final response = await http.post(
         url,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $accessToken",
-        },
-        body: jsonEncode(request.toJson()),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "email": email,
+          "otp": otp,
+          "newPassword": newPassword,
+          "confirmPassword": confirmPassword,
+        }),
       );
-
-      print("Survey response status: ${response.statusCode}");
-      print("Survey response body: ${response.body}");
-
-      if (response.statusCode == 200) {
-        return true;
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error["message"] ?? "Survey submission failed");
-      }
+      return response.statusCode == 200;
     } catch (e) {
-      print("Survey error: $e");
-      throw Exception("Survey submission error: $e");
+      return false;
     }
   }
 
@@ -305,5 +276,6 @@ class AuthService implements IAuthRepository {
       return null;
     }
   }
+
 
 }
