@@ -208,7 +208,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           SizedBox(height: height * 0.05),
                           MyTextField(
                             controller: nameController,
-                            hintText: "Họ và tên",
+                            hintText: "Tên người dùng",
                             keyboardType: TextInputType.name,
                             textInputAction: TextInputAction.next,
                           ),
@@ -222,7 +222,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           SizedBox(height: height * 0.025),
                           MyTextField(
                             controller: passwordController,
-                            hintText: "Password",
+                            hintText: "Mật khẩu",
                             obscureText: _obscurePassword,
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -236,7 +236,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           SizedBox(height: height * 0.025),
                           MyTextField(
                             controller: confirmPasswordController,
-                            hintText: "Confirm Password",
+                            hintText: "Xác thực mật khẩu",
                             obscureText: _obscureConfirmPassword,
                             suffixIcon: IconButton(
                               icon: Icon(
