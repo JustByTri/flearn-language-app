@@ -8,6 +8,7 @@ import 'package:get_storage/get_storage.dart';
 
 import '../../../core/constants/colors.dart';
 import '../viewmodel/otp_viewmodel.dart';
+import 'home_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
@@ -123,12 +124,35 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         backgroundColor: Colors.green,
       ),
     );
-    await GetStorage().remove('surveyCompleted');
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const SurveyScreen()),
-          (route) => false,
-    );
+
+
+    final surveyStatus = await otpViewModel.checkSurveyRequired();
+
+    if (!mounted) return;
+
+    if (surveyStatus == null) {
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false,
+      );
+      return;
+    }
+
+    if (surveyStatus['assessmentRequired'] == true) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const SurveyScreen()),
+            (route) => false,
+      );
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false,
+      );
+    }
   }
 
   Future<void> _resendOtp() async {
@@ -361,8 +385,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           child: Text(
             "Gửi lại mã (${_secondsLeft}s)",
             style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 14 * fontScale,
+              color: AppColors.primary,
+              fontSize: 14 * fontScale,
             ),
           ),
         ),

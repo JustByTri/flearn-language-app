@@ -1,13 +1,10 @@
 
 import '../model/assessment.dart';
+import '../model/assessment_result.dart';
 import '../model/goal.dart';
-import '../model/survey_option.dart';
-import '../model/survey_request.dart';
-import '../model/survey_status.dart';
+
 
 abstract class ISurveyRepository{
-  Future<SurveyOptions?> getSurveyOptions();
-  Future<bool> completeSurvey(SurveyRequest request);
 
   Future<Map<String, String>> getLanguages();
 
@@ -24,6 +21,11 @@ abstract class ISurveyRepository{
     required int recordingDurationSeconds,
   });
 
-  Future<Map<String, dynamic>?> completeAssessment(String assessmentId);
-  Future<Map<String, dynamic>?> checkAssessmentStatus(String languageId, int goalId);
+  Future<AssessmentResult?> completeAssessment(String assessmentId);
+
+  Future<bool> acceptVoiceAssessment(String learnerLanguageId);
+
+  Future<bool> rejectVoiceAssessment(String learnerLanguageId);
+
+
 }

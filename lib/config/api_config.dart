@@ -8,9 +8,9 @@ class ApiConfig {
   static const String resendOtpUrl = "/Auth/resend-otp";
   static const String forgotPassword = "/Auth/forgot-password";
   static const String resetPassword = "/Auth/reset-password";
-  static const String surveyOptionsUrl = "/Survey/options";
-  static const String surveyCompleteUrl = "/Survey/complete";
-  static const String surveyStatus = "/Survey/status";
+
+  static const String checkRequired = "/VoiceAssessment/check-required";
+
   static const String getLanguages = "/languages";
   static const String getTopic = "/topics";
 
@@ -20,7 +20,7 @@ class ApiConfig {
   static String voiceAssessmentStart(String languageId, int goalId) =>
       "/VoiceAssessment/start/$languageId?goalId=$goalId";
 
-
-
+  static const String acceptVoiceAssessment = "/VoiceAssessment/accept-voice-assessment";
+  static const String rejectVoiceAssessment = "/VoiceAssessment/reject-voice-assessment";
 
 }
