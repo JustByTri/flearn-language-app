@@ -3,26 +3,25 @@ class Assessment {
   final String languageName;
   final String goalName;
   final int totalQuestions;
-  final int currentQuestionIndex;
-  final AssessmentQuestion firstQuestion;
 
   Assessment({
     required this.assessmentId,
     required this.languageName,
     required this.goalName,
     required this.totalQuestions,
-    required this.currentQuestionIndex,
-    required this.firstQuestion,
   });
 
   factory Assessment.fromJson(Map<String, dynamic> json) {
+    final questions = json['questions'];
+    int totalQuestions = 0;
+    if (questions != null && questions is List) {
+      totalQuestions = questions.length;
+    }
     return Assessment(
-      assessmentId: json['assessmentId'],
-      languageName: json['languageName'],
-      goalName: json['goalName'],
-      totalQuestions: json['totalQuestions'],
-      currentQuestionIndex: json['currentQuestionIndex'],
-      firstQuestion: AssessmentQuestion.fromJson(json['firstQuestion']),
+      assessmentId: json['assessmentId'] ?? '',
+      languageName: json['languageName'] ?? '',
+      goalName: json['goalName'] ?? '',
+      totalQuestions: totalQuestions,
     );
   }
 }

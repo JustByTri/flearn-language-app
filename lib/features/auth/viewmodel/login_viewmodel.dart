@@ -28,15 +28,7 @@ class LoginViewModel extends GetxController {
         await storage.write('accessToken', response.result!.accessToken);
         await storage.write('refreshToken', response.result!.refreshToken);
 
-        final surveyStatus = await _authRepository.hasCompletedSurvey();
-        if (surveyStatus != null) {
 
-          await storage.write('surveyCompleted', surveyStatus.hasCompletedSurvey);
-
-          if (surveyStatus.survey != null) {
-            await storage.write('surveyData', surveyStatus.survey);
-          }
-        }
 
         print(" Login successful - tokens saved");
         return true;
@@ -80,5 +72,15 @@ class LoginViewModel extends GetxController {
   void logout() {
     storage.remove('accessToken');
     storage.remove('refreshToken');
+  }
+
+  Future<Map<String, dynamic>?> checkSurveyRequired() async {
+    try {
+      final result = await _authRepository.checkSurveyRequired();
+      return result;
+    } catch (e) {
+      print("checkSurveyRequired error: $e");
+      return null;
+    }
   }
 }

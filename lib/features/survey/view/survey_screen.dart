@@ -59,114 +59,90 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
         return Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionTitle('Chọn ngôn ngữ *'),
-              const SizedBox(height: 12),
-              _buildSelectionGrid(
-                options: langLabels,
-                selectedValue: selectedLanguageLabel,
-                onChanged: (label) {
-                  final entry = langsMap.entries.firstWhere((e) => e.value == label);
-                  setState(() {
-                    selectedLanguageLabel = label;
-                    selectedLanguageId = entry.key;
-                  });
-                },
-              ),
-              const SizedBox(height: 24),
-              _buildSectionTitle('Chọn mục tiêu (Goal) *'),
-              const SizedBox(height: 12),
-              _buildSelectionGridGoal(
-                goals: goals,
-                selectedGoalId: selectedGoalId,
-                onChanged: (goal) {
-                  setState(() {
-                    selectedGoalId = goal.id;
-                    selectedGoalLabel = goal.name;
-                  });
-                },
-              ),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (selectedLanguageId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vui lòng chọn ngôn ngữ!')),
-                      );
-                      return;
-                    }
-                    if (selectedGoalId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vui lòng chọn mục tiêu!')),
-                      );
-                      return;
-                    }
-
-
-                    final status = await surveyViewModel.checkAssessmentStatus(selectedLanguageId!, selectedGoalId!);
-
-                    if (status != null) {
-                      if (status['action'] == 'completed') {
-
-                        final result = status['data']['result'];
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (_) => AssessmentResultScreen(result: {'data': {'voiceResult': result}}),
-                          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionTitle('Chọn ngôn ngữ *'),
+                const SizedBox(height: 12),
+                _buildSelectionGrid(
+                  options: langLabels,
+                  selectedValue: selectedLanguageLabel,
+                  onChanged: (label) {
+                    final entry = langsMap.entries.firstWhere((e) => e.value == label);
+                    setState(() {
+                      selectedLanguageLabel = label;
+                      selectedLanguageId = entry.key;
+                    });
+                  },
+                ),
+                const SizedBox(height: 24),
+                _buildSectionTitle('Chọn mục tiêu (Goal) *'),
+                const SizedBox(height: 12),
+                _buildSelectionGridGoal(
+                  goals: goals,
+                  selectedGoalId: selectedGoalId,
+                  onChanged: (goal) {
+                    setState(() {
+                      selectedGoalId = goal.id;
+                      selectedGoalLabel = goal.name;
+                    });
+                  },
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (selectedLanguageId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vui lòng chọn ngôn ngữ!')),
                         );
                         return;
-                      } else if (status['action'] == 'resumed') {
+                      }
+                      if (selectedGoalId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vui lòng chọn mục tiêu!')),
+                        );
+                        return;
+                      }
 
-                        final assessmentId = status['data']['assessmentId'];
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Đang tạo assessment...')),
+                        );
+                      }
+
+                      await surveyViewModel.startAssessment(selectedLanguageId!, selectedGoalId!);
+                      final assessmentId = surveyViewModel.assessment.value?.assessmentId;
+
+                      if (assessmentId != null && mounted) {
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
                             builder: (_) => SurveyQuestionScreen(assessmentId: assessmentId),
                           ),
                         );
-                        return;
+                      } else if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Không thể tạo assessment. Vui lòng thử lại!')),
+                        );
                       }
-                    }
-
-
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Đang tạo assessment...')),
-                      );
-                    }
-
-                    await surveyViewModel.startAssessment(selectedLanguageId!, selectedGoalId!);
-                    final assessmentId = surveyViewModel.assessment.value?.assessmentId;
-
-                    if (assessmentId != null && mounted) {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                          builder: (_) => SurveyQuestionScreen(assessmentId: assessmentId),
-                        ),
-                      );
-                    } else if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Không thể tạo assessment. Vui lòng thử lại!')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 2,
-                  ),
-                  child: const Text(
-                    'Bắt đầu đánh giá',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 2,
+                    ),
+                    child: const Text(
+                      'Bắt đầu đánh giá',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       }),

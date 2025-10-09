@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "354947503397",
+    "project_id": "f-learn-app",
+    "storage_bucket": "f-learn-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:354947503397:android:32f33652b57c9d4d43b6cc",
+        "android_client_info": {
+          "package_name": "com.example.flearn_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2AAd-RA239SipuvBH59M7DCK_53JIu-M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

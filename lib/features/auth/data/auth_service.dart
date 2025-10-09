@@ -6,13 +6,8 @@ import "package:http/http.dart" as http;
 import "package:shared_preferences/shared_preferences.dart";
 
 import "../../../config/api_config.dart";
-import "../../../utils/decode_token.dart";
 import "../model/login_request.dart";
 import "../model/login_response.dart";
-import "../../survey/model/survey_option.dart";
-import "../../survey/model/survey_request.dart";
-import "../../survey/model/survey_status.dart";
-import "../../topic/model/topic.dart";
 import "../model/user.dart";
 import '../model/response.dart';
 import "auth_repository.dart";
@@ -250,11 +245,11 @@ class AuthService implements IAuthRepository {
     }
   }
 
-  @override
-  Future<SurveyStatus?> hasCompletedSurvey() async {
+
+  Future<Map<String, dynamic>> checkSurveyRequired() async {
     final storage = GetStorage();
     final accessToken = storage.read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.surveyStatus}');
+    final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.checkRequired}');
 
     try {
       final response = await http.get(
@@ -264,16 +259,15 @@ class AuthService implements IAuthRepository {
           "Authorization": "Bearer $accessToken",
         },
       );
+      print("Check survey required response: ${response.statusCode} - ${response.body}");
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
-        if (json['success'] == true && json['data'] != null) {
-          return SurveyStatus.fromJson(json['data']);
-        }
+        return json['data'] as Map<String, dynamic>;
+      } else {
+        throw Exception("Failed to check survey required");
       }
-      return null;
     } catch (e) {
-      print("hasCompletedSurvey error: $e");
-      return null;
+      throw Exception("Check survey required error: $e");
     }
   }
 

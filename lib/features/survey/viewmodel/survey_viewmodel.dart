@@ -2,15 +2,13 @@ import 'package:get/get.dart';
 
 import '../data/repository.dart';
 import '../model/assessment.dart';
+import '../model/assessment_result.dart';
 import '../model/goal.dart';
-import "../model/survey_option.dart";
-import '../model/survey_request.dart';
 
 class SurveyViewModel extends GetxController {
   final ISurveyRepository _Repository;
 
   var isLoading = false.obs;
-  var surveyOptions = Rxn<SurveyOptions>();
 
   var isLoadingLanguages = false.obs;
   var languages = <String, String>{}.obs;
@@ -24,49 +22,9 @@ class SurveyViewModel extends GetxController {
   var currentQuestion = Rxn<AssessmentQuestion>();
   var isLoadingCurrentQuestion = false.obs;
 
+  var errorMessage = RxnString();
+
   SurveyViewModel(this._Repository);
-
-  Future<void> loadSurveyOptions() async {
-    try {
-      isLoading.value = true;
-      print("Loading survey options...");
-
-      final options = await _Repository.getSurveyOptions();
-      surveyOptions.value = options;
-
-      if (options != null) {
-        print("Survey options loaded successfully");
-      } else {
-        print("Failed to load survey options");
-      }
-    } catch (e) {
-      print("Exception loading survey options: $e");
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  Future<bool> completeSurvey(SurveyRequest request) async {
-    try {
-      isLoading.value = true;
-      print("Starting survey submission");
-
-      final success = await _Repository.completeSurvey(request);
-
-      if (success) {
-        print("Survey submitted successfully");
-        return true;
-      } else {
-        print("Survey submission failed");
-        return false;
-      }
-    } catch (e) {
-      print("Survey submission exception: $e");
-      return false;
-    } finally {
-      isLoading.value = false;
-    }
-  }
 
   Future<void> fetchLanguages() async {
     try {
@@ -120,8 +78,10 @@ class SurveyViewModel extends GetxController {
       final question = await _Repository.getCurrentAssessmentQuestion(assessmentId);
       if (question != null) {
         currentQuestion.value = question;
+        errorMessage.value = null;
         print("Fetched current assessment question: ${question.question}");
       } else {
+        errorMessage.value = "Không thể tải câu hỏi";
         print("No current assessment question found");
       }
     } catch (e) {
@@ -162,7 +122,7 @@ class SurveyViewModel extends GetxController {
   }
 
 
-  Future<Map<String, dynamic>?> completeAssessment(String assessmentId) async {
+  Future<AssessmentResult?> completeAssessment(String assessmentId) async {
     try {
       isLoading.value = true;
       final result = await _Repository.completeAssessment(assessmentId);
@@ -181,22 +141,39 @@ class SurveyViewModel extends GetxController {
   }
 
 
-  Future<Map<String, dynamic>?> checkAssessmentStatus(String languageId, int goalId) async {
+  Future<bool> acceptVoiceAssessment(String languageId) async {
     try {
       isLoading.value = true;
-      final result = await _Repository.checkAssessmentStatus(languageId, goalId);
-      if (result != null) {
-        print("Assessment status: $result");
+      final result = await _Repository.acceptVoiceAssessment(languageId);
+      if (result) {
+        print("Voice assessment accepted for languageId: $languageId");
       } else {
-        print("Failed to check assessment status");
+        print("Failed to accept voice assessment");
       }
       return result;
     } catch (e) {
-      print('checkAssessmentStatus error: $e');
-      return null;
+      print('acceptVoiceAssessment error: $e');
+      return false;
     } finally {
       isLoading.value = false;
     }
   }
 
+  Future<bool> rejectVoiceAssessment(String languageId) async {
+    try {
+      isLoading.value = true;
+      final result = await _Repository.rejectVoiceAssessment(languageId);
+      if (result) {
+        print("Voice assessment accepted for languageId: $languageId");
+      } else {
+        print("Failed to accept voice assessment");
+      }
+      return result;
+    } catch (e) {
+      print('acceptVoiceAssessment error: $e');
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
 }
