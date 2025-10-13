@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:get_storage/get_storage.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../../shared/widgets/app_loading.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/my_textField.dart';
 import '../../survey/view/survey_screen.dart';
@@ -24,7 +21,9 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  final loginViewModel = Get.put(LoginViewModel(Get.find()));
+  final loginViewModel = Get.put(
+    LoginViewModel(Get.find()),
+  );
   bool _obscurePassword = true;
   bool _rememberMe = false;
 
@@ -66,32 +65,35 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
-
-      final surveyStatus = await loginViewModel.checkSurveyRequired();
+      final surveyStatus = await loginViewModel
+          .checkSurveyRequired();
 
       if (surveyStatus == null) {
-
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-              (route) => false,
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ),
+          (route) => false,
         );
         return;
       }
 
-
       if (surveyStatus['assessmentRequired'] == true) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const SurveyScreen()),
-              (route) => false,
+          MaterialPageRoute(
+            builder: (context) => const SurveyScreen(),
+          ),
+          (route) => false,
         );
       } else {
-
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-              (route) => false,
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ),
+          (route) => false,
         );
       }
     } else {
@@ -101,12 +103,18 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const Icon(Icons.error, color: Colors.white),
               const SizedBox(width: 8),
-              const Expanded(child: Text("Thông tin đăng nhập không chính xác")),
+              const Expanded(
+                child: Text(
+                  "Thông tin đăng nhập không chính xác",
+                ),
+              ),
             ],
           ),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     }
@@ -115,41 +123,38 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _onGoogleLoginPressed() async {
     try {
       loginViewModel.isLoading.value = true;
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final userCredential = await loginViewModel
+          .loginWithGoogle();
 
-      if (!mounted) return;
-
-      if (googleUser == null) {
-        _showErrorSnackBar("Đăng nhập Google bị hủy");
-        return;
-      }
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-
-      if (userCredential.user != null) {
-        _showSuccessSnackBar("Đăng nhập Google thành công!");
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const SurveyScreen()),
-              (route) => false,
+      if (userCredential) {
+        _showSuccessSnackBar(
+          "Đăng nhập Google thành công!",
         );
+
+        final surveyStatus = await loginViewModel
+            .checkSurveyRequired();
+
+        if (surveyStatus == null) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(),
+            ),
+            (route) => false,
+          );
+        } else if (surveyStatus['assessmentRequired'] ==
+            true) {
+        } else {
+          _showErrorSnackBar("Đăng nhập Google thất bại");
+        }
       } else {
         _showErrorSnackBar("Đăng nhập Google thất bại");
       }
-    } catch (e, stackTrace) {
-      if (mounted) {
-        _showErrorSnackBar("Lỗi đăng nhập Google: $e");
-        debugPrint("Google Sign-In Error: $e\n$stackTrace");
-      }
+    } catch (e) {
+      debugPrint('Sign-in error: $e');
+      _showErrorSnackBar("Đăng nhập Google thất bại");
     } finally {
-      if (mounted) {
-        loginViewModel.isLoading.value = false;
-      }
+      loginViewModel.isLoading.value = false;
     }
   }
 
@@ -158,14 +163,24 @@ class _LoginScreenState extends State<LoginScreen> {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle, color: Colors.white),
+            const Icon(
+              Icons.check_circle,
+              color: Colors.white,
+            ),
             const SizedBox(width: 8),
-            Expanded(child: Text(message, overflow: TextOverflow.ellipsis)),
+            Expanded(
+              child: Text(
+                message,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
@@ -177,19 +192,27 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             const Icon(Icons.error, color: Colors.white),
             const SizedBox(width: 8),
-            Expanded(child: Text(message, overflow: TextOverflow.ellipsis)),
+            Expanded(
+              child: Text(
+                message,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    void _dismissKeyboard() => FocusScope.of(context).unfocus();
+    void _dismissKeyboard() =>
+        FocusScope.of(context).unfocus();
     final size = MediaQuery.of(context).size;
     final padding = size.width * 0.04;
 
@@ -209,13 +232,18 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildMainContent(BuildContext context, double padding) {
+  Widget _buildMainContent(
+    BuildContext context,
+    double padding,
+  ) {
     final size = MediaQuery.of(context).size;
 
     return Center(
       child: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: padding),
+          padding: EdgeInsets.symmetric(
+            horizontal: padding,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -281,18 +309,24 @@ class _LoginScreenState extends State<LoginScreen> {
       obscureText: _obscurePassword,
       suffixIcon: IconButton(
         icon: Icon(
-          _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+          _obscurePassword
+              ? Icons.visibility_off_outlined
+              : Icons.visibility_outlined,
           color: AppColors.primary,
           size: size.width * 0.05,
         ),
-        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+        onPressed: () => setState(
+          () => _obscurePassword = !_obscurePassword,
+        ),
       ),
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => _onLoginPressed(),
     );
   }
 
-  Widget _buildRememberMeAndForgotPassword(BuildContext context) {
+  Widget _buildRememberMeAndForgotPassword(
+    BuildContext context,
+  ) {
     final size = MediaQuery.of(context).size;
 
     return Row(
@@ -307,20 +341,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: size.width * 0.05,
                 child: Checkbox(
                   value: _rememberMe,
-                  onChanged: (value) => setState(() => _rememberMe = value ?? false),
+                  onChanged: (value) => setState(
+                    () => _rememberMe = value ?? false,
+                  ),
                   activeColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
               SizedBox(width: size.width * 0.01),
               Expanded(
                 child: GestureDetector(
-                  onTap: () => setState(() => _rememberMe = !_rememberMe),
+                  onTap: () => setState(
+                    () => _rememberMe = !_rememberMe,
+                  ),
                   child: Text(
                     'Ghi nhớ đăng nhập',
                     style: TextStyle(
                       color: Colors.grey[700],
-                      fontSize: (size.width * 0.035).clamp(12.0, 14.0),
+                      fontSize: (size.width * 0.035).clamp(
+                        12.0,
+                        14.0,
+                      ),
                       fontWeight: FontWeight.w500,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -337,7 +380,10 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const ForgotPasswordScreen(),
+                  ),
                 );
               },
               child: Text(
@@ -345,7 +391,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   color: AppColors.primary,
                   fontWeight: FontWeight.w600,
-                  fontSize: (size.width * 0.035).clamp(12.0, 14.0),
+                  fontSize: (size.width * 0.035).clamp(
+                    12.0,
+                    14.0,
+                  ),
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -370,13 +419,20 @@ class _LoginScreenState extends State<LoginScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
-        onPressed: loginViewModel.isLoading.value ? null : _onLoginPressed,
+        onPressed: loginViewModel.isLoading.value
+            ? null
+            : _onLoginPressed,
         child: Text(
           "Đăng nhập",
           style: TextStyle(
-            fontSize: (size.width * 0.045).clamp(14.0, 16.0),
+            fontSize: (size.width * 0.045).clamp(
+              14.0,
+              16.0,
+            ),
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
@@ -392,13 +448,18 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Expanded(child: Divider(color: Colors.grey[400])),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: size.width * 0.04),
+          padding: EdgeInsets.symmetric(
+            horizontal: size.width * 0.04,
+          ),
           child: Text(
             'Hoặc',
             style: TextStyle(
               color: Colors.grey[600],
               fontWeight: FontWeight.w500,
-              fontSize: (size.width * 0.035).clamp(12.0, 14.0),
+              fontSize: (size.width * 0.035).clamp(
+                12.0,
+                14.0,
+              ),
             ),
           ),
         ),
@@ -422,10 +483,14 @@ class _LoginScreenState extends State<LoginScreen> {
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             elevation: 0,
           ),
-          onPressed: loginViewModel.isLoading.value ? null : _onGoogleLoginPressed,
+          onPressed: loginViewModel.isLoading.value
+              ? null
+              : _onGoogleLoginPressed,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.max,
@@ -440,7 +505,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Text(
                   "Đăng nhập với Google",
                   style: TextStyle(
-                    fontSize: (size.width * 0.035).clamp(12.0, 14.0),
+                    fontSize: (size.width * 0.035).clamp(
+                      12.0,
+                      14.0,
+                    ),
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),
@@ -466,7 +534,10 @@ class _LoginScreenState extends State<LoginScreen> {
           "Chưa có tài khoản? ",
           style: TextStyle(
             color: Colors.grey[700],
-            fontSize: (size.width * 0.035).clamp(12.0, 14.0),
+            fontSize: (size.width * 0.035).clamp(
+              12.0,
+              14.0,
+            ),
           ),
           overflow: TextOverflow.ellipsis,
         ),
@@ -474,7 +545,10 @@ class _LoginScreenState extends State<LoginScreen> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const RegisterScreen()),
+              MaterialPageRoute(
+                builder: (context) =>
+                    const RegisterScreen(),
+              ),
             );
           },
           child: Text(
@@ -482,7 +556,10 @@ class _LoginScreenState extends State<LoginScreen> {
             style: TextStyle(
               color: AppColors.primary,
               fontWeight: FontWeight.bold,
-              fontSize: (size.width * 0.035).clamp(12.0, 14.0),
+              fontSize: (size.width * 0.035).clamp(
+                12.0,
+                14.0,
+              ),
             ),
             overflow: TextOverflow.ellipsis,
           ),
@@ -493,15 +570,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLoadingOverlay() {
     return Obx(
-          () => loginViewModel.isLoading.value
+      () => loginViewModel.isLoading.value
           ? Container(
-        color: Colors.black.withOpacity(0.5),
-        child: const Center(
-          child: CircularProgressIndicator(
-            color: AppColors.primary,
-          ),
-        ),
-      )
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.primary,
+                ),
+              ),
+            )
           : const SizedBox.shrink(),
     );
   }
