@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/constants/colors.dart';
@@ -68,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final surveyStatus = await loginViewModel
           .checkSurveyRequired();
 
-      final surveyStatus = await loginViewModel.checkSurveyRequired();
+
       if (surveyStatus != null) {
         final box = GetStorage();
         box.write('surveyStatus', surveyStatus);
