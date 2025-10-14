@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../auth/view/home_screen.dart';
 import '../viewmodel/survey_viewmodel.dart';
 import '../model/goal.dart';
-import 'assessment_result_screen.dart';
 
 class SurveyScreen extends StatefulWidget {
   const SurveyScreen({super.key});
@@ -49,12 +49,10 @@ class _SurveyScreenState extends State<SurveyScreen> {
         elevation: 0,
       ),
       body: Obx(() {
-        if (surveyViewModel.isLoadingLanguages.value || surveyViewModel.isLoadingGoals.value) {
+        if (surveyViewModel.isLoadingGoals.value) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final langsMap = surveyViewModel.languages;
-        final langLabels = langsMap.values.toList();
         final goals = surveyViewModel.goals;
 
         return Padding(
@@ -63,22 +61,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSectionTitle('Chọn ngôn ngữ *'),
-                const SizedBox(height: 12),
-                _buildSelectionGrid(
-                  options: langLabels,
-                  selectedValue: selectedLanguageLabel,
-                  onChanged: (label) {
-                    final entry = langsMap.entries.firstWhere((e) => e.value == label);
-                    setState(() {
-                      selectedLanguageLabel = label;
-                      selectedLanguageId = entry.key;
-                    });
-                  },
-                ),
-                const SizedBox(height: 24),
-                _buildSectionTitle('Chọn mục tiêu (Goal) *'),
-                const SizedBox(height: 12),
+
+                _buildSectionTitle('Chọn mục tiêu'),
                 _buildSelectionGridGoal(
                   goals: goals,
                   selectedGoalId: selectedGoalId,
@@ -87,6 +71,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
                       selectedGoalId = goal.id;
                       selectedGoalLabel = goal.name;
                     });
+
                   },
                 ),
                 const SizedBox(height: 24),
@@ -116,6 +101,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
                       await surveyViewModel.startAssessment(selectedLanguageId!, selectedGoalId!);
                       final assessmentId = surveyViewModel.assessment.value?.assessmentId;
 
+
                       if (assessmentId != null && mounted) {
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
@@ -123,9 +109,36 @@ class _SurveyScreenState extends State<SurveyScreen> {
                           ),
                         );
                       } else if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Không thể tạo assessment. Vui lòng thử lại!')),
-                        );
+
+                        final errorMsg = surveyViewModel.errorMessage.value ?? '';
+                        if (errorMsg.contains('ASSESSMENT_ALREADY_ACCEPTED') ||
+                            errorMsg.contains('chấp nhận kết quả')) {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Đã có kết quả khảo sát'),
+                              content: const Text(
+                                'Bạn đã hoàn thành và chấp nhận kết quả đánh giá cho ngôn ngữ này. Không thể làm lại khảo sát.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    Navigator.of(context).pushAndRemoveUntil(
+                                      MaterialPageRoute(builder: (_) => const HomeScreen()),
+                                          (route) => false,
+                                    );
+                                  },
+                                  child: const Text('Về trang chủ'),
+                                ),
+                              ],
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Không thể tạo assessment. Vui lòng thử lại!')),
+                          );
+                        }
                       }
                     },
                     style: ElevatedButton.styleFrom(

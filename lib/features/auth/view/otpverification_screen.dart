@@ -118,6 +118,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     FocusScope.of(context).unfocus();
     await otpViewModel.confirmEmail(otpCode);
     if (!mounted) return;
+
+    final surveyStatus = await otpViewModel.checkSurveyRequired();
+    if (surveyStatus != null) {
+      final box = GetStorage();
+      box.write('surveyStatus', surveyStatus);
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("Xác thực email thành công!"),
@@ -126,7 +133,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     );
 
 
-    final surveyStatus = await otpViewModel.checkSurveyRequired();
+
 
     if (!mounted) return;
 

@@ -68,6 +68,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success) {
 
       final surveyStatus = await loginViewModel.checkSurveyRequired();
+      if (surveyStatus != null) {
+        final box = GetStorage();
+        box.write('surveyStatus', surveyStatus);
+      }
 
       if (surveyStatus == null) {
 

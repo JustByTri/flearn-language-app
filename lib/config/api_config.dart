@@ -14,7 +14,7 @@ class ApiConfig {
   static const String getLanguages = "/languages";
   static const String getTopic = "/topics";
 
-  static const String getCourse = "/courses";
+
   static const String getGoal = "/goals";
 
   static String voiceAssessmentStart(String languageId, int goalId) =>
@@ -22,5 +22,10 @@ class ApiConfig {
 
   static const String acceptVoiceAssessment = "/VoiceAssessment/accept-voice-assessment";
   static const String rejectVoiceAssessment = "/VoiceAssessment/reject-voice-assessment";
+
+
+  static const String getCourse = "/courses";
+
+
 
 }
