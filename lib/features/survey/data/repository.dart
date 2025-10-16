@@ -9,7 +9,7 @@ abstract class ISurveyRepository{
   Future<Map<String, String>> getLanguages();
 
   Future<List<Goal>> getGoals();
-  Future<Assessment?> startAssessment(String languageId, int goalId);
+  Future<Assessment?> startAssessment(String languageId, List<int> goalIds);
 
   Future<AssessmentQuestion?> getCurrentAssessmentQuestion(String assessmentId);
 

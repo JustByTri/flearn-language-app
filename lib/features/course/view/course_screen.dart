@@ -57,36 +57,42 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
       onTap: () => FocusScope.of(context).unfocus(),
       child: AppScaffold(
         appBar: AppBar(
-          backgroundColor: Colors.blue,
+          backgroundColor: AppColors.primary,
           leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen())),
+            icon: Icon(Icons.arrow_back, color: AppColors.textLight),
+            onPressed: () => Navigator.pop(context),
           ),
           title: Text(
             "Khóa học",
-            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: AppColors.textLight,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           elevation: 0,
           centerTitle: true,
-          flexibleSpace: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+        ),
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.primary.withOpacity(0.05),
+                Colors.white,
+              ],
             ),
           ),
-        ),
-        body: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
               child: Obx(() {
                 if (courseViewModel.isLoadingCourse.value) {
-                  return Center(child: CircularProgressIndicator(color: AppColors.primary));
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  );
                 }
                 final courses = courseViewModel.courses;
                 if (courses.isEmpty) {
@@ -98,20 +104,31 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
                           width: 120,
                           height: 120,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            gradient: LinearGradient(
+                              colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             borderRadius: BorderRadius.circular(60),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primary.withOpacity(0.3),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
                           ),
-                          child: Icon(
+                          child: const Icon(
                             Icons.book_outlined,
                             size: 60,
-                            color: AppColors.primary,
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 24),
                         Text(
                           'Không có khóa học nào',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
                           ),
@@ -120,7 +137,7 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
                         Text(
                           'Hiện tại chưa có khóa học nào được thêm',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 16,
                             color: AppColors.textSecondary,
                           ),
                           textAlign: TextAlign.center,
@@ -130,6 +147,7 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
                   );
                 }
                 return ListView.separated(
+                  padding: const EdgeInsets.all(16),
                   itemCount: courses.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 16),
                   itemBuilder: (context, index) {
@@ -152,7 +170,7 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
                 Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TopicScreen()));
                 break;
               case 2:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CourseScreen()));
+
                 break;
               case 3:
                 Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
@@ -166,8 +184,9 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
 
   Widget _buildCourseCard(Course course, int index) {
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 6,
+      shadowColor: AppColors.primary.withOpacity(0.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -177,66 +196,75 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
             ),
           );
         },
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white,
+                AppColors.primary.withOpacity(0.02),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
+
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 50,
+                    height: 50,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.blue, Colors.blue.shade600],
+                        colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.primary.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    child: Center(
-                      child: Text(
-                        '${index + 1}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+                    child: const Icon(
+                      Icons.book,
+                      color: Colors.white,
+                      size: 24,
                     ),
                   ),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
+                      color: course.courseType == "Free" ? AppColors.success.withOpacity(0.1) : AppColors.warning.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      border: Border.all(
+                        color: course.courseType == "Free" ? AppColors.success.withOpacity(0.3) : AppColors.warning.withOpacity(0.3),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           course.courseType == "Free" ? Icons.lock_open : Icons.lock,
-                          color: course.courseType == "Free" ? AppColors.success : AppColors.primary,
+                          color: course.courseType == "Free" ? AppColors.success : AppColors.warning,
                           size: 16,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 6),
                         Text(
                           course.courseType == "Free" ? "Miễn phí" : "Trả phí",
                           style: TextStyle(
-                            color: course.courseType == "Free" ? AppColors.success : AppColors.primary,
+                            color: course.courseType == "Free" ? AppColors.success : AppColors.warning,
                             fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -244,104 +272,43 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  course.imageUrl.isNotEmpty
-                      ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      course.imageUrl,
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        Icons.book,
-                        color: AppColors.primary,
-                        size: 48,
-                      ),
-                    ),
-                  )
-                      : Icon(
-                    Icons.book,
-                    color: AppColors.primary,
-                    size: 48,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      course.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 20),
+              Text(
+                course.title,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
                 course.description,
-                maxLines: 2,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                  height: 1.5,
+                ),
+                maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Giá: ${course.price}đ, Giảm còn: ${course.discountPrice}đ',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              Text(
-                'Giáo viên: ${course.teacherName}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              Text(
-                'Ngôn ngữ: ${course.language}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              Text(
-                'Trình độ: ${course.courseLevel}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              Text(
-                'Kỹ năng: ${course.courseSkill}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
               ),
               const SizedBox(height: 16),
+              _buildCourseDetails(course),
+              const SizedBox(height: 20),
               Row(
                 children: [
                   Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: Colors.blue.shade600,
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                    color: AppColors.primary,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Bắt đầu học',
                     style: TextStyle(
-                      color: Colors.blue.shade600,
+                      color: AppColors.primary,
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      fontSize: 16,
                     ),
                   ),
                 ],
@@ -350,6 +317,88 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCourseDetails(Course course) {
+    return Column(
+      children: [
+        _buildDetailRow(Icons.person, 'Giáo viên', course.teacherName),
+        const SizedBox(height: 8),
+        _buildDetailRow(Icons.language, 'Ngôn ngữ', course.language),
+        const SizedBox(height: 8),
+        _buildDetailRow(Icons.trending_up, 'Trình độ', course.courseLevel),
+        const SizedBox(height: 8),
+        _buildDetailRow(Icons.psychology, 'Kỹ năng', course.courseSkill),
+        if (course.price > 0) ...[
+          const SizedBox(height: 8),
+          _buildPriceRow(course),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.textSecondary),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPriceRow(Course course) {
+    return Row(
+      children: [
+        Icon(Icons.attach_money, size: 16, color: AppColors.success),
+        const SizedBox(width: 8),
+        if (course.discountPrice < course.price) ...[
+          Text(
+            '${course.price}đ',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              decoration: TextDecoration.lineThrough,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${course.discountPrice}đ',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.success,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ] else ...[
+          Text(
+            '${course.price}đ',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.success,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

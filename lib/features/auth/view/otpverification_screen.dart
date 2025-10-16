@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../survey/view/language_screen.dart';
 import '../viewmodel/otp_viewmodel.dart';
 import 'home_screen.dart';
 
@@ -150,7 +151,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (surveyStatus['assessmentRequired'] == true) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const SurveyScreen()),
+        MaterialPageRoute(builder: (context) => const LanguageScreen()),
             (route) => false,
       );
     } else {

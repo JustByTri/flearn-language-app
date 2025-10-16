@@ -1,11 +1,12 @@
 import 'package:flearn_app/features/survey/view/survey_question_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
+import 'package:get_storage/get_storage.dart';
 import '../../../core/constants/colors.dart';
-import '../../auth/view/home_screen.dart';
+import '../../../shared/widgets/fadeSlideAnimation.dart';
 import '../viewmodel/survey_viewmodel.dart';
 import '../model/goal.dart';
+import '../../auth/view/home_screen.dart';
 
 class SurveyScreen extends StatefulWidget {
   const SurveyScreen({super.key});
@@ -17,276 +18,243 @@ class SurveyScreen extends StatefulWidget {
 class _SurveyScreenState extends State<SurveyScreen> {
   final surveyViewModel = Get.put(SurveyViewModel(Get.find()));
 
-  String? selectedLanguageId;
-  String? selectedLanguageLabel;
-  int? selectedGoalId;
-  String? selectedGoalLabel;
+
+  final Set<int> selectedGoalIds = {};
 
   @override
   void initState() {
     super.initState();
-    surveyViewModel.fetchLanguages();
-    surveyViewModel.fetchGoals();
 
-    ever(surveyViewModel.languages, (_) {
-      if (mounted && surveyViewModel.languages.isNotEmpty) {
-        setState(() {
-          selectedLanguageId = surveyViewModel.selectedLanguageId ?? surveyViewModel.languages.keys.first;
-          selectedLanguageLabel = surveyViewModel.languages[selectedLanguageId];
-        });
-      }
-    });
+    final box = GetStorage();
+    final storedLang = box.read('selectedLanguageId') as String?;
+    if (storedLang != null) {
+      surveyViewModel.selectedLanguageId = storedLang;
+    }
+    surveyViewModel.fetchGoals();
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('Khảo sát Luyện Nói'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: Obx(() {
-        if (surveyViewModel.isLoadingGoals.value) {
-          return const Center(child: CircularProgressIndicator());
-        }
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primary.withOpacity(0.9),
+              AppColors.primary.withOpacity(0.6),
+              AppColors.primary.withOpacity(0.3),
+              Colors.white,
+            ],
+            stops: const [0.0, 0.3, 0.6, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Obx(() {
+            if (surveyViewModel.isLoadingGoals.value) {
+              return const Center(child: CircularProgressIndicator(color: Colors.white));
+            }
 
-        final goals = surveyViewModel.goals;
+            final goals = surveyViewModel.goals;
 
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-
-                _buildSectionTitle('Chọn mục tiêu'),
-                _buildSelectionGridGoal(
-                  goals: goals,
-                  selectedGoalId: selectedGoalId,
-                  onChanged: (goal) {
-                    setState(() {
-                      selectedGoalId = goal.id;
-                      selectedGoalLabel = goal.name;
-                    });
-
-                  },
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (selectedLanguageId == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vui lòng chọn ngôn ngữ!')),
-                        );
-                        return;
-                      }
-                      if (selectedGoalId == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vui lòng chọn mục tiêu!')),
-                        );
-                        return;
-                      }
-
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Đang tạo assessment...')),
-                        );
-                      }
-
-                      await surveyViewModel.startAssessment(selectedLanguageId!, selectedGoalId!);
-                      final assessmentId = surveyViewModel.assessment.value?.assessmentId;
-
-
-                      if (assessmentId != null && mounted) {
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (_) => SurveyQuestionScreen(assessmentId: assessmentId),
-                          ),
-                        );
-                      } else if (mounted) {
-
-                        final errorMsg = surveyViewModel.errorMessage.value ?? '';
-                        if (errorMsg.contains('ASSESSMENT_ALREADY_ACCEPTED') ||
-                            errorMsg.contains('chấp nhận kết quả')) {
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: const Text('Đã có kết quả khảo sát'),
-                              content: const Text(
-                                'Bạn đã hoàn thành và chấp nhận kết quả đánh giá cho ngôn ngữ này. Không thể làm lại khảo sát.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      MaterialPageRoute(builder: (_) => const HomeScreen()),
-                                          (route) => false,
-                                    );
-                                  },
-                                  child: const Text('Về trang chủ'),
-                                ),
-                              ],
-                            ),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Không thể tạo assessment. Vui lòng thử lại!')),
-                          );
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 2,
-                    ),
-                    child: const Text(
-                      'Bắt đầu đánh giá',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            return FadeSlideAnimation(
+              child: Column(
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    child: Text(
+                      'Bạn muốn đạt được mục tiêu gì?',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }),
-    );
-  }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: Colors.grey[800],
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: ListView.builder(
+                        itemCount: goals.length,
+                        itemBuilder: (context, index) {
+                          return _buildGoalCard(goals[index]);
+                        },
+                      ),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: _buildStartButton(),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
 
-  Widget _buildSelectionGrid({
-    required List<String> options,
-    required String? selectedValue,
-    required ValueChanged<String> onChanged,
-  }) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: options.map((option) {
-        final isSelected = selectedValue == option;
-        return GestureDetector(
-          onTap: () => onChanged(option),
+  Widget _buildGoalCard(Goal goal) {
+    final isSelected = selectedGoalIds.contains(goal.id);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              if (isSelected) {
+                selectedGoalIds.remove(goal.id);
+              } else {
+                selectedGoalIds.add(goal.id);
+              }
+            });
+          },
+          borderRadius: BorderRadius.circular(20),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: isSelected ? AppColors.primary : Colors.white,
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isSelected ? AppColors.primary : Colors.grey[300]!,
-                width: isSelected ? 2 : 1,
+                color: isSelected ? AppColors.primary : Colors.grey.shade300,
+                width: isSelected ? 3 : 1,
               ),
-              borderRadius: BorderRadius.circular(25),
-              boxShadow: isSelected
-                  ? [
+              boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-                  : [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
+                  color: isSelected
+                      ? AppColors.primary.withOpacity(0.3)
+                      : Colors.black.withOpacity(0.1),
+                  blurRadius: isSelected ? 15 : 10,
+                  offset: Offset(0, isSelected ? 6 : 4),
                 ),
               ],
             ),
-            child: Text(
-              option,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.grey[700],
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                fontSize: 14,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        goal.name,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? Colors.white : AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        goal.description,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isSelected ? Colors.white.withOpacity(0.9) : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                if (isSelected)
+                  const Icon(Icons.check_circle, color: Colors.white, size: 28),
+              ],
             ),
           ),
-        );
-      }).toList(),
+        ),
+      ),
     );
   }
 
-  Widget _buildSelectionGridGoal({
-    required List<Goal> goals,
-    required int? selectedGoalId,
-    required ValueChanged<Goal> onChanged,
-  }) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: goals.map((goal) {
-        final isSelected = selectedGoalId == goal.id;
-        return GestureDetector(
-          onTap: () => onChanged(goal),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.primary : Colors.white,
-              border: Border.all(
-                color: isSelected ? AppColors.primary : Colors.grey[300]!,
-                width: isSelected ? 2 : 1,
+  Widget _buildStartButton() {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: selectedGoalIds.isNotEmpty
+              ? [AppColors.primary, AppColors.primary.withOpacity(0.8)]
+              : [Colors.grey, Colors.grey.shade400],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: (selectedGoalIds.isNotEmpty ? AppColors.primary : Colors.grey).withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: selectedGoalIds.isNotEmpty ? _startAssessment : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        child: const Text(
+          'Bắt đầu đánh giá',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startAssessment() async {
+    final languageId = GetStorage().read('selectedLanguageId') as String?;
+    if (languageId == null || selectedGoalIds.isEmpty) return;
+
+    await surveyViewModel.startAssessment(languageId, selectedGoalIds.toList());
+    final assessmentId = surveyViewModel.assessment.value?.assessmentId;
+
+    if (assessmentId != null && mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => SurveyQuestionScreen(assessmentId: assessmentId),
+        ),
+      );
+    } else if (mounted) {
+      final errorMsg = surveyViewModel.errorMessage.value ?? '';
+      if (errorMsg.contains('ASSESSMENT_ALREADY_ACCEPTED') ||
+          errorMsg.contains('chấp nhận kết quả')) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Đã có kết quả khảo sát'),
+            content: const Text(
+              'Bạn đã hoàn thành và chấp nhận kết quả đánh giá cho ngôn ngữ này.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                        (route) => false,
+                  );
+                },
+                child: const Text('Về trang chủ'),
               ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: isSelected
-                  ? [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-                  : [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  goal.name,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.grey[800],
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  goal.description,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white70 : Colors.grey[600],
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
         );
-      }).toList(),
-    );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể tạo assessment. Vui lòng thử lại!')),
+        );
+      }
+    }
   }
 }

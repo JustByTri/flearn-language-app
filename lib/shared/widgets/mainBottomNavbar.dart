@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_nav_bar/google_nav_bar.dart';
+import '../../core/constants/colors.dart';
 
 class MainBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -12,18 +14,59 @@ class MainBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      onTap: onTap,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-        BottomNavigationBarItem(icon: Icon(Icons.forum), label: 'AI Chat'),
-        BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Khóa học'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Tài khoản'),
-      ],
-      selectedItemColor: Colors.orange,
-      unselectedItemColor: Colors.grey,
-      type: BottomNavigationBarType.fixed,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: GNav(
+            gap: 6,
+            activeColor: AppColors.primary,
+            iconSize: 22,
+            textStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            tabBackgroundColor: AppColors.primary.withOpacity(0.1),
+            color: AppColors.textSecondary,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            tabMargin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+            tabBorderRadius: 12,
+            curve: Curves.easeInOutCubic,
+            duration: const Duration(milliseconds: 300),
+            selectedIndex: currentIndex,
+            onTabChange: onTap,
+            tabs: const [
+              GButton(
+                icon: Icons.home_rounded,
+                text: 'Trang chủ',
+              ),
+              GButton(
+                icon: Icons.chat_rounded,
+                text: 'AI Chat',
+              ),
+              GButton(
+                icon: Icons.menu_book_rounded,
+                text: 'Khóa học',
+              ),
+              GButton(
+                icon: Icons.person_rounded,
+                text: 'Tài khoản',
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

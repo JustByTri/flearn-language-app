@@ -59,15 +59,25 @@ class serviceSurvey implements ISurveyRepository {
   }
 
   @override
-  Future<Assessment?> startAssessment(String languageId, int goalId) async {
+  Future<Assessment?> startAssessment(String languageId, List<int> goalIds) async {
     final storage = GetStorage();
     final accessToken = storage.read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}/VoiceAssessment/start?languageId=$languageId&goalId=$goalId');
 
+
+    final queryParameters = {
+      'languageId': languageId,
+      for (var id in goalIds) 'goalIds': id.toString(),
+    };
+
+
+    final queryString = [
+      'languageId=$languageId',
+      ...goalIds.map((id) => 'goalIds=$id')
+    ].join('&');
+
+    final url = Uri.parse('${ApiConfig.baseUrl}/VoiceAssessment/start?$queryString');
 
     try {
-      print("Starting assessment for languageId: $languageId, goalId: $goalId");
-
       final response = await http.post(
         url,
         headers: {
