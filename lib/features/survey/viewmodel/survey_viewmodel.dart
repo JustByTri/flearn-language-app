@@ -55,10 +55,11 @@ class SurveyViewModel extends GetxController {
     }
   }
 
-  Future<void> startAssessment(String languageId, int goalId) async {
+
+  Future<void> startAssessment(String languageId, List<int> goalIds) async {
     try {
       isLoading.value = true;
-      final result = await _Repository.startAssessment(languageId, goalId);
+      final result = await _Repository.startAssessment(languageId, goalIds);
       if (result != null) {
         assessment.value = result;
         print("Assessment started: ${result.assessmentId}");

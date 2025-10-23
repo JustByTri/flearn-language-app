@@ -4,6 +4,8 @@ import 'package:flearn_app/features/topic/view/topic_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../../shared/widgets/mainBottomNavbar.dart';
+import '../../survey/model/assessment_result.dart';
+import '../../survey/view/assessment_result_screen.dart';
 import 'profile_screen.dart';
 import '../../course/view/course_screen.dart';
 import '../../survey/view/survey_screen.dart';
@@ -85,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           slivers: [
             _buildSliverAppBar(),
             _buildContent(),
-            if (GetStorage().read('surveyCompleted') != true) _buildSurveyBanner(),
+            _buildSurveyBanner()
           ],
         ),
         bottomNavigationBar: MainBottomNavBar(
@@ -199,16 +201,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             subtitle: "15 phút",
             color: AppColors.primary,
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SpeakingPracticeScreen())),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildQuickAction(
-            icon: Icons.headphones,
-            title: "Nghe nói",
-            subtitle: "10 phút",
-            color: AppColors.accent,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CourseScreen())),
           ),
         ),
       ],
@@ -370,22 +362,51 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildSurveyBanner() {
+    final box = GetStorage();
+    final surveyStatus = box.read('surveyStatus');
+    final hasDoneSurvey = surveyStatus != null && surveyStatus['assessmentRequired'] == false;
+
     return SliverToBoxAdapter(
       child: Container(
         padding: const EdgeInsets.all(12),
         margin: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.warning.withOpacity(0.2),
+          color: hasDoneSurvey ? AppColors.info.withOpacity(0.15) : AppColors.warning.withOpacity(0.2),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            Icon(Icons.warning, color: AppColors.warning),
+            Icon(hasDoneSurvey ? Icons.emoji_events : Icons.warning, color: hasDoneSurvey ? AppColors.info : AppColors.warning),
             const SizedBox(width: 8),
-            Expanded(child: Text("Vui lòng hoàn thành khảo sát để có trải nghiệm tốt hơn!")),
+            Expanded(
+              child: Text(
+                hasDoneSurvey
+                    ? "Bạn đã hoàn thành khảo sát. Xem lại kết quả đánh giá của bạn!"
+                    : "Vui lòng hoàn thành khảo sát để có trải nghiệm tốt hơn!",
+              ),
+            ),
             TextButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SurveyScreen())),
-              child: Text("Hoàn thành ngay", style: TextStyle(color: AppColors.primary)),
+              onPressed: () async {
+                if (hasDoneSurvey) {
+                  final result = box.read('assessmentResult');
+                  if (result != null) {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => AssessmentResultScreen(result: AssessmentResult.fromJson(result)),
+                    ));
+                  } else {
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Không tìm thấy kết quả đánh giá!")),
+                    );
+                  }
+                } else {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SurveyScreen()));
+                }
+              },
+              child: Text(
+                hasDoneSurvey ? "Xem lại đánh giá" : "Hoàn thành ngay",
+                style: TextStyle(color: AppColors.primary),
+              ),
             ),
           ],
         ),

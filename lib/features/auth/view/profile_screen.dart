@@ -126,26 +126,53 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.textLight),
-          onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen())),
+        automaticallyImplyLeading: false,
+        title: Text(
+          'Tài khoản',
+          style: TextStyle(
+            color: AppColors.textLight,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
         ),
+        centerTitle: true,
       ),
-      body: Stack(
-        children: [
-          _buildBackgroundCircles(),
-          _buildMainContent(padding),
-          _buildLoadingOverlay(),
-        ],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primary.withOpacity(0.05),
+              Colors.white,
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            _buildBackgroundCircles(),
+            _buildMainContent(padding),
+            _buildLoadingOverlay(),
+          ],
+        ),
       ),
       bottomNavigationBar: MainBottomNavBar(
         currentIndex: 3,
         onTap: (index) {
-
-          if (index == 0) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-          if (index == 1) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CourseScreen()));
-          if (index == 2) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TopicScreen()));
-          if (index == 3) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+          switch (index) {
+            case 0:
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+              break;
+            case 1:
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TopicScreen()));
+              break;
+            case 2:
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CourseScreen()));
+              break;
+            case 3:
+            // Already on profile
+              break;
+          }
         },
       ),
     );
@@ -277,9 +304,11 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
           ],
         );
       }
+
       if (userViewModel.user.value == null) {
         return const Text("Không có dữ liệu hồ sơ");
       }
+
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
@@ -300,7 +329,6 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
             _buildInfoRow("Họ tên", userViewModel.user.value?.name ?? "Không có tên"),
             _buildInfoRow("Email", userViewModel.user.value?.email ?? "Không có email"),
 
-
             if (GetStorage().read('surveyCompleted') == true) ...[
               const SizedBox(height: 16),
               _buildSurveyInfo(),
@@ -310,6 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
       );
     });
   }
+
 
   Widget _buildInfoRow(String label, String value) {
     return Row(

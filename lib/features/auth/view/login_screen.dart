@@ -1,6 +1,8 @@
+import 'package:flearn_app/features/survey/view/language_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/constants/colors.dart';
@@ -68,24 +70,32 @@ class _LoginScreenState extends State<LoginScreen> {
       final surveyStatus = await loginViewModel
           .checkSurveyRequired();
 
+
+      if (surveyStatus != null) {
+        final box = GetStorage();
+        box.write('surveyStatus', surveyStatus);
+      }
+
       if (surveyStatus == null) {
+
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (context) => const HomeScreen(),
           ),
-          (route) => false,
+              (route) => false,
         );
         return;
       }
+
 
       if (surveyStatus['assessmentRequired'] == true) {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => const SurveyScreen(),
+            builder: (context) => const LanguageScreen(),
           ),
-          (route) => false,
+              (route) => false,
         );
       } else {
         Navigator.pushAndRemoveUntil(
@@ -93,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(
             builder: (context) => const HomeScreen(),
           ),
-          (route) => false,
+              (route) => false,
         );
       }
     } else {
@@ -140,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
             MaterialPageRoute(
               builder: (context) => const HomeScreen(),
             ),
-            (route) => false,
+                (route) => false,
           );
         } else if (surveyStatus['assessmentRequired'] ==
             true) {
@@ -233,9 +243,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildMainContent(
-    BuildContext context,
-    double padding,
-  ) {
+      BuildContext context,
+      double padding,
+      ) {
     final size = MediaQuery.of(context).size;
 
     return Center(
@@ -272,22 +282,43 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLogo() {
     final size = MediaQuery.of(context).size;
-    final logoSize = size.width * 0.18;
+    final logoSize = size.width * 0.21;
 
     return Hero(
       tag: 'app_logo',
-      child: Container(
-        width: logoSize,
-        height: logoSize,
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(logoSize / 2),
-        ),
-        child: Icon(
-          Icons.school_rounded,
-          size: logoSize * 0.5,
-          color: Colors.white,
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/images/logo_flearn.png',
+            width: logoSize,
+            height: logoSize,
+            fit: BoxFit.contain,
+
+            color: null,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                width: logoSize,
+                height: logoSize,
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              );
+            },
+          ),
+          Text(
+            'Learn',
+            style: TextStyle(
+              fontSize: logoSize * 0.6,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: logoSize * 0.1,
+              height: 1.0,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -316,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen> {
           size: size.width * 0.05,
         ),
         onPressed: () => setState(
-          () => _obscurePassword = !_obscurePassword,
+              () => _obscurePassword = !_obscurePassword,
         ),
       ),
       textInputAction: TextInputAction.done,
@@ -325,8 +356,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildRememberMeAndForgotPassword(
-    BuildContext context,
-  ) {
+      BuildContext context,
+      ) {
     final size = MediaQuery.of(context).size;
 
     return Row(
@@ -342,7 +373,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Checkbox(
                   value: _rememberMe,
                   onChanged: (value) => setState(
-                    () => _rememberMe = value ?? false,
+                        () => _rememberMe = value ?? false,
                   ),
                   activeColor: AppColors.primary,
                   shape: RoundedRectangleBorder(
@@ -354,7 +385,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Expanded(
                 child: GestureDetector(
                   onTap: () => setState(
-                    () => _rememberMe = !_rememberMe,
+                        () => _rememberMe = !_rememberMe,
                   ),
                   child: Text(
                     'Ghi nhớ đăng nhập',
@@ -382,7 +413,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (_) =>
-                        const ForgotPasswordScreen(),
+                    const ForgotPasswordScreen(),
                   ),
                 );
               },
@@ -547,7 +578,7 @@ class _LoginScreenState extends State<LoginScreen> {
               context,
               MaterialPageRoute(
                 builder: (context) =>
-                    const RegisterScreen(),
+                const RegisterScreen(),
               ),
             );
           },
@@ -570,15 +601,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLoadingOverlay() {
     return Obx(
-      () => loginViewModel.isLoading.value
+          () => loginViewModel.isLoading.value
           ? Container(
-              color: Colors.black.withOpacity(0.5),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.primary,
-                ),
-              ),
-            )
+        color: Colors.black.withOpacity(0.5),
+        child: const Center(
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+          ),
+        ),
+      )
           : const SizedBox.shrink(),
     );
   }

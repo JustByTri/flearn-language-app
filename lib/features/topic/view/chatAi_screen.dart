@@ -1,19 +1,32 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:record/record.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'dart:convert';
+import 'package:audioplayers/audioplayers.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../topic/model/topic.dart';
+import '../viewmodel/topic_viewmodel.dart';
+import 'conversation_result_screen.dart';
+import 'chat_history_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final TopicModel topic;
+  final String? difficultyLevel;
+  final Map<String, dynamic>? conversationData;
 
-  const ChatScreen({super.key, required this.topic});
+  const ChatScreen({
+    super.key,
+    required this.topic,
+    this.difficultyLevel,
+    this.conversationData,
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -29,10 +42,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final _recorder = AudioRecorder();
   bool _isRecording = false;
   String? _recordedFilePath;
+  String? _sessionId;
+  late TopicViewModel _topicViewModel;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
+    _topicViewModel = Get.find<TopicViewModel>();
     _requestPermissions();
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
@@ -43,12 +60,49 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
     _animationController.forward();
 
-    // Welcome message from AI
-    _addMessage(ChatMessage(
-      text: "Xin chào! Tôi là AI assistant của bạn. Hôm nay chúng ta sẽ trò chuyện về chủ đề: ${widget.topic.topicName}. ${widget.topic.topicDescription}",
-      isUser: false,
-      timestamp: DateTime.now(),
-    ));
+
+    if (widget.conversationData != null) {
+      _sessionId = widget.conversationData!['sessionId'];
+      final List<dynamic> msgs = widget.conversationData!['messages'] ?? [];
+      for (final msg in msgs) {
+        _addMessage(ChatMessage(
+          text: msg['messageContent'] ?? '',
+          isUser: msg['sender'] == 1,
+          timestamp: DateTime.tryParse(msg['sentAt'] ?? '') ?? DateTime.now(),
+        ));
+      }
+    } else {
+      _startConversation();
+    }
+  }
+
+  Future<void> _startConversation() async {
+    setState(() => _isTyping = true);
+    final languageId = GetStorage().read('selectedLanguageId');
+    final difficultyLevel = widget.difficultyLevel ?? "A1";
+    final conversationData = await _topicViewModel.startConversation(
+      languageId: languageId,
+      topicId: widget.topic.topicId,
+      difficultyLevel: difficultyLevel,
+    );
+    setState(() => _isTyping = false);
+    if (conversationData != null) {
+      _sessionId = conversationData['sessionId'];
+      final List<dynamic> msgs = conversationData['messages'] ?? [];
+      for (final msg in msgs) {
+        _addMessage(ChatMessage(
+          text: msg['messageContent'] ?? '',
+          isUser: msg['sender'] == 1,
+          timestamp: DateTime.tryParse(msg['sentAt'] ?? '') ?? DateTime.now(),
+        ));
+      }
+    } else {
+      _addMessage(ChatMessage(
+        text: "Không thể bắt đầu cuộc trò chuyện với AI.",
+        isUser: false,
+        timestamp: DateTime.now(),
+      ));
+    }
   }
 
   Future<void> _requestPermissions() async {
@@ -114,8 +168,30 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           }
           return;
         }
-        if (mounted) {
-          await _sendFileToApi(file);
+
+        setState(() => _isTyping = true);
+        final response = await _topicViewModel.sendVoiceMessage(
+          sessionId: _sessionId!,
+          audioFilePath: path,
+          audioDuration: 0,
+        );
+        setState(() => _isTyping = false);
+
+        if (response != null && response['success'] == true && response['data'] != null) {
+          final aiMsg = response['data']['aiResponse'];
+          if (aiMsg != null && aiMsg['sender'] == 2) {
+            _addMessage(ChatMessage(
+              text: aiMsg['messageContent'] ?? '',
+              isUser: false,
+              timestamp: DateTime.tryParse(aiMsg['sentAt'] ?? '') ?? DateTime.now(),
+            ));
+          }
+        } else {
+          _addMessage(ChatMessage(
+            text: "AI không trả lời voice. Vui lòng thử lại.",
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
         }
       } else {
         if (mounted) {
@@ -134,48 +210,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _sendFileToApi(File file) async {
-    final uri = Uri.parse('https://xbensieve-pronunciation-assessment-api.hf.space/api/transcribe');
-    final request = http.MultipartRequest('POST', uri)
-      ..fields['lang'] = 'en' // Default to English; adjust based on topic if needed
-      ..files.add(await http.MultipartFile.fromPath(
-        'file',
-        file.path,
-        contentType: MediaType('audio', 'wav'),
-      ));
-
-    try {
-      final response = await request.send();
-      final respStr = await response.stream.bytesToString();
-
-      if (response.statusCode == 200) {
-        if (mounted) {
-          // Add transcribed text as user message
-          _addMessage(ChatMessage(
-            text: respStr,
-            isUser: true,
-            timestamp: DateTime.now(),
-          ));
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Đã nhận diện: $respStr')),
-          );
-          _simulateTyping(); // Trigger AI response
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi gửi file: $respStr')),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Lỗi gửi file đến API: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi gửi file đến API: $e')),
-        );
-      }
-    }
+  Future<void> _playRecordedAudio() async {
+    if (_recordedFilePath == null || !File(_recordedFilePath!).existsSync()) return;
+    await _audioPlayer.stop();
+    await _audioPlayer.play(DeviceFileSource(_recordedFilePath!));
   }
 
   void _addMessage(ChatMessage message) {
@@ -197,88 +235,84 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     });
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _sessionId == null) return;
 
-    // Add user message
     _addMessage(ChatMessage(
       text: text,
       isUser: true,
       timestamp: DateTime.now(),
     ));
-
     _messageController.clear();
-    _simulateTyping();
-  }
 
-  void _simulateTyping() {
     setState(() => _isTyping = true);
 
-    // Simulate AI response delay
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() => _isTyping = false);
-        _generateAIResponse();
+    final response = await _topicViewModel.sendConversationMessage(
+      sessionId: _sessionId!,
+      messageContent: text,
+      messageType: 1,
+    );
+    print('AI response: $response');
+
+    setState(() => _isTyping = false);
+
+
+    if (response != null && response['success'] == true && response['data'] != null) {
+      final msg = response['data'];
+      if (msg['sender'] == 2) {
+        _addMessage(ChatMessage(
+          text: msg['messageContent'] ?? '',
+          isUser: false,
+          timestamp: DateTime.tryParse(msg['sentAt'] ?? '') ?? DateTime.now(),
+        ));
       }
-    });
+    } else {
+      _addMessage(ChatMessage(
+        text: "AI không trả lời. Vui lòng thử lại.",
+        isUser: false,
+        timestamp: DateTime.now(),
+      ));
+    }
   }
 
-  void _generateAIResponse() {
-    final responses = _getTopicResponses();
-    final randomResponse = responses[DateTime.now().millisecond % responses.length];
+  Future<void> _endConversation() async {
+    if (_sessionId == null) return;
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/conversation/$_sessionId/end');
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "accept": "*/*",
+          "Authorization": "Bearer $accessToken",
+        },
+      );
+      if (response.statusCode == 200) {
+        final json = response.body;
+        final Map<String, dynamic> result = jsonDecode(json);
+        if (result['success'] == true && result['data'] != null) {
 
-    _addMessage(ChatMessage(
-      text: randomResponse,
-      isUser: false,
-      timestamp: DateTime.now(),
-    ));
-  }
-
-  List<String> _getTopicResponses() {
-    switch (widget.topic.topicName.toLowerCase()) {
-      case 'conversation':
-        return [
-          "Tuyệt vời! Hãy thử nói về sở thích của bạn. What do you like to do in your free time?",
-          "Rất hay! Bạn có thể kể về một ngày bình thường của mình không?",
-          "Interesting! Could you tell me about your favorite food?",
-          "Great! What's your opinion about social media these days?",
-        ];
-      case 'daily meeting':
-        return [
-          "Good point! In meetings, we often start with 'Good morning everyone'. How would you introduce yourself?",
-          "Excellent! Can you practice saying 'I'd like to share an update on...'?",
-          "Well done! How about we practice asking questions like 'Could you clarify that point?'",
-          "Perfect! Try expressing agreement: 'I completely agree with your suggestion.'",
-        ];
-      case 'grammar':
-        return [
-          "Tốt lắm! Hãy thử tạo một câu sử dụng thì hiện tại hoàn thành.",
-          "Excellent! Can you make a sentence using 'would rather'?",
-          "Great job! Try using conditional sentences: 'If I were you...'",
-          "Well done! Practice with passive voice: 'The book was written by...'",
-        ];
-      case 'pronunciation':
-        return [
-          "Tuyệt vời! Hãy thử phát âm từ 'pronunciation' - /prəˌnʌnsiˈeɪʃən/",
-          "Great! Practice the 'th' sound: 'think', 'thank', 'thought'",
-          "Excellent! Try these words: 'world', 'work', 'word' - notice the 'w' and 'r' sounds",
-          "Perfect! Let's work on vowel sounds: 'bit' vs 'beat', 'sit' vs 'seat'",
-        ];
-      case 'vocabulary':
-        return [
-          "Tuyệt vời! Từ 'serendipity' có nghĩa là gì? Hãy thử sử dụng nó trong câu.",
-          "Great! Can you think of synonyms for 'beautiful'? Try: gorgeous, stunning, magnificent",
-          "Excellent! What's the difference between 'affect' and 'effect'?",
-          "Perfect! Let's learn phrasal verbs: 'give up', 'put off', 'look forward to'",
-        ];
-      default:
-        return [
-          "Thật thú vị! Bạn có thể chia sẻ thêm về điều đó không?",
-          "Tuyệt vời! Hãy tiếp tục thực hành nhé.",
-          "Rất hay! Tôi hiểu quan điểm của bạn.",
-          "Excellent! Keep practicing and you'll improve quickly!",
-        ];
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ConversationResultScreen(resultData: result['data']),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Kết thúc thất bại: ${result['message']}')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kết thúc thất bại: ${response.body}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: $e')),
+      );
     }
   }
 
@@ -288,6 +322,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _messageController.dispose();
     _scrollController.dispose();
     _recorder.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -296,7 +331,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
-        if (_isRecording) _stopRecording(); // Stop recording when tapping outside
+        if (_isRecording) _stopRecording();
       },
       child: AppScaffold(
         appBar: AppBar(
@@ -326,6 +361,25 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             ],
           ),
           elevation: 0,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.history, color: Colors.white),
+              tooltip: "Lịch sử chat",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatHistoryScreen(messages: _messages),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: Icon(Icons.stop_circle, color: Colors.redAccent),
+              tooltip: "Kết thúc conversation",
+              onPressed: _endConversation,
+            ),
+          ],
         ),
         body: FadeTransition(
           opacity: _fadeAnimation,
@@ -487,6 +541,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               onPressed: _isRecording ? _stopRecording : _startRecording,
             ),
           ),
+          if (_recordedFilePath != null && !_isRecording) ...[
+            const SizedBox(width: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.play_arrow, color: Colors.white),
+                tooltip: 'Nghe lại ghi âm',
+                onPressed: _playRecordedAudio,
+              ),
+            ),
+          ],
           const SizedBox(width: 8),
           Container(
             decoration: BoxDecoration(
