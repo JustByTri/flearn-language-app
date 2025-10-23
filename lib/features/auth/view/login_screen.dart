@@ -7,7 +7,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/my_textField.dart';
-import '../../survey/view/survey_screen.dart';
 import '../viewmodel/login_viewmodel.dart';
 import 'forgotpassword_screen.dart';
 import 'home_screen.dart';
@@ -133,29 +132,31 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _onGoogleLoginPressed() async {
     try {
       loginViewModel.isLoading.value = true;
-      final userCredential = await loginViewModel
-          .loginWithGoogle();
+      final userCredential = await loginViewModel.loginWithGoogle();
 
       if (userCredential) {
-        _showSuccessSnackBar(
-          "Đăng nhập Google thành công!",
-        );
+        _showSuccessSnackBar("Đăng nhập Google thành công!");
 
-        final surveyStatus = await loginViewModel
-            .checkSurveyRequired();
+        final surveyStatus = await loginViewModel.checkSurveyRequired();
 
         if (surveyStatus == null) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(
-              builder: (context) => const HomeScreen(),
-            ),
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
                 (route) => false,
           );
-        } else if (surveyStatus['assessmentRequired'] ==
-            true) {
+        } else if (surveyStatus['assessmentRequired'] == true) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LanguageScreen()),
+                (route) => false,
+          );
         } else {
-          _showErrorSnackBar("Đăng nhập Google thất bại");
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+                (route) => false,
+          );
         }
       } else {
         _showErrorSnackBar("Đăng nhập Google thất bại");
@@ -167,6 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
       loginViewModel.isLoading.value = false;
     }
   }
+
 
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

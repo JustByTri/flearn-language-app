@@ -89,6 +89,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
 
   Widget _buildLanguageCard(String languageId, String languageName) {
     final displayName = languageNameVi[languageName] ?? languageName;
+    final flagEmoji = flagEmojis[languageName] ?? '🏳️';
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: Material(
@@ -126,7 +127,12 @@ class _LanguageScreenState extends State<LanguageScreen> {
                     ),
                     borderRadius: BorderRadius.circular(15),
                   ),
-                  child: const Icon(Icons.language, color: Colors.white, size: 30),
+                  child: Center(
+                    child: Text(
+                      flagEmoji,
+                      style: const TextStyle(fontSize: 36),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 20),
                 Expanded(
@@ -153,5 +159,12 @@ class _LanguageScreenState extends State<LanguageScreen> {
     'Japanese': 'Tiếng Nhật',
     'Chinese': 'Tiếng Trung',
     'Vietnamese': 'Tiếng Việt',
+  };
+
+  final Map<String, String> flagEmojis = {
+    'English': '🇬🇧',
+    'Japanese': '🇯🇵',
+    'Chinese': '🇨🇳',
+    'Vietnamese': '🇻🇳',
   };
 }

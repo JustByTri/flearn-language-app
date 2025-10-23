@@ -1,5 +1,7 @@
 import 'package:flearn_app/features/course/data/course_repository.dart';
 import 'package:flearn_app/features/course/data/course_service.dart';
+import 'package:flearn_app/features/schedule/data/repository.dart';
+import 'package:flearn_app/features/schedule/data/service.dart';
 import 'package:flearn_app/features/survey/data/repository.dart';
 import 'package:flearn_app/features/survey/data/service.dart';
 import 'package:flearn_app/features/topic/data/repository.dart';
@@ -18,4 +20,6 @@ void setupDI() {
   Get.lazyPut<IRepository>(() => service());
   Get.lazyPut<ICourseRepository>(() => CourseService());
   Get.lazyPut<ISurveyRepository>(() => serviceSurvey());
+  Get.lazyPut<IScheduleRepository>(() => ScheduleService());
+
 }

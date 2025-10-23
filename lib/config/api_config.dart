@@ -12,7 +12,7 @@ class ApiConfig {
   static const String checkRequired = "/VoiceAssessment/check-required";
 
   static const String getLanguages = "/languages";
-  static const String getTopic = "/topics";
+  static const String getTopic = "/conversation/topics";
 
 
   static const String getGoal = "/goals";

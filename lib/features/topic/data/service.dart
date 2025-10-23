@@ -10,18 +10,26 @@ class service implements IRepository {
   @override
   Future<List<TopicModel>> getTopic() async {
     final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.getTopic}');
+    final storage = GetStorage();
+    final accessToken = storage.read('accessToken');
     try {
-      final response = await http.get(url, headers: {"Content-Type": "application/json"});
+      final response = await http.get(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $accessToken",
+        },
+      );
       if (response.statusCode == 200) {
         final jsonBody = jsonDecode(response.body);
         final data = jsonBody['data'] as List<dynamic>? ?? [];
         return data.map((item) => TopicModel.fromJson(item)).toList();
       } else {
-        print('getLanguages failed: ${response.statusCode} ${response.body}');
+        print('getTopic failed: ${response.statusCode} ${response.body}');
         return [];
       }
     } catch (e) {
-      print('getLanguages error: $e');
+      print('getTopic error: $e');
       return [];
     }
   }

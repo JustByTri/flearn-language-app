@@ -6,7 +6,6 @@ import 'package:record/record.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import '../../../core/constants/colors.dart';
@@ -45,6 +44,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   String? _sessionId;
   late TopicViewModel _topicViewModel;
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final Set<int> _translatedIndexes = {};
 
   @override
   void initState() {
@@ -352,7 +352,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 ),
               ),
               Text(
-                widget.topic.topicName,
+                widget.topic.name, // Sửa lại ở đây
                 style: TextStyle(
                   color: AppColors.textLight.withOpacity(0.8),
                   fontSize: 12,
@@ -374,11 +374,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 );
               },
             ),
-            IconButton(
-              icon: Icon(Icons.stop_circle, color: Colors.redAccent),
-              tooltip: "Kết thúc conversation",
-              onPressed: _endConversation,
-            ),
           ],
         ),
         body: FadeTransition(
@@ -392,11 +387,26 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   itemCount: _messages.length,
                   itemBuilder: (context, index) {
                     final message = _messages[index];
-                    return _buildMessageBubble(message);
+                    return _buildMessageBubble(message, index);
                   },
                 ),
               ),
               if (_isTyping) _buildTypingIndicator(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: ElevatedButton.icon(
+                  onPressed: _endConversation,
+                  icon: const Icon(Icons.stop_circle, color: Colors.white),
+                  label: const Text("Kết thúc cuộc trò chuyện"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
               _buildMessageInput(),
             ],
           ),
@@ -405,7 +415,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage message) {
+  Widget _buildMessageBubble(ChatMessage message, [int? index]) {
+    String en = message.text;
+    String? vi;
+    if (!message.isUser && message.text.contains('|')) {
+      final parts = message.text.split('|');
+      en = parts[0].trim();
+      vi = parts.length > 1 ? parts[1].trim() : null;
+    }
+
+    final isTranslated = index != null && _translatedIndexes.contains(index);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -414,19 +434,46 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           if (!message.isUser) _buildAvatar(false),
           const SizedBox(width: 8),
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: message.isUser ? AppColors.primary : Colors.grey[200],
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                message.text,
-                style: TextStyle(
-                  color: message.isUser ? Colors.white : Colors.black87,
-                  fontSize: 16,
+            child: Column(
+              crossAxisAlignment: message.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: message.isUser ? AppColors.primary : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    (!message.isUser && vi != null && isTranslated) ? vi! : en,
+                    style: TextStyle(
+                      color: message.isUser ? Colors.white : Colors.black87,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
-              ),
+                if (!message.isUser && vi != null)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                      minimumSize: const Size(0, 28),
+                    ),
+                    onPressed: () {
+                      if (index != null) {
+                        setState(() {
+                          if (_translatedIndexes.contains(index)) {
+                            _translatedIndexes.remove(index);
+                          } else {
+                            _translatedIndexes.add(index);
+                          }
+                        });
+                      }
+                    },
+                    child: Text(
+                      isTranslated ? 'Xem bản gốc' : 'Dịch',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(width: 8),

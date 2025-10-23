@@ -78,17 +78,12 @@ class _TopicScreenState extends State<TopicScreen> with TickerProviderStateMixin
 
           return Padding(
             padding: const EdgeInsets.all(16),
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 1.0,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
+            child: ListView.separated(
               itemCount: topics.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final topic = topics[index];
-                return _buildTopicCard(topic, index);
+                return _buildTopicRow(topic, index);
               },
             ),
           );
@@ -116,7 +111,17 @@ class _TopicScreenState extends State<TopicScreen> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildTopicCard(TopicModel topic, int index) {
+  Widget _buildTopicRow(TopicModel topic, int index) {
+
+    final List<List<Color>> gradients = [
+      [Colors.blue.shade200, Colors.blue.shade400],
+      [Colors.green.shade200, Colors.green.shade400],
+      [Colors.orange.shade200, Colors.orange.shade400],
+      [Colors.purple.shade200, Colors.purple.shade400],
+      [Colors.red.shade200, Colors.red.shade400],
+    ];
+    final gradient = gradients[index % gradients.length];
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -125,8 +130,15 @@ class _TopicScreenState extends State<TopicScreen> with TickerProviderStateMixin
         );
       },
       child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: gradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
@@ -135,90 +147,35 @@ class _TopicScreenState extends State<TopicScreen> with TickerProviderStateMixin
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-
-              _buildCardBackground(topic, index),
-
-
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.6),
-                    ],
-                  ),
-                ),
-              ),
-
-
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    topic.topicName,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    topic.name,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
-                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    topic.description,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardBackground(TopicModel topic, int index) {
-
-    if (topic.imageUrl != "default" &&
-        topic.imageUrl.isNotEmpty &&
-        Uri.tryParse(topic.imageUrl) != null) {
-      return Image.network(
-        topic.imageUrl,
-        fit: BoxFit.cover,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _buildColorBackground(topic);
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return _buildColorBackground(topic);
-        },
-      );
-    } else {
-      return _buildColorBackground(topic);
-    }
-  }
-
-  Widget _buildColorBackground(TopicModel topic) {
-    final hash = topic.topicId.hashCode.abs();
-    final hue1 = (hash % 360).toDouble();
-    final hue2 = ((hash + 60) % 360).toDouble();
-
-    final color1 = HSVColor.fromAHSV(1.0, hue1, 0.7, 0.8).toColor();
-    final color2 = HSVColor.fromAHSV(1.0, hue2, 0.6, 0.9).toColor();
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color1, color2],
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 20, color: Colors.white),
+          ],
         ),
       ),
     );
