@@ -71,20 +71,12 @@ class LoginViewModel extends GetxController {
       }
       debugPrint('Google ID Token: ${auth!.idToken}');
       final response = await _authRepository
-          .loginWithGoogle(auth!.idToken!);
+          .loginWithGoogle(auth.idToken!);
       if (response.isSuccess && response.result != null) {
-        final storage = FlutterSecureStorage();
-        await storage.write(
-          key: 'access_token',
-          value: response.result!.accessToken,
-        );
-        await storage.write(
-          key: 'refresh_token',
-          value: response.result!.refreshToken,
-        );
-        debugPrint(
-          "Login thành công, data from api: $response.result",
-        );
+
+        await storage.write('accessToken', response.result!.accessToken);
+        await storage.write('refreshToken', response.result!.refreshToken);
+        debugPrint("Login thành công, data from api: ${response.result}");
         return true;
       } else {
         return false;
@@ -92,6 +84,8 @@ class LoginViewModel extends GetxController {
     } catch (e) {
       debugPrint('Sign-in error: $e');
       return false;
+    } finally {
+      isLoading.value = false;
     }
   }
 

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/mainBottomNavbar.dart';
+import '../../schedule/view/student_schedule.dart';
 import '../model/user.dart';
 import '../data/auth_repository.dart';
 import '../view/login_screen.dart';
@@ -227,6 +228,8 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                   const SizedBox(height: 20),
                   _buildProfileInfo(),
                   const SizedBox(height: 32),
+                  _buildViewStudentScheduleButton(),
+                  const SizedBox(height: 16),
                   _buildLogoutButton(),
                   const SizedBox(height: 20),
                 ],
@@ -234,6 +237,30 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildViewStudentScheduleButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        icon: const Icon(Icons.schedule),
+        label: const Text(
+          "Xem lịch học của tôi",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const StudentScheduleScreen()),
+          );
+        },
       ),
     );
   }

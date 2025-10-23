@@ -6,7 +6,6 @@ import '../../auth/view/home_screen.dart';
 import '../model/assessment_result.dart';
 import '../viewmodel/survey_viewmodel.dart';
 
-
 class AssessmentResultScreen extends StatefulWidget {
   final AssessmentResult result;
   const AssessmentResultScreen({super.key, required this.result});
@@ -146,11 +145,11 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: AppColors.border.withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -159,7 +158,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
       child: Column(
         children: [
           Text(
-            'Điểm tổng thể',
+            'Trình độ',
             style: TextStyle(
               fontSize: 16,
               color: AppColors.textSecondary,
@@ -168,20 +167,11 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            '${widget.result.overallScore}/100',
+            widget.result.determinedLevel,
             style: TextStyle(
-              fontSize: 48,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Trình độ: ${widget.result.determinedLevel}',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -194,19 +184,12 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.green.withOpacity(0.1),
-            Colors.green.withOpacity(0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.green.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: AppColors.borderLight, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.15),
+            color: AppColors.border.withOpacity(0.2),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -220,23 +203,13 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.green, Colors.green.shade600],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: AppColors.success.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  border: Border.all(color: AppColors.success.withOpacity(0.3)),
                 ),
                 child: const Icon(
                   Icons.star_rounded,
-                  color: Colors.white,
+                  color: AppColors.success,
                   size: 24,
                 ),
               ),
@@ -250,7 +223,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -258,7 +231,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                       '${widget.result.strengths.length} điểm mạnh',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.green.shade600,
+                        color: AppColors.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -275,16 +248,9 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.withOpacity(0.2)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.withOpacity(0.08),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                border: Border.all(color: AppColors.borderLight),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,14 +259,14 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(14),
+                      color: AppColors.success.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Center(
                       child: Text(
                         '${index + 1}',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textLight,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -315,13 +281,13 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                         fontSize: 15,
                         height: 1.4,
                         fontWeight: FontWeight.w500,
-                        color: Colors.black87,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ),
                   const Icon(
                     Icons.check_circle,
-                    color: Colors.green,
+                    color: AppColors.success,
                     size: 20,
                   ),
                 ],
@@ -338,19 +304,12 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.orange.withOpacity(0.1),
-            Colors.orange.withOpacity(0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.orange.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: AppColors.borderLight, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withOpacity(0.15),
+            color: AppColors.border.withOpacity(0.2),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -364,23 +323,13 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.orange, Colors.orange.shade600],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: AppColors.warning.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.orange.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
                 ),
                 child: const Icon(
-                  Icons.trending_up_rounded,
-                  color: Colors.white,
+                  Icons.lightbulb_outline_rounded,
+                  color: AppColors.warning,
                   size: 24,
                 ),
               ),
@@ -394,7 +343,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.orange,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -402,7 +351,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                       '${widget.result.weaknesses.length} điểm cần phát triển',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.orange.shade600,
+                        color: AppColors.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -419,16 +368,9 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.withOpacity(0.2)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.orange.withOpacity(0.08),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                border: Border.all(color: AppColors.borderLight),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -437,14 +379,14 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(14),
+                      color: AppColors.warning.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Center(
                       child: Text(
                         '${index + 1}',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textLight,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -459,13 +401,13 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                         fontSize: 15,
                         height: 1.4,
                         fontWeight: FontWeight.w500,
-                        color: Colors.black87,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ),
                   const Icon(
-                    Icons.lightbulb_outline,
-                    color: Colors.orange,
+                    Icons.lightbulb_outline_rounded,
+                    color: AppColors.warning,
                     size: 20,
                   ),
                 ],
@@ -490,14 +432,14 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Đã chấp nhận kết quả đánh giá!'),
-                    backgroundColor: Colors.green,
+                    backgroundColor: AppColors.success,
                   ),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Có lỗi xảy ra. Vui lòng thử lại!'),
-                    backgroundColor: Colors.red,
+                    backgroundColor: AppColors.error,
                   ),
                 );
               }
@@ -508,7 +450,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textLight,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -535,14 +477,14 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Bạn đã từ chối kết quả đánh giá!'),
-                    backgroundColor: Colors.orange,
+                    backgroundColor: AppColors.warning,
                   ),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Có lỗi xảy ra. Vui lòng thử lại!'),
-                    backgroundColor: Colors.red,
+                    backgroundColor: AppColors.error,
                   ),
                 );
               }
