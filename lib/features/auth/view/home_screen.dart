@@ -14,9 +14,30 @@ import '../../schedule/viewmodel/teacher_schedule_viewmodel.dart';
 import '../../survey/model/assessment_result.dart';
 import '../../survey/view/assessment_result_screen.dart';
 import '../../survey/view/survey_screen.dart';
+import '../../survey/viewmodel/survey_viewmodel.dart';
 import 'profile_screen.dart';
 
+class LanguageModel {
+  final String id;
+  final String langName;
+  final String langCode;
+  LanguageModel({required this.id, required this.langName, required this.langCode});
+  factory LanguageModel.fromJson(Map<String, dynamic> json) {
+    return LanguageModel(
+      id: json['id'] ?? '',
+      langName: json['langName'] ?? '',
+      langCode: json['langCode'] ?? '',
+    );
+  }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'langName': langName,
+      'langCode': langCode,
+    };
+  }
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,19 +52,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<Offset> _slideAnimation;
   CourseViewModel? courseViewModel;
   late TeacherScheduleViewModel teacherScheduleViewModel;
+  late SurveyViewModel surveyViewModel;
 
   int unreadNotifications = 3;
-  List<dynamic> _languages = [];
+  List<LanguageModel> _languages = [];
   String? _selectedLanguageId;
 
   @override
   void initState() {
     super.initState();
     _initializeCourseViewModel();
-
     teacherScheduleViewModel = Get.put(TeacherScheduleViewModel(service: Get.find()));
     teacherScheduleViewModel.fetchSchedules();
-
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -55,9 +75,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _animationController.forward();
-
     _loadData();
 
+    surveyViewModel = Get.put(SurveyViewModel(Get.find()));
     _fetchLanguages();
   }
 
@@ -86,13 +106,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _fetchLanguages() async {
-    final box = GetStorage();
-    final repo = Get.find<ISurveyRepository>();
-    final langsMap = await repo.getLanguages();
+    await surveyViewModel.fetchLanguages();
     setState(() {
-
-      _languages = langsMap.keys.toList();
-      _selectedLanguageId = box.read('selectedLanguageId');
+      _languages = surveyViewModel.languages.entries.map((e) =>
+          LanguageModel(id: e.key, langName: e.value, langCode: '')).toList();
+      _selectedLanguageId = GetStorage().read('selectedLanguageId');
     });
   }
 
@@ -122,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   SliverAppBar _buildSliverAppBar() {
     return SliverAppBar(
-      expandedHeight: 180,
+      expandedHeight: 100,
       pinned: true,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
@@ -134,112 +152,61 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Xin chào! 👋", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textLight)),
-                        Text("Sẵn sàng luyện tập hôm nay?", style: TextStyle(fontSize: 16, color: AppColors.textLight.withOpacity(0.9))),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        // Bell notification icon
-                        Stack(
-                          children: [
-                            IconButton(
-                              icon: Icon(Icons.notifications, color: AppColors.textLight, size: 28),
-                              onPressed: () {
-                                Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationScreen()));
-                              },
-                            ),
-                            if (unreadNotifications > 0)
-                              Positioned(
-                                right: 8,
-                                top: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                                  child: Text(
-                                    '$unreadNotifications',
-                                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
-                          child: CircleAvatar(
-                            radius: 20,
-                            backgroundColor: AppColors.textLight.withOpacity(0.2),
-                            child: Icon(Icons.person, color: AppColors.textLight, size: 24),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                (_languages.isEmpty)
+                    ? Center(child: CircularProgressIndicator())
+                    : Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.textLight.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.local_fire_department, color: AppColors.textLight, size: 18),
-                      const SizedBox(width: 6),
-                      Text("Streak: 7 ngày", style: TextStyle(color: AppColors.textLight, fontWeight: FontWeight.bold, fontSize: 14)),
-                    ],
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedLanguageId,
+                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                      dropdownColor: AppColors.primary,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      items: _languages.map<DropdownMenuItem<String>>((lang) {
+                        String flag = '';
+                        switch (lang.langCode.toUpperCase()) {
+                          case 'EN':
+                            flag = '🇬🇧';
+                            break;
+                          case 'JA':
+                            flag = '🇯🇵';
+                            break;
+                          case 'ZH':
+                            flag = '🇨🇳';
+                            break;
+                          default:
+                            flag = '🏳️';
+                        }
+                        return DropdownMenuItem<String>(
+                          value: lang.id,
+                          child: Row(
+                            children: [
+                              Text(flag, style: const TextStyle(fontSize: 20)),
+                              const SizedBox(width: 8),
+                              Text(lang.langName, style: const TextStyle(color: Colors.white)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) async {
+                        final box = GetStorage();
+                        box.remove('selectedLanguageId');
+                        box.write('selectedLanguageId', newValue);
+                        setState(() {
+                          _selectedLanguageId = newValue;
+                        });
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SurveyScreen()),
+                        );
+                      },
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                if (_languages.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedLanguageId,
-                        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-                        dropdownColor: AppColors.primary,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        items: _languages.map<DropdownMenuItem<String>>((lang) {
-                          return DropdownMenuItem<String>(
-                            value: lang.languageId,
-                            child: Text(lang.languageName),
-                          );
-                        }).toList(),
-                        onChanged: (newValue) async {
-                          final box = GetStorage();
-                          box.remove('selectedLanguageId');
-                          box.write('selectedLanguageId', newValue);
-                          setState(() {
-                            _selectedLanguageId = newValue;
-                          });
-
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (_) => const SurveyScreen()),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
