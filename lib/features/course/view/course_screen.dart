@@ -1,5 +1,6 @@
 import 'package:flearn_app/features/auth/view/profile_screen.dart';
 import 'package:flearn_app/features/topic/view/topic_screen.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:get/get.dart';
@@ -53,13 +54,15 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    final NavigationController navController = Get.find<NavigationController>();
+
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: AppScaffold(
         appBar: AppBar(
           backgroundColor: AppColors.primary,
           leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: AppColors.textLight),
+            icon: Icon(Icons.arrow_back_ios, color: AppColors.textLight),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
@@ -91,7 +94,10 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
               child: Obx(() {
                 if (courseViewModel.isLoadingCourse.value) {
                   return const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
+                    child: CupertinoActivityIndicator(
+                      radius: 15,
+                      color: AppColors.primary,
+                    ),
                   );
                 }
                 final courses = courseViewModel.courses;
@@ -159,25 +165,7 @@ class _CourseScreenState extends State<CourseScreen> with TickerProviderStateMix
             ),
           ),
         ),
-        bottomNavigationBar: MainBottomNavBar(
-          currentIndex: 2,
-          onTap: (index) {
-            switch (index) {
-              case 0:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-                break;
-              case 1:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TopicScreen()));
-                break;
-              case 2:
 
-                break;
-              case 3:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-                break;
-            }
-          },
-        ),
       ),
     );
   }

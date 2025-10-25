@@ -11,6 +11,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../topic/model/topic.dart';
+import '../model/conversation_session.dart';
 import '../viewmodel/topic_viewmodel.dart';
 import 'conversation_result_screen.dart';
 import 'chat_history_screen.dart';
@@ -46,6 +47,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final Set<int> _translatedIndexes = {};
 
+  ConversationSessionModel? _sessionModel;
+
+  bool _isScenarioTranslated = false;
+  bool _isCharacterTranslated = false;
+  bool _showContextInfo = true;
+
   @override
   void initState() {
     super.initState();
@@ -61,14 +68,32 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _animationController.forward();
 
 
+    _topicViewModel.initSignalR();
+    _topicViewModel.aiMessageStream.listen((msg) {
+      if (msg['sender'] == 2) {
+        final content = msg['messageContent'] ?? '';
+        final sentences = content.split('\n');
+        for (final sentence in sentences) {
+          if (sentence.trim().isNotEmpty) {
+            _addMessage(ChatMessage(
+              text: sentence.trim(),
+              isUser: false,
+              timestamp: DateTime.tryParse(msg['sentAt'] ?? '') ?? DateTime.now(),
+            ));
+          }
+        }
+        setState(() => _isTyping = false);
+      }
+    });
+
     if (widget.conversationData != null) {
-      _sessionId = widget.conversationData!['sessionId'];
-      final List<dynamic> msgs = widget.conversationData!['messages'] ?? [];
-      for (final msg in msgs) {
+      _sessionModel = ConversationSessionModel.fromJson(widget.conversationData!);
+      _sessionId = _sessionModel?.sessionId;
+      for (final msg in _sessionModel?.messages ?? []) {
         _addMessage(ChatMessage(
-          text: msg['messageContent'] ?? '',
-          isUser: msg['sender'] == 1,
-          timestamp: DateTime.tryParse(msg['sentAt'] ?? '') ?? DateTime.now(),
+          text: msg.messageContent,
+          isUser: msg.sender == 1,
+          timestamp: msg.sentAt,
         ));
       }
     } else {
@@ -87,13 +112,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
     setState(() => _isTyping = false);
     if (conversationData != null) {
-      _sessionId = conversationData['sessionId'];
-      final List<dynamic> msgs = conversationData['messages'] ?? [];
-      for (final msg in msgs) {
+      _sessionModel = ConversationSessionModel.fromJson(conversationData);
+      _sessionId = _sessionModel?.sessionId;
+      await _topicViewModel.joinConversationRoom(_sessionId!);
+      for (final msg in _sessionModel?.messages ?? []) {
         _addMessage(ChatMessage(
-          text: msg['messageContent'] ?? '',
-          isUser: msg['sender'] == 1,
-          timestamp: DateTime.tryParse(msg['sentAt'] ?? '') ?? DateTime.now(),
+          text: msg.messageContent,
+          isUser: msg.sender == 1,
+          timestamp: msg.sentAt,
         ));
       }
     } else {
@@ -169,24 +195,40 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           return;
         }
 
+        _addMessage(ChatMessage(
+          text: "Voice message",
+          isUser: true,
+          timestamp: DateTime.now(),
+          isVoice: true,
+          audioPath: path,
+        ));
+
+        if (_showContextInfo) {
+          setState(() {
+            _showContextInfo = false;
+          });
+        }
+
         setState(() => _isTyping = true);
+
+        // Bước 1: Upload audio lên server để lấy audioUrl
         final response = await _topicViewModel.sendVoiceMessage(
           sessionId: _sessionId!,
           audioFilePath: path,
           audioDuration: 0,
         );
-        setState(() => _isTyping = false);
 
+        // Bước 2: Gửi voice qua SignalR nếu upload thành công
         if (response != null && response['success'] == true && response['data'] != null) {
-          final aiMsg = response['data']['aiResponse'];
-          if (aiMsg != null && aiMsg['sender'] == 2) {
-            _addMessage(ChatMessage(
-              text: aiMsg['messageContent'] ?? '',
-              isUser: false,
-              timestamp: DateTime.tryParse(aiMsg['sentAt'] ?? '') ?? DateTime.now(),
-            ));
-          }
+          final audioUrl = response['data']['audioUrl'];
+          await _topicViewModel.sendVoiceMessageSignalR(
+            sessionId: _sessionId!,
+            audioUrl: audioUrl,
+            audioDuration: 0,
+          );
+          // Không xử lý AI trả lời ở đây, sẽ nhận qua stream SignalR
         } else {
+          setState(() => _isTyping = false);
           _addMessage(ChatMessage(
             text: "AI không trả lời voice. Vui lòng thử lại.",
             isUser: false,
@@ -246,26 +288,34 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     ));
     _messageController.clear();
 
+    if (_showContextInfo) {
+      setState(() {
+        _showContextInfo = false;
+      });
+    }
+
     setState(() => _isTyping = true);
+
 
     final response = await _topicViewModel.sendConversationMessage(
       sessionId: _sessionId!,
       messageContent: text,
       messageType: 1,
     );
-    print('AI response: $response');
 
     setState(() => _isTyping = false);
 
-
     if (response != null && response['success'] == true && response['data'] != null) {
-      final msg = response['data'];
-      if (msg['sender'] == 2) {
-        _addMessage(ChatMessage(
-          text: msg['messageContent'] ?? '',
-          isUser: false,
-          timestamp: DateTime.tryParse(msg['sentAt'] ?? '') ?? DateTime.now(),
-        ));
+      final aiMsg = response['data']['messageContent'] ?? '';
+      final sentences = aiMsg.split('\n');
+      for (final sentence in sentences) {
+        if (sentence.trim().isNotEmpty) {
+          _addMessage(ChatMessage(
+            text: sentence.trim(),
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+        }
       }
     } else {
       _addMessage(ChatMessage(
@@ -323,6 +373,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _scrollController.dispose();
     _recorder.dispose();
     _audioPlayer.dispose();
+    _topicViewModel.disposeSignalR();
     super.dispose();
   }
 
@@ -352,7 +403,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 ),
               ),
               Text(
-                widget.topic.name, // Sửa lại ở đây
+                widget.topic.name,
                 style: TextStyle(
                   color: AppColors.textLight.withOpacity(0.8),
                   fontSize: 12,
@@ -380,6 +431,47 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           opacity: _fadeAnimation,
           child: Column(
             children: [
+              if (_sessionModel != null && _showContextInfo)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.primary.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildContextInfo(
+                          "Vai trò nhân vật",
+                          _sessionModel!.characterRole,
+                          _isCharacterTranslated,
+                              () {
+                            setState(() {
+                              _isCharacterTranslated = !_isCharacterTranslated;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        _buildContextInfo(
+                          "Ngữ cảnh",
+                          _sessionModel!.scenarioDescription,
+                          _isScenarioTranslated,
+                              () {
+                            setState(() {
+                              _isScenarioTranslated = !_isScenarioTranslated;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Expanded(
                 child: ListView.builder(
                   controller: _scrollController,
@@ -443,7 +535,40 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     color: message.isUser ? AppColors.primary : Colors.grey[200],
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
+                  child: message.isVoice && message.isUser
+                      ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.mic,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Voice message",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () async {
+                          if (message.audioPath != null) {
+                            await _audioPlayer.stop();
+                            await _audioPlayer.play(DeviceFileSource(message.audioPath!));
+                          }
+                        },
+                        child: Icon(
+                          Icons.play_circle_outline,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ],
+                  )
+                      : Text(
                     (!message.isUser && vi != null && isTranslated) ? vi! : en,
                     style: TextStyle(
                       color: message.isUser ? Colors.white : Colors.black87,
@@ -588,20 +713,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               onPressed: _isRecording ? _stopRecording : _startRecording,
             ),
           ),
-          if (_recordedFilePath != null && !_isRecording) ...[
-            const SizedBox(width: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.green,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.play_arrow, color: Colors.white),
-                tooltip: 'Nghe lại ghi âm',
-                onPressed: _playRecordedAudio,
-              ),
-            ),
-          ],
           const SizedBox(width: 8),
           Container(
             decoration: BoxDecoration(
@@ -617,16 +728,78 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       ),
     );
   }
+
+  Widget _buildContextInfo(
+      String label,
+      String content,
+      bool isTranslated,
+      VoidCallback onToggle,
+      ) {
+    String original = content;
+    String? translation;
+
+    if (content.contains('|')) {
+      final parts = content.split('|');
+      original = parts[0].trim();
+      translation = parts.length > 1 ? parts[1].trim() : null;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            (translation != null && isTranslated) ? translation : original,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 15,
+              height: 1.4,
+            ),
+          ),
+        ),
+        if (translation != null)
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              minimumSize: const Size(0, 28),
+            ),
+            onPressed: onToggle,
+            child: Text(
+              isTranslated ? 'Xem bản gốc' : 'Dịch',
+              style: TextStyle(fontSize: 13, color: AppColors.primary),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class ChatMessage {
   final String text;
   final bool isUser;
   final DateTime timestamp;
+  final bool isVoice;
+  final String? audioPath;
 
   ChatMessage({
     required this.text,
     required this.isUser,
     required this.timestamp,
+    this.isVoice = false,
+    this.audioPath,
   });
 }

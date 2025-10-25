@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   // Màu chính của app
-  static const Color primary = Color(0xFF0071F9); // rgb(0, 113, 249)
+  static const Color primary = Color(0xFF0071F9);
   static const Color primaryLight = Color(0xFF4D9AFA);
   static const Color primaryDark = Color(0xFF0056C7);
 

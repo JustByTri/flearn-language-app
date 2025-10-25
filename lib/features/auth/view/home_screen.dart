@@ -1,18 +1,21 @@
 import 'package:flearn_app/core/constants/colors.dart';
-import 'package:flearn_app/features/topic/view/topic_screen.dart';
+import 'package:flearn_app/features/survey/data/repository.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/mainBottomNavbar.dart';
+import '../../course/model/course.dart';
+import '../../course/view/course_screen.dart';
 import '../../course/viewmodel/course_viewmodel.dart';
+import '../../schedule/model/schedule_model.dart';
 import '../../schedule/view/schedule_screen.dart';
+import '../../schedule/viewmodel/teacher_schedule_viewmodel.dart';
 import '../../survey/model/assessment_result.dart';
 import '../../survey/view/assessment_result_screen.dart';
-import 'profile_screen.dart';
-import '../../course/view/course_screen.dart';
 import '../../survey/view/survey_screen.dart';
-import '../../../shared/widgets/app_scaffold.dart';
-import '../../course/model/course.dart';
+import 'profile_screen.dart';
+
 
 
 class HomeScreen extends StatefulWidget {
@@ -27,44 +30,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   CourseViewModel? courseViewModel;
-
-
-  final List<TeacherSchedule> teacherSchedules = [
-
-    TeacherSchedule(
-      teacherId: "t1",
-      teacherName: "John Smith",
-      teacherAvatar: "",
-      language: "English",
-      date: "2025-10-22",
-      time: "19:00",
-      duration: 60,
-      price: 150000,
-      maxStudents: 10,
-      currentStudents: 7,
-      description: "Conversation practice session",
-    ),
-    TeacherSchedule(
-      teacherId: "t2",
-      teacherName: "Yamada Sensei",
-      teacherAvatar: "",
-      language: "Japanese",
-      date: "2025-10-23",
-      time: "20:00",
-      duration: 45,
-      price: 200000,
-      maxStudents: 8,
-      currentStudents: 5,
-      description: "Grammar and pronunciation",
-    ),
-  ];
+  late TeacherScheduleViewModel teacherScheduleViewModel;
 
   int unreadNotifications = 3;
+  List<dynamic> _languages = [];
+  String? _selectedLanguageId;
 
   @override
   void initState() {
     super.initState();
     _initializeCourseViewModel();
+
+    teacherScheduleViewModel = Get.put(TeacherScheduleViewModel(service: Get.find()));
+    teacherScheduleViewModel.fetchSchedules();
 
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
@@ -79,6 +57,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _animationController.forward();
 
     _loadData();
+
+    _fetchLanguages();
   }
 
   void _initializeCourseViewModel() {
@@ -105,6 +85,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _fetchLanguages() async {
+    final box = GetStorage();
+    final repo = Get.find<ISurveyRepository>();
+    final langsMap = await repo.getLanguages();
+    setState(() {
+
+      _languages = langsMap.keys.toList();
+      _selectedLanguageId = box.read('selectedLanguageId');
+    });
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
@@ -113,34 +104,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final NavigationController navController = Get.find<NavigationController>();
+
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: AppScaffold(
         body: CustomScrollView(
           slivers: [
             _buildSliverAppBar(),
-            _buildContent(),
+            _buildContent(navController),
             _buildSurveyBanner()
           ],
-        ),
-        bottomNavigationBar: MainBottomNavBar(
-          currentIndex: 0,
-          onTap: (index) {
-            switch (index) {
-              case 0:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-                break;
-              case 1:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TopicScreen()));
-                break;
-              case 2:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CourseScreen()));
-                break;
-              case 3:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-                break;
-            }
-          },
         ),
       ),
     );
@@ -230,6 +204,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                if (_languages.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedLanguageId,
+                        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                        dropdownColor: AppColors.primary,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        items: _languages.map<DropdownMenuItem<String>>((lang) {
+                          return DropdownMenuItem<String>(
+                            value: lang.languageId,
+                            child: Text(lang.languageName),
+                          );
+                        }).toList(),
+                        onChanged: (newValue) async {
+                          final box = GetStorage();
+                          box.remove('selectedLanguageId');
+                          box.write('selectedLanguageId', newValue);
+                          setState(() {
+                            _selectedLanguageId = newValue;
+                          });
+
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (_) => const SurveyScreen()),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -238,14 +248,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  SliverToBoxAdapter _buildContent() {
+  SliverToBoxAdapter _buildContent(NavigationController navController) {
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildQuickActions(),
+            _buildQuickActions(navController),
             const SizedBox(height: 24),
             courseViewModel != null
                 ? Obx(() {
@@ -345,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildQuickActions() {
+  Widget _buildQuickActions(NavigationController navController) {
     return Row(
       children: [
         Expanded(
@@ -354,7 +364,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             title: "Luyện với ai",
             subtitle: "15 phút",
             color: AppColors.primary,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TopicScreen())),
+            onTap: () => navController.onDestinationSelected(1),
           ),
         ),
         const SizedBox(width: 12),
@@ -364,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             title: "Lịch học",
             subtitle: "Xem tất cả",
             color: AppColors.accent,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TeacherScheduleListScreen())),
+            onTap: () => navController.onDestinationSelected(2),
           ),
         ),
       ],
@@ -525,33 +535,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ],
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 160,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: teacherSchedules.length,
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: EdgeInsets.only(right: index == teacherSchedules.length - 1 ? 0 : 12),
-                child: _buildTeacherScheduleCard(teacherSchedules[index]),
-              );
-            },
-          ),
-        ),
+        Obx(() {
+          if (teacherScheduleViewModel.isLoading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final schedules = teacherScheduleViewModel.schedules;
+          if (schedules.isEmpty) {
+            return const Center(child: Text("Không có lịch dạy nào"));
+          }
+          return SizedBox(
+            height: 160,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: schedules.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: EdgeInsets.only(right: index == schedules.length - 1 ? 0 : 12),
+                  child: _buildTeacherScheduleCard(schedules[index]),
+                );
+              },
+            ),
+          );
+        }),
       ],
     );
   }
 
-  Widget _buildTeacherScheduleCard(TeacherSchedule schedule) {
-    final isAlmostFull = schedule.currentStudents >= schedule.maxStudents * 0.8;
+  Widget _buildTeacherScheduleCard(TeacherClass schedule) {
+    final isAlmostFull = schedule.currentEnrollments >= schedule.capacity * 0.8;
 
     return GestureDetector(
-      onTap: () {
-
-        // Navigator.push(context, MaterialPageRoute(
-        //   builder: (_) => TeacherDetailScreen(schedule: schedule),
-        // ));
-      },
+      onTap: () {},
       child: Container(
         width: 250,
         padding: const EdgeInsets.all(16),
@@ -569,7 +583,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: AppColors.primary.withOpacity(0.1),
-                  child: Text(schedule.teacherName[0], style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                  child: Text(schedule.teacherName.isNotEmpty ? schedule.teacherName[0] : "?", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -577,7 +591,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(schedule.teacherName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1),
-                      Text(schedule.language, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                      Text(schedule.languageName, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -588,7 +602,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 Icon(Icons.schedule, size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
-                Text("${schedule.date} ${schedule.time}", style: TextStyle(fontSize: 12)),
+                Text("${schedule.startDateTime.day}/${schedule.startDateTime.month} ${schedule.startDateTime.hour}:${schedule.startDateTime.minute.toString().padLeft(2, '0')}", style: TextStyle(fontSize: 12)),
               ],
             ),
             const SizedBox(height: 4),
@@ -596,7 +610,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 Icon(Icons.people, size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
-                Text("${schedule.currentStudents}/${schedule.maxStudents}", style: TextStyle(fontSize: 12)),
+                Text("${schedule.currentEnrollments}/${schedule.capacity}", style: TextStyle(fontSize: 12)),
                 if (isAlmostFull) ...[
                   const SizedBox(width: 8),
                   Text("Sắp đầy!", style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
@@ -607,7 +621,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("${schedule.price ~/ 1000}K VNĐ", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                Text("${schedule.pricePerStudent ~/ 1000}K VNĐ", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -702,34 +716,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
-}
-
-class TeacherSchedule {
-  final String teacherId;
-  final String teacherName;
-  final String teacherAvatar;
-  final String language;
-  final String date;
-  final String time;
-  final int duration;
-  final int price;
-  final int maxStudents;
-  final int currentStudents;
-  final String description;
-
-  TeacherSchedule({
-    required this.teacherId,
-    required this.teacherName,
-    required this.teacherAvatar,
-    required this.language,
-    required this.date,
-    required this.time,
-    required this.duration,
-    required this.price,
-    required this.maxStudents,
-    required this.currentStudents,
-    required this.description,
-  });
 }
 
 class NotificationScreen extends StatelessWidget {

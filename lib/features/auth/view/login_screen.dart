@@ -6,6 +6,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../shared/widgets/mainBottomNavbar.dart';
 import '../../../shared/widgets/my_textField.dart';
 import '../viewmodel/login_viewmodel.dart';
 import 'forgotpassword_screen.dart';
@@ -77,13 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (surveyStatus == null) {
 
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          ),
-              (route) => false,
-        );
+        Get.offAll(() => const NavigationMenu());
         return;
       }
 
@@ -97,13 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
               (route) => false,
         );
       } else {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          ),
-              (route) => false,
-        );
+        Get.offAll(() => const NavigationMenu());
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -140,11 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final surveyStatus = await loginViewModel.checkSurveyRequired();
 
         if (surveyStatus == null) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-                (route) => false,
-          );
+          Get.offAll(() => const HomeScreen());
         } else if (surveyStatus['assessmentRequired'] == true) {
           Navigator.pushAndRemoveUntil(
             context,
@@ -152,11 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 (route) => false,
           );
         } else {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-                (route) => false,
-          );
+          Get.offAll(() => const HomeScreen());
         }
       } else {
         _showErrorSnackBar("Đăng nhập Google thất bại");
