@@ -49,6 +49,8 @@ class _TopicScreenState extends State<TopicScreen> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    final NavigationController navController = Get.find<NavigationController>();
+
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: AppScaffold(
@@ -56,7 +58,7 @@ class _TopicScreenState extends State<TopicScreen> with TickerProviderStateMixin
           backgroundColor: AppColors.primary,
           leading: IconButton(
             icon: Icon(Icons.arrow_back, color: AppColors.textLight),
-            onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen())),
+            onPressed: () => navController.onDestinationSelected(0), // Quay về Home tab
           ),
           title: Text("Chủ đề", style: TextStyle(color: AppColors.textLight, fontSize: 20, fontWeight: FontWeight.w600)),
           elevation: 0,
@@ -88,25 +90,6 @@ class _TopicScreenState extends State<TopicScreen> with TickerProviderStateMixin
             ),
           );
         }),
-        bottomNavigationBar: MainBottomNavBar(
-          currentIndex: 1,
-          onTap: (index) {
-            switch (index) {
-              case 0:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-                break;
-              case 1:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TopicScreen()));
-                break;
-              case 2:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CourseScreen()));
-                break;
-              case 3:
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-                break;
-            }
-          },
-        ),
       ),
     );
   }

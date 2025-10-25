@@ -1,16 +1,69 @@
 import 'package:get/get.dart';
+import 'dart:async';
 
 import '../data/repository.dart';
+import '../data/service.dart';
+import '../model/conversationLanguage.dart';
 import '../model/topic.dart';
-
-
 
 class TopicViewModel extends GetxController {
   final IRepository _authRepository;
   var isLoadingTopics = false.obs;
   var topics = <TopicModel>[].obs;
 
+  var conversationLanguages = <ConversationLanguage>[].obs;
+  var isLoadingLanguages = false.obs;
+
+  final _aiMessageController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get aiMessageStream => _aiMessageController.stream;
+
   TopicViewModel(this._authRepository);
+
+  Future<void> initSignalR() async {
+    await _authRepository.initSignalR();
+    if (_authRepository is service) {
+      (_authRepository as service).onAiMessageReceived = (msg) {
+        _aiMessageController.add(msg);
+      };
+    }
+  }
+
+  Future<void> disposeSignalR() async {
+    await _authRepository.disposeSignalR();
+    await _aiMessageController.close();
+  }
+
+  Future<void> sendConversationMessageSignalR({
+    required String sessionId,
+    required String messageContent,
+    required int messageType,
+    String? audioUrl,
+    int? audioDuration,
+    String? transcript,
+  }) async {
+    await _authRepository.sendConversationMessageSignalR(
+      sessionId: sessionId,
+      messageContent: messageContent,
+      messageType: messageType,
+      audioUrl: audioUrl,
+      audioDuration: audioDuration,
+      transcript: transcript,
+    );
+  }
+
+  Future<void> sendVoiceMessageSignalR({
+    required String sessionId,
+    required String audioUrl,
+    required int audioDuration,
+    String? transcript,
+  }) async {
+    await _authRepository.sendVoiceMessageSignalR(
+      sessionId: sessionId,
+      audioUrl: audioUrl,
+      audioDuration: audioDuration,
+      transcript: transcript,
+    );
+  }
 
   Future<void> fetchTopics() async {
     try {
@@ -83,4 +136,19 @@ class TopicViewModel extends GetxController {
     }
   }
 
+  Future<void> fetchConversationLanguages() async {
+    try {
+      isLoadingLanguages.value = true;
+      final list = await _authRepository.getConversationLanguages();
+      conversationLanguages.assignAll(list);
+    } catch (e) {
+      print('fetchConversationLanguages error: $e');
+    } finally {
+      isLoadingLanguages.value = false;
+    }
+  }
+
+  Future<void> joinConversationRoom(String sessionId) async {
+    await _authRepository.joinConversationRoom(sessionId);
+  }
 }

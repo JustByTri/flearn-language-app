@@ -3,10 +3,69 @@ import 'package:get_storage/get_storage.dart';
 import 'package:flearn_app/features/topic/data/repository.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:signalr_core/signalr_core.dart';
+
 import '../../../config/api_config.dart';
+import '../model/conversationLanguage.dart';
 import '../model/topic.dart';
 
 class service implements IRepository {
+
+  HubConnection? _hubConnection;
+  Function(Map<String, dynamic>)? onAiMessageReceived;
+
+  Future<void> initSignalR() async {
+    try {
+      final accessToken = GetStorage().read('accessToken');
+      print('AccessToken: $accessToken');
+      _hubConnection = HubConnectionBuilder()
+          .withUrl(
+        "https://f-learn.app/conversationHub",
+        HttpConnectionOptions(
+          accessTokenFactory: () async => accessToken,
+          skipNegotiation: true,
+          transport: HttpTransportType.webSockets,
+        ),
+      )
+          .withAutomaticReconnect()
+          .build();
+      _hubConnection?.on("AIMessageReceived", (args) {
+        print("AIMessageReceived: $args");
+        if (args != null && args.isNotEmpty && onAiMessageReceived != null) {
+          final msg = args[0] as Map<String, dynamic>;
+          onAiMessageReceived!(msg);
+        }
+      });
+
+      _hubConnection?.on("MessageProcessed", (args) {
+        print("MessageProcessed: $args");
+
+      });
+
+      _hubConnection?.on("AIStartedTyping", (args) {
+        print("AIStartedTyping: $args");
+
+      });
+
+      _hubConnection?.on("AIStoppedTyping", (args) {
+        print("AIStoppedTyping: $args");
+
+      });
+
+
+
+      await _hubConnection?.start();
+      print('SignalR connected');
+    } catch (e) {
+      print('SignalR connect error: $e');
+    }
+  }
+
+  Future<void> disposeSignalR() async {
+    await _hubConnection?.stop();
+    _hubConnection = null;
+  }
+
   @override
   Future<List<TopicModel>> getTopic() async {
     final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.getTopic}');
@@ -50,19 +109,20 @@ class service implements IRepository {
     };
 
     try {
+      print('POST $url');
+      print('BODY: $body');
       final response = await http.post(
         url,
         headers: {
-          "Content-Type": "application/json",
           "Authorization": "Bearer $accessToken",
+          "Content-Type": "application/json",
         },
         body: jsonEncode(body),
       );
+      print('RESPONSE: ${response.statusCode} ${response.body}');
       if (response.statusCode == 200) {
         final jsonBody = jsonDecode(response.body);
-        if (jsonBody['success'] == true) {
-          return jsonBody['data'];
-        }
+        return jsonBody['data'];
       }
       print('startConversation failed: ${response.statusCode} ${response.body}');
       return null;
@@ -106,7 +166,8 @@ class service implements IRepository {
         final jsonBody = jsonDecode(response.body);
         return jsonBody;
       } else {
-        print('sendConversationMessage failed: ${response.statusCode} ${response.body}');
+        print('sendConversationMessage failed: ${response.statusCode} ${response
+            .body}');
         return null;
       }
     } catch (e) {
@@ -168,7 +229,8 @@ class service implements IRepository {
         final jsonBody = jsonDecode(response.body);
         return jsonBody;
       } else {
-        print('getConversationHistory failed: ${response.statusCode} ${response.body}');
+        print('getConversationHistory failed: ${response.statusCode} ${response
+            .body}');
         return null;
       }
     } catch (e) {
@@ -177,5 +239,69 @@ class service implements IRepository {
     }
   }
 
+  @override
+  Future<List<ConversationLanguage>> getConversationLanguages() async {
+    final storage = GetStorage();
+    final accessToken = storage.read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/conversation/languages');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $accessToken",
+        },
+      );
+      if (response.statusCode == 200) {
+        final jsonBody = jsonDecode(response.body);
+        final data = jsonBody['data'] as List<dynamic>? ?? [];
+        return data.map((item) => ConversationLanguage.fromJson(item)).toList();
+      } else {
+        print(
+            'getConversationLanguages failed: ${response.statusCode} ${response
+                .body}');
+        return [];
+      }
+    } catch (e) {
+      print('getConversationLanguages error: $e');
+      return [];
+    }
+  }
 
+  Future<void> joinConversationRoom(String sessionId) async {
+    await _hubConnection?.invoke("JoinConversationRoom", args: [sessionId]);
+    print('Joined SignalR room: $sessionId');
+  }
+
+  Future<void> sendConversationMessageSignalR({
+    required String sessionId,
+    required String messageContent,
+    required int messageType,
+    String? audioUrl,
+    int? audioDuration,
+    String? transcript,
+  }) async {
+    await _hubConnection?.invoke("SendMessage", args: [
+      sessionId,
+      messageContent,
+      messageType,
+      audioUrl ?? "",
+      audioDuration ?? 0,
+      transcript ?? "",
+    ]);
+  }
+
+  Future<void> sendVoiceMessageSignalR({
+    required String sessionId,
+    required String audioUrl,
+    required int audioDuration,
+    String? transcript,
+  }) async {
+    await _hubConnection?.invoke("SendVoice", args: [
+      sessionId,
+      audioUrl,
+      audioDuration,
+      transcript ?? "",
+    ]);
+  }
 }

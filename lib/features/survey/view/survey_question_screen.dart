@@ -1,15 +1,19 @@
 import 'dart:io';
+import 'package:flearn_app/shared/widgets/mainBottomNavbar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
 import 'package:record/record.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
+
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/fadeSlideAnimation.dart';
+import '../../../shared/widgets/animated_progress_bar.dart';
 
+import '../../auth/view/home_screen.dart';
 import '../viewmodel/survey_viewmodel.dart';
-
 import 'assessment_result_screen.dart';
 
 class SurveyQuestionScreen extends StatefulWidget {
@@ -167,7 +171,6 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
                         Wrap(
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
@@ -281,60 +284,78 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final question = surveyViewModel.currentQuestion.value;
-      final assessment = surveyViewModel.assessment.value;
-
-      return Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.primary.withOpacity(0.9),
-                AppColors.primary.withOpacity(0.6),
-                AppColors.primary.withOpacity(0.3),
-                Colors.white,
-              ],
-              stops: const [0.0, 0.3, 0.6, 1.0],
-            ),
-          ),
-          child: SafeArea(
-            child: surveyViewModel.isLoading.value
-                ? const Center(
-              child: CircularProgressIndicator(color: Colors.white),
-            )
-                : question == null || assessment == null
-                ? _buildErrorState()
-                : _buildContent(context, question, assessment),
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primary.withOpacity(0.9),
+              AppColors.primary.withOpacity(0.6),
+              AppColors.primary.withOpacity(0.3),
+              Colors.white,
+            ],
+            stops: const [0.0, 0.3, 0.6, 1.0],
           ),
         ),
-      );
-    });
+        child: SafeArea(
+          child: Obx(() {
+            final question = surveyViewModel.currentQuestion.value;
+            final assessment = surveyViewModel.assessment.value;
+
+            if (surveyViewModel.errorMessage.value?.contains('Đã hoàn thành tất cả câu hỏi') == true) {
+              Future.microtask(() async {
+                final result = await surveyViewModel.completeAssessment(assessment!.assessmentId);
+                if (result != null && mounted) {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => AssessmentResultScreen(result: result)),
+                  );
+                }
+              });
+              return const Center(child: CupertinoActivityIndicator(color: Colors.white));
+            }
+
+            if (question == null || assessment == null) {
+              return _buildErrorState();
+            }
+
+            return Column(
+              children: [
+                // THANH PROGRESS + NÚT SKIP
+                _buildProgressHeader(question, assessment),
+
+                // NỘI DUNG
+                Expanded(
+                  child: Stack(
+                    children: [
+                      FadeSlideAnimation(
+                        child: _buildQuestionContent(question),
+                      ),
+                      if (surveyViewModel.isLoading.value)
+                        const Center(
+                          child: CupertinoActivityIndicator(
+                            radius: 16,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+                _buildRecordingButton(),
+                const SizedBox(height: 16),
+                _buildActionButtons(assessment, question),
+              ],
+            );
+          }),
+        ),
+      ),
+    );
   }
 
   Widget _buildErrorState() {
     final errorMessage = surveyViewModel.errorMessage.value ?? '';
-    if (errorMessage.contains('Đã hoàn thành tất cả câu hỏi')) {
-      Future.microtask(() async {
-        final assessment = surveyViewModel.assessment.value;
-        if (assessment != null) {
-          final result = await surveyViewModel.completeAssessment(
-            assessment.assessmentId,
-          );
-          if (result != null && mounted) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => AssessmentResultScreen(result: result),
-              ),
-            );
-          }
-        }
-      });
-      return const Center(child: CircularProgressIndicator(color: Colors.white));
-    }
-
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -347,15 +368,11 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
           ),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: () => surveyViewModel.fetchCurrentAssessmentQuestion(
-              widget.assessmentId,
-            ),
+            onPressed: () => surveyViewModel.fetchCurrentAssessmentQuestion(widget.assessmentId),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
             child: const Text('Thử lại', style: TextStyle(fontSize: 14)),
@@ -365,36 +382,29 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
     );
   }
 
-  Widget _buildContent(BuildContext context, dynamic question, dynamic assessment) {
-    return FadeSlideAnimation(
+  Widget _buildQuestionContent(dynamic question) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildProgressHeader(question, assessment),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildQuestionCard(question),
-                  if (transcript != null) ...[
-                    const SizedBox(height: 24),
-                    _buildTranscriptSection(),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          _buildRecordingButton(),
-          const SizedBox(height: 16),
-          _buildActionButtons(assessment, question),
+          _buildQuestionCard(question),
+          if (transcript != null) ...[
+            const SizedBox(height: 24),
+            _buildTranscriptSection(),
+          ],
         ],
       ),
     );
   }
 
+
   Widget _buildProgressHeader(dynamic question, dynamic assessment) {
+    final double progress = question.questionNumber / assessment.totalQuestions;
+    final int currentQuestion = question.questionNumber;
+
     return Container(
+      key: ValueKey('progress_header_$currentQuestion'),
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
@@ -403,29 +413,27 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
             children: [
               Text(
                 'Câu hỏi ${question.questionNumber}/${assessment.totalQuestions}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
-              Text(
-                '${((question.questionNumber / assessment.totalQuestions) * 100).toInt()}%',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
+              Row(
+                children: [
+                  Text(
+                    '${(progress * 100).toInt()}%',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                  const SizedBox(width: 8),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: question.questionNumber / assessment.totalQuestions,
+            child: AnimatedProgressBar(
+              key: ValueKey('progress_bar_$currentQuestion'),
+              progress: progress,
               backgroundColor: Colors.white.withOpacity(0.3),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor: Colors.white,
               minHeight: 8,
             ),
           ),
@@ -436,16 +444,12 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
 
   Widget _buildQuestionCard(dynamic question) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding:  const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -456,29 +460,19 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
               Expanded(
                 child: Text(
                   question.question ?? 'Không có câu hỏi',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
                 ),
               ),
-              if (question.wordGuides.isNotEmpty)
+              if (question.wordGuides?.isNotEmpty == true)
                 IconButton(
-                  onPressed: () => _showWordGuidesBottomSheet(
-                    question.wordGuides,
-                  ),
+                  onPressed: () => _showWordGuidesBottomSheet(question.wordGuides),
                   icon: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(
-                      Icons.help_outline,
-                      color: AppColors.primary,
-                      size: 24,
-                    ),
+                    child: Icon(Icons.help_outline, color: AppColors.primary, size: 24),
                   ),
                   tooltip: 'Từ vựng hỗ trợ',
                 ),
@@ -488,11 +482,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
             const SizedBox(height: 12),
             Text(
               question.promptText,
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.primary,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: 16, color: AppColors.primary, fontWeight: FontWeight.w500),
             ),
           ],
           const SizedBox(height: 12),
@@ -501,9 +491,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
             decoration: BoxDecoration(
               color: Colors.blue.withOpacity(0.05),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.blue.withOpacity(0.1),
-              ),
+              border: Border.all(color: Colors.blue.withOpacity(0.1)),
             ),
             child: Row(
               children: [
@@ -512,11 +500,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                 Expanded(
                   child: Text(
                     question.vietnameseTranslation ?? 'Không có bản dịch',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.blue[700],
-                      fontStyle: FontStyle.italic,
-                    ),
+                    style: TextStyle(fontSize: 15, color: Colors.blue[700], fontStyle: FontStyle.italic),
                   ),
                 ),
               ],
@@ -543,8 +527,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (_isRecording ? Colors.red : AppColors.primary)
-                        .withOpacity(0.4),
+                    color: (_isRecording ? Colors.red : AppColors.primary).withOpacity(0.4),
                     blurRadius: 20,
                     spreadRadius: 5,
                   ),
@@ -560,11 +543,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
           const SizedBox(height: 12),
           Text(
             _isRecording ? 'Đang ghi âm...' : 'Nhấn để ghi âm',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[700],
-              fontWeight: FontWeight.w500,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[700], fontWeight: FontWeight.w500),
           ),
           if (recordedFilePath != null && !_isRecording) ...[
             const SizedBox(height: 8),
@@ -575,23 +554,14 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                 const SizedBox(width: 8),
                 Text(
                   'Đã ghi âm',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green,
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.green),
                 ),
                 IconButton(
-                  icon: Icon(Icons.play_circle,
-                    color: AppColors.primary,
-                    size: 28,
-                  ),
+                  icon: Icon(Icons.play_circle, color: AppColors.primary, size: 28),
                   tooltip: 'Nghe lại',
                   onPressed: () async {
                     if (recordedFilePath != null) {
-                      await _audioPlayer.play(
-                        DeviceFileSource(recordedFilePath!),
-                      );
+                      await _audioPlayer.play(DeviceFileSource(recordedFilePath!));
                     }
                   },
                 ),
@@ -610,31 +580,17 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Kết quả nhận diện',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          const Text('Kết quả nhận diện', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           Text(
             transcript!,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.black87,
-              height: 1.5,
-            ),
+            style: const TextStyle(fontSize: 16, color: Colors.black87, height: 1.5),
           ),
         ],
       ),
@@ -647,11 +603,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2)),
         ],
       ),
       child: SafeArea(
@@ -667,24 +619,14 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                     audioFilePath: null,
                     recordingDurationSeconds: 0,
                   );
-                  if (success && mounted) {
-                    _navigateNext(assessment);
-                  }
+                  if (success && mounted) _navigateNext(assessment);
                 },
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.grey[400]!),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: const Text(
-                  'Bỏ qua',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                child: const Text('Bỏ qua', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
             const SizedBox(width: 16),
@@ -692,29 +634,17 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
               flex: 2,
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.primary,
-                      AppColors.primary.withOpacity(0.8),
-                    ],
-                  ),
+                  gradient: LinearGradient(colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)]),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
+                    BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
                   ],
                 ),
                 child: ElevatedButton(
                   onPressed: () async {
-                    if (recordedFilePath == null ||
-                        !File(recordedFilePath!).existsSync()) {
+                    if (recordedFilePath == null || !File(recordedFilePath!).existsSync()) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Bạn chưa ghi âm câu trả lời!'),
-                        ),
+                        const SnackBar(content: Text('Bạn chưa ghi âm câu trả lời!')),
                       );
                       return;
                     }
@@ -722,9 +652,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                     int duration = 0;
                     try {
                       final audioFile = File(recordedFilePath!);
-                      duration = audioFile.existsSync()
-                          ? audioFile.lengthSync() ~/ 16000
-                          : 0;
+                      duration = audioFile.existsSync() ? audioFile.lengthSync() ~/ 16000 : 0;
                     } catch (_) {}
 
                     final success = await surveyViewModel.submitVoiceAnswer(
@@ -739,27 +667,19 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                       _navigateNext(assessment);
                     } else if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Gửi câu trả lời thất bại!'),
-                        ),
+                        const SnackBar(content: Text('Gửi câu trả lời thất bại!')),
                       );
                     }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: const Text(
                     'Gửi câu trả lời',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),
               ),
@@ -772,23 +692,17 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
 
   void _navigateNext(dynamic assessment) async {
     final question = surveyViewModel.currentQuestion.value;
-    final isLastQuestion = question != null && question.questionNumber >= 4;
+    final isLastQuestion = question != null && question.questionNumber >= assessment.totalQuestions;
 
     if (isLastQuestion) {
-      final result = await surveyViewModel.completeAssessment(
-        assessment.assessmentId,
-      );
+      final result = await surveyViewModel.completeAssessment(assessment.assessmentId);
       if (result != null && mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => AssessmentResultScreen(result: result),
-          ),
+          MaterialPageRoute(builder: (_) => AssessmentResultScreen(result: result)),
         );
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể lấy kết quả đánh giá. Vui lòng thử lại!'),
-          ),
+          const SnackBar(content: Text('Không thể lấy kết quả đánh giá. Vui lòng thử lại!')),
         );
       }
     } else {
@@ -797,10 +711,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
         transcript = null;
         _isRecording = false;
       });
-
-      await surveyViewModel.fetchCurrentAssessmentQuestion(
-        assessment.assessmentId,
-      );
+      await surveyViewModel.fetchCurrentAssessmentQuestion(assessment.assessmentId);
     }
   }
 }

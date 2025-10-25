@@ -1,20 +1,15 @@
 import 'dart:convert';
-import 'package:flearn_app/features/topic/view/topic_screen.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import '../../../core/constants/colors.dart';
-import '../../../shared/widgets/mainBottomNavbar.dart';
 import '../../schedule/view/student_schedule.dart';
-import '../model/user.dart';
-import '../data/auth_repository.dart';
 import '../view/login_screen.dart';
 import '../viewmodel/login_viewmodel.dart';
 import '../viewmodel/user_viewmodel.dart';
 import '../../../shared/widgets/app_scaffold.dart';
-import '../../course/view/course_screen.dart';
-import 'home_screen.dart';
+import '../../../shared/widgets/mainBottomNavbar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -47,15 +42,9 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     _animationController.forward();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchUserProfile();
-      _loadSurveyData();
     });
   }
 
-  void _loadSurveyData() {
-    final box = GetStorage();
-    final surveyData = box.read('surveyData');
-
-  }
 
   @override
   void dispose() {
@@ -122,6 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final padding = size.width * 0.06;
+    final NavigationController navController = Get.find<NavigationController>();
 
     return AppScaffold(
       appBar: AppBar(
@@ -153,28 +143,8 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
           children: [
             _buildBackgroundCircles(),
             _buildMainContent(padding),
-            _buildLoadingOverlay(),
           ],
         ),
-      ),
-      bottomNavigationBar: MainBottomNavBar(
-        currentIndex: 3,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-              break;
-            case 1:
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TopicScreen()));
-              break;
-            case 2:
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CourseScreen()));
-              break;
-            case 3:
-            // Already on profile
-              break;
-          }
-        },
       ),
     );
   }
@@ -310,7 +280,12 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   Widget _buildProfileInfo() {
     return Obx(() {
       if (userViewModel.isLoading.value) {
-        return const CircularProgressIndicator();
+        return const Center(
+          child: CupertinoActivityIndicator(
+            radius: 15,
+            color: AppColors.primary,
+          ),
+        );
       }
       if (userViewModel.errorMessage.value != null) {
         return Column(
@@ -458,27 +433,27 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildLoadingOverlay() {
-    return Obx(() => userViewModel.isLoading.value
-        ? Container(
-      color: Colors.black.withOpacity(0.3),
-      child: const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text("Đang xử lý...", style: TextStyle(fontSize: 16)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    )
-        : const SizedBox.shrink());
-  }
+  // Widget _buildLoadingOverlay() {
+  //   return Obx(() => userViewModel.isLoading.value
+  //       ? Container(
+  //     color: Colors.black.withOpacity(0.3),
+  //     child: const Center(
+  //       child: Card(
+  //         child: Padding(
+  //           padding: EdgeInsets.all(32),
+  //           child: Column(
+  //             mainAxisSize: MainAxisSize.min,
+  //             children: [
+  //               CircularProgressIndicator(),
+  //               SizedBox(height: 16),
+  //               Text("Đang xử lý...", style: TextStyle(fontSize: 16)),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   )
+  //       : const SizedBox.shrink());
+  // }
 
 }

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/app_scaffold.dart';
-import '../../auth/view/home_screen.dart';
+import '../../../shared/widgets/mainBottomNavbar.dart';
+
 import '../model/assessment_result.dart';
 import '../viewmodel/survey_viewmodel.dart';
 
@@ -16,6 +17,12 @@ class AssessmentResultScreen extends StatefulWidget {
 
 class _AssessmentResultScreenState extends State<AssessmentResultScreen>
     with TickerProviderStateMixin {
+
+  bool get isSkipped =>
+      widget.result.determinedLevel == 'Chưa xác định' &&
+          widget.result.strengths.isEmpty &&
+          widget.result.weaknesses.isEmpty;
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -52,7 +59,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            MaterialPageRoute(builder: (context) => const NavigationMenu()),
                 (route) => false,
           ),
         ),
@@ -69,8 +76,8 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                 const SizedBox(height: 24),
                 _buildScoreCard(),
                 const SizedBox(height: 20),
-                if (widget.result.strengths.isNotEmpty) _buildStrengthsCard(),
-                if (widget.result.weaknesses.isNotEmpty) ...[
+                if (!isSkipped && widget.result.strengths.isNotEmpty) _buildStrengthsCard(),
+                if (!isSkipped && widget.result.weaknesses.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   _buildWeaknessesCard(),
                 ],
@@ -111,25 +118,27 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(40),
             ),
-            child: const Icon(
-              Icons.emoji_events,
+            child: Icon(
+              isSkipped ? Icons.info_outline : Icons.emoji_events,
               size: 40,
               color: Colors.white,
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Chúc mừng!',
-            style: TextStyle(
+          Text(
+            isSkipped ? 'Bạn đã bỏ qua khảo sát' : 'Chúc mừng!',
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Bạn đã hoàn thành bài đánh giá',
-            style: TextStyle(
+          Text(
+            isSkipped
+                ? 'Bạn chưa hoàn thành bài đánh giá'
+                : 'Bạn đã hoàn thành bài đánh giá',
+            style: const TextStyle(
               fontSize: 16,
               color: Colors.white70,
             ),
@@ -141,6 +150,32 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
   }
 
   Widget _buildScoreCard() {
+    if (isSkipped) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.border.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Text(
+          'Không có kết quả trình độ do bạn đã bỏ qua khảo sát.',
+          style: TextStyle(
+            fontSize: 16,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -443,10 +478,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                   ),
                 );
               }
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
-                    (route) => false,
-              );
+              Get.offAll(() => const NavigationMenu());
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -489,7 +521,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen>
                 );
               }
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
+                MaterialPageRoute(builder: (context) => const NavigationMenu()),
                     (route) => false,
               );
             },
