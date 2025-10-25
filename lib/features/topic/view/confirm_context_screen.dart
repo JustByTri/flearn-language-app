@@ -6,7 +6,6 @@ import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 
 import '../model/topic.dart';
-import '../model/conversationLanguage.dart';
 import '../viewmodel/topic_viewmodel.dart';
 import 'chatAi_screen.dart';
 
