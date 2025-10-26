@@ -5,8 +5,11 @@ import 'package:flearn_app/features/schedule/data/service.dart';
 import 'package:flearn_app/features/survey/data/repository.dart';
 import 'package:flearn_app/features/survey/data/service.dart';
 import 'package:flearn_app/features/topic/data/repository.dart';
+import 'package:flearn_app/core/services/dio_interceptor.dart'; // <-- Đảm bảo import này đúng
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
+import 'package:dio/dio.dart';
+
 
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/data/auth_service.dart';
@@ -15,8 +18,16 @@ import 'features/topic/data/service.dart';
 final sl = GetIt.instance;
 
 void setupDI() {
-
-  Get.lazyPut<IAuthRepository>(() => AuthService());
+  Get.lazyPut<Dio>(() {
+    final dio = Dio(BaseOptions(
+      baseUrl: 'https://f-learn.app/api', // Đặt base URL ở đây
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 15),
+    ));
+    dio.interceptors.add(DioInterceptor()); // Tự động thêm token vào mọi request
+    return dio;
+  }, fenix: true);
+  Get.lazyPut<IAuthRepository>(() => AuthService(Get.find<Dio>()));
   Get.lazyPut<IRepository>(() => service());
   Get.lazyPut<ICourseRepository>(() => CourseService());
   Get.lazyPut<ISurveyRepository>(() => serviceSurvey());

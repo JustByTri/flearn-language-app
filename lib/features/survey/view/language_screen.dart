@@ -1,4 +1,5 @@
 import 'package:flearn_app/features/survey/view/survey_screen.dart';
+import 'package:flearn_app/shared/widgets/mainBottomNavbar.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -26,63 +27,65 @@ class _LanguageScreenState extends State<LanguageScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primary.withOpacity(0.9),
-              AppColors.primary.withOpacity(0.6),
-              AppColors.primary.withOpacity(0.3),
-              Colors.white,
-            ],
-            stops: const [0.0, 0.3, 0.6, 1.0],
-          ),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: AppColors.textPrimary),
+          onPressed: () => Get.offAll(() => const NavigationMenu()), // Quay về trang chủ
         ),
-        child: SafeArea(
-          child: Obx(() {
-            final langsMap = surveyViewModel.languages;
-            if (surveyViewModel.isLoadingLanguages.value) {
-              return const Center(child: CircularProgressIndicator(color: Colors.white));
-            }
-            return FadeSlideAnimation(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 40),
-                    Text(
-                      'Chọn ngôn ngữ',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+        title: const Text(
+          'Khảo sát đầu vào',
+          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Obx(() {
+          if (surveyViewModel.isLoadingLanguages.value) {
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          }
+          final langsMap = surveyViewModel.languages;
+          return FadeSlideAnimation(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Bạn muốn học ngôn ngữ nào?',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Bạn muốn học ngôn ngữ nào?',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Lựa chọn của bạn sẽ quyết định bài kiểm tra đầu vào.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.textSecondary,
                     ),
-                    const SizedBox(height: 40),
-                    Expanded(
-                      child: ListView(
-                        children: langsMap.entries.map((entry) {
-                          return _buildLanguageCard(entry.key, entry.value);
-                        }).toList(),
-                      ),
+                  ),
+                  const SizedBox(height: 32),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: langsMap.entries.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final entry = langsMap.entries.elementAt(index);
+                        return _buildLanguageCard(entry.key, entry.value);
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          }),
-        ),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -90,65 +93,41 @@ class _LanguageScreenState extends State<LanguageScreen> {
   Widget _buildLanguageCard(String languageId, String languageName) {
     final displayName = languageNameVi[languageName] ?? languageName;
     final flagEmoji = flagEmojis[languageName] ?? '🏳️';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            GetStorage().write('selectedLanguageId', languageId);
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const SurveyScreen()),
-            );
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+    return InkWell(
+      onTap: () {
+        GetStorage().write('selectedLanguageId', languageId);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SurveyScreen()),
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
+            Text(
+              flagEmoji,
+              style: const TextStyle(fontSize: 32),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
-                    ),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Center(
-                    child: Text(
-                      flagEmoji,
-                      style: const TextStyle(fontSize: 36),
-                    ),
-                  ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                displayName,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
                 ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Text(
-                    displayName,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-                Icon(Icons.arrow_forward_ios, color: AppColors.primary, size: 20),
-              ],
+              ),
             ),
-          ),
+            const Icon(Icons.arrow_forward_ios, color: AppColors.textSecondary, size: 18),
+          ],
         ),
       ),
     );

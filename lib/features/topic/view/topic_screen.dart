@@ -1,12 +1,8 @@
-import 'package:flearn_app/features/auth/view/profile_screen.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:get/get.dart';
 
-import '../../../shared/widgets/app_scaffold.dart';
-import '../../../shared/widgets/mainBottomNavbar.dart';
-import '../../course/view/course_screen.dart';
-import '../../auth/view/home_screen.dart';
 import '../model/topic.dart';
 import '../viewmodel/topic_viewmodel.dart';
 import 'confirm_context_screen.dart';
@@ -18,105 +14,95 @@ class TopicScreen extends StatefulWidget {
   State<TopicScreen> createState() => _TopicScreenState();
 }
 
-class _TopicScreenState extends State<TopicScreen> with TickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
+class _TopicScreenState extends State<TopicScreen> {
   final topicViewModel = Get.put(TopicViewModel(Get.find()));
+
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-    );
-    _animationController.forward();
-    topicViewModel.fetchTopics();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      topicViewModel.fetchTopics();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final NavigationController navController = Get.find<NavigationController>();
-
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: AppScaffold(
-        appBar: AppBar(
-          backgroundColor: AppColors.primary,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: AppColors.textLight),
-            onPressed: () => navController.onDestinationSelected(0), // Quay về Home tab
-          ),
-          title: Text("Chủ đề", style: TextStyle(color: AppColors.textLight, fontSize: 20, fontWeight: FontWeight.w600)),
-          elevation: 0,
-          centerTitle: true,
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA), // A very light grey background
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back, color: AppColors.textPrimary),
+          onPressed: () => Get.back(),
         ),
-        body: Obx(() {
-          if (topicViewModel.isLoadingTopics.value) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-          final topics = topicViewModel.topics;
+        title: const Text(
+          "Chủ đề Roleplay",
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+      ),
+      body: Obx(() {
+        if (topicViewModel.isLoadingTopics.value) {
+          return const Center(child: CupertinoActivityIndicator(radius: 15));
+        }
 
-          if (topics.isEmpty) {
-            return const Center(
-              child: Text("Chưa có chủ đề nào", style: TextStyle(fontSize: 16)),
-            );
-          }
-
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: ListView.separated(
-              itemCount: topics.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final topic = topics[index];
-                return _buildTopicRow(topic, index);
-              },
+        if (topicViewModel.topics.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.bubble_left_bubble_right, size: 60, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                const Text(
+                  "Chưa có chủ đề nào",
+                  style: TextStyle(fontSize: 17, color: Colors.grey),
+                ),
+              ],
             ),
           );
-        }),
-      ),
+        }
+
+        final topics = topicViewModel.topics;
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+          itemCount: topics.length,
+          itemBuilder: (context, index) {
+            final topic = topics[index];
+            return _buildTopicCard(topic, index);
+          },
+        );
+      }),
     );
   }
 
-  Widget _buildTopicRow(TopicModel topic, int index) {
-
+  Widget _buildTopicCard(TopicModel topic, int index) {
     final List<List<Color>> gradients = [
-      [Colors.blue.shade200, Colors.blue.shade400],
-      [Colors.green.shade200, Colors.green.shade400],
-      [Colors.orange.shade200, Colors.orange.shade400],
-      [Colors.purple.shade200, Colors.purple.shade400],
-      [Colors.red.shade200, Colors.red.shade400],
+      [const Color(0xFF6DD5FA), const Color(0xFF2980B9)],
+      [const Color(0xFFC5E1A5), const Color(0xFF7CB342)],
+      [const Color(0xFFFFD54F), const Color(0xFFFFA000)],
+      [const Color(0xFFCE93D8), const Color(0xFF8E24AA)],
+      [const Color(0xFFEF9A9A), const Color(0xFFD32F2F)],
+      [const Color(0xFF81D4FA), const Color(0xFF0277BD)],
     ];
     final gradient = gradients[index % gradients.length];
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => ConfirmContextScreen(topic: topic)),
+        Get.to(
+          () => ConfirmContextScreen(topic: topic),
+          transition: Transition.cupertino,
         );
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
+        margin: const EdgeInsets.only(bottom: 20),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
             colors: gradient,
             begin: Alignment.topLeft,
@@ -124,40 +110,55 @@ class _TopicScreenState extends State<TopicScreen> with TickerProviderStateMixin
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              color: gradient[1].withOpacity(0.3),
+              blurRadius: 15,
+              spreadRadius: -5,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    topic.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    topic.description,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.white70,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+            Text(
+              topic.name,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 20, color: Colors.white),
+            const SizedBox(height: 8),
+            Text(
+              topic.description,
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.white.withOpacity(0.9),
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  "Luyện tập ngay",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  CupertinoIcons.arrow_right,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ],
+            )
           ],
         ),
       ),

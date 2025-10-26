@@ -4,14 +4,17 @@ import "dart:convert";
 import "package:get_storage/get_storage.dart";
 import "package:http/http.dart" as http;
 
+import 'package:dio/dio.dart';
 import "../../../config/api_config.dart";
 import "../model/login_request.dart";
 import "../model/login_response.dart";
 import '../model/response.dart';
 import "../model/user.dart";
 import "auth_repository.dart";
-
+import "../model/logout_request.dart";
 class AuthService implements IAuthRepository {
+  final Dio _dio;
+  AuthService(this._dio);
   @override
   Future<LoginResponse> login(LoginRequest request) async {
     final url = Uri.parse(
@@ -301,4 +304,21 @@ class AuthService implements IAuthRepository {
       throw Exception("Check survey required error: $e");
     }
   }
+  @override
+  Future<void> logout(String refreshToken) async {
+    try {
+      final request = LogoutRequest(refreshToken: refreshToken);
+      // Gọi API POST đến endpoint logout
+      await _dio.post(
+        '/Auth/logout', // Đảm bảo endpoint này đúng
+        data: request.toJson(),
+      );
+      print("Called logout API successfully.");
+    } on DioException catch (e) {
+      // Ngay cả khi API lỗi, việc logout ở client vẫn cần tiếp tục
+      // nên chúng ta chỉ in lỗi ra và không ném exception
+      print("Error calling logout API, but proceeding with client-side logout: $e");
+    }
+  }
 }
+

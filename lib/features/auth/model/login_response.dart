@@ -23,12 +23,18 @@ class LoginResult {
   final String refreshToken;
   final String? accessTokenExpires;
   final String? refreshTokenExpires;
+  final Map<String, dynamic>? user;
+  final Map<String, dynamic>? activeLanguage;
+  final List<dynamic>? roles;
 
   LoginResult({
     required this.accessToken,
     required this.refreshToken,
     this.accessTokenExpires,
     this.refreshTokenExpires,
+    this.user,
+    this.activeLanguage,
+    this.roles,
   });
 
   factory LoginResult.fromJson(Map<String, dynamic> json) {
@@ -37,6 +43,9 @@ class LoginResult {
       refreshToken: json['refreshToken'] ?? '',
       accessTokenExpires: json['accessTokenExpires'],
       refreshTokenExpires: json['refreshTokenExpires'],
+      user: json['user'],
+      activeLanguage: json['activeLanguage'],
+      roles: json['roles'],
     );
   }
 }

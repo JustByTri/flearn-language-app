@@ -7,6 +7,7 @@ import 'package:record/record.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:translator/translator.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/fadeSlideAnimation.dart';
@@ -28,80 +29,110 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
   final surveyViewModel = Get.find<SurveyViewModel>();
   final _recorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final _translator = GoogleTranslator();
 
   bool _isRecording = false;
   String? recordedFilePath;
-  String? transcript;
+  Duration _recordingDuration = Duration.zero;
+  bool _isPlaying = false;
+  bool _isCompleting = false;
+  String? _translatedText;
+  bool _isTranslating = false;
 
   @override
   void initState() {
     super.initState();
     _requestPermissions();
     surveyViewModel.fetchCurrentAssessmentQuestion(widget.assessmentId);
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = state == PlayerState.playing;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _recorder.dispose();
+    _audioPlayer.dispose();
+    super.dispose();
   }
 
   Future<void> _requestPermissions() async {
-    final microphoneStatus = await Permission.microphone.request();
-    if (microphoneStatus.isDenied || microphoneStatus.isPermanentlyDenied) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không có quyền truy cập micro')),
-        );
-      }
+    if (await Permission.microphone.isDenied) {
+      await Permission.microphone.request();
+    }
+  }
+
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      await _stopRecording();
+    } else {
+      await _startRecording();
     }
   }
 
   Future<void> _startRecording() async {
-    try {
-      if (!await Permission.microphone.isGranted) {
-        await _requestPermissions();
-        if (!await Permission.microphone.isGranted) return;
-      }
-
-      final dir = await getApplicationDocumentsDirectory();
-      final filePath = '${dir.path}/survey_audio_${DateTime.now().millisecondsSinceEpoch}.wav';
-
-      await _recorder.start(const RecordConfig(encoder: AudioEncoder.wav), path: filePath);
-
-      if (mounted) {
-        setState(() {
-          _isRecording = true;
-          recordedFilePath = filePath;
-        });
-      }
-    } catch (e) {
-      debugPrint('Lỗi bắt đầu ghi âm: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi khi bắt đầu ghi âm: $e')),
-        );
-      }
+    if (!await _recorder.hasPermission()) {
+      _showErrorSnackBar('Vui lòng cấp quyền ghi âm.');
+      return;
     }
+    final dir = await getApplicationDocumentsDirectory();
+    final filePath = '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.wav';
+    await _recorder.start(const RecordConfig(encoder: AudioEncoder.wav), path: filePath);
+    setState(() {
+      _isRecording = true;
+      recordedFilePath = null; 
+    });
   }
 
   Future<void> _stopRecording() async {
-    try {
-      final path = await _recorder.stop();
-      if (mounted) {
-        setState(() {
-          _isRecording = false;
-          recordedFilePath = path;
-        });
-      }
-      if (path != null && File(path).existsSync()) {
-        final file = File(path);
-        if (file.lengthSync() == 0) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('File ghi âm rỗng!')),
-            );
-          }
-          return;
-        }
-      }
-    } catch (e) {
-      debugPrint('Lỗi dừng ghi âm: $e');
+    final stopwatch = Stopwatch()..start();
+    final path = await _recorder.stop();
+    stopwatch.stop();
+    setState(() {
+      _isRecording = false;
+      recordedFilePath = path;
+      _recordingDuration = stopwatch.elapsed;
+    });
+  }
+
+  Future<void> _playRecording() async {
+    if (recordedFilePath != null && File(recordedFilePath!).existsSync()) {
+      await _audioPlayer.play(DeviceFileSource(recordedFilePath!));
+    } else {
+      _showErrorSnackBar('Không tìm thấy file ghi âm.');
     }
+  }
+
+  Future<void> _submitAnswer({bool isSkipped = false}) async {
+    final question = surveyViewModel.currentQuestion.value;
+    if (question == null) return;
+
+    final success = await surveyViewModel.submitVoiceAnswer(
+        assessmentId: widget.assessmentId,
+        questionNumber: question.questionNumber,
+        isSkipped: isSkipped,
+        audioFilePath: recordedFilePath,
+        recordingDurationSeconds: _recordingDuration.inSeconds);
+
+    if (success) {
+      setState(() {
+        recordedFilePath = null;
+        _recordingDuration = Duration.zero;
+        _translatedText = null; // Clear translation
+      });
+      surveyViewModel.fetchCurrentAssessmentQuestion(widget.assessmentId);
+    } else {
+      _showErrorSnackBar('Gửi câu trả lời thất bại.');
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showWordGuidesBottomSheet(List<dynamic> wordGuides) {
@@ -120,34 +151,18 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
         ),
         child: Column(
           children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
+             Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.book, color: AppColors.primary, size: 28),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Từ vựng hỗ trợ',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  const Text(
+                    'Từ vựng hỗ trợ',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close), 
+                    onPressed: () => Navigator.pop(context)
                   ),
                 ],
               ),
@@ -158,112 +173,32 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                 itemCount: wordGuides.length,
                 itemBuilder: (context, index) {
                   final word = wordGuides[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.primary.withOpacity(0.1),
-                      ),
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 0,
+                    color: Colors.grey[50],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey[200]!)
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                word.word ?? '',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Icon(Icons.volume_up,
-                              color: AppColors.primary,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                word.pronunciation ?? '',
-                                style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 14,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                           Text(word.word ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          if(word.pronunciation != null) ...[
+                            const SizedBox(height: 4),
+                            Text(word.pronunciation, style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic)),
                           ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.translate,
-                              color: Colors.grey[600],
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                word.vietnameseMeaning ?? '',
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.visible,
-                                softWrap: true,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(Icons.lightbulb_outline,
-                                color: Colors.amber[700],
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  word.example ?? '',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[700],
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                  overflow: TextOverflow.visible,
-                                  softWrap: true,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(word.vietnameseMeaning ?? ''),
+                          if(word.example != null) ...[
+                            const SizedBox(height: 8),
+                            Text('VD: ${word.example}', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+                          ]
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -275,443 +210,251 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _recorder.dispose();
-    _audioPlayer.dispose();
-    super.dispose();
+  Future<void> _handleAssessmentCompletion() async {
+    if (_isCompleting) return; 
+    setState(() {
+      _isCompleting = true;
+    });
+
+    final assessmentId = surveyViewModel.assessment.value?.assessmentId;
+    if (assessmentId == null) return;
+
+    final result = await surveyViewModel.completeAssessment(assessmentId);
+    if (result != null && mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => AssessmentResultScreen(result: result)),
+      );
+    } else if (mounted) {
+      _showErrorSnackBar('Không thể lấy kết quả đánh giá.');
+      Get.offAll(() => const NavigationMenu());
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primary.withOpacity(0.9),
-              AppColors.primary.withOpacity(0.6),
-              AppColors.primary.withOpacity(0.3),
-              Colors.white,
-            ],
-            stops: const [0.0, 0.3, 0.6, 1.0],
-          ),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: AppColors.textPrimary),
+          onPressed: () => Get.offAll(() => const NavigationMenu()),
         ),
-        child: SafeArea(
-          child: Obx(() {
-            final question = surveyViewModel.currentQuestion.value;
-            final assessment = surveyViewModel.assessment.value;
+        title: const Text('Đánh giá năng lực', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Obx(() {
+          final assessment = surveyViewModel.assessment.value;
+          
+          if (surveyViewModel.errorMessage.value == 'ASSESSMENT_COMPLETED') {
+             WidgetsBinding.instance.addPostFrameCallback((_) => _handleAssessmentCompletion());
+             return const Center(child: CupertinoActivityIndicator());
+          }
 
-            if (surveyViewModel.errorMessage.value?.contains('Đã hoàn thành tất cả câu hỏi') == true) {
-              Future.microtask(() async {
-                final result = await surveyViewModel.completeAssessment(assessment!.assessmentId);
-                if (result != null && mounted) {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => AssessmentResultScreen(result: result)),
-                  );
-                }
-              });
-              return const Center(child: CupertinoActivityIndicator(color: Colors.white));
-            }
+          if (surveyViewModel.isLoadingCurrentQuestion.value || assessment == null) {
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          }
 
-            if (question == null || assessment == null) {
-              return _buildErrorState();
-            }
+          final question = surveyViewModel.currentQuestion.value;
 
-            return Column(
+          if (question == null && !_isCompleting) {
+             WidgetsBinding.instance.addPostFrameCallback((_) => _handleAssessmentCompletion());
+             return const Center(child: CupertinoActivityIndicator());
+          }
+
+          if (_isCompleting || question == null) {
+            return const Center(child: CupertinoActivityIndicator());
+          }
+
+          double progress = ((question.questionNumber - 1) / assessment.totalQuestions).toDouble();
+          if (progress < 0) progress = 0;
+
+          return FadeSlideAnimation(
+            child: Column(
               children: [
-                // THANH PROGRESS + NÚT SKIP
-                _buildProgressHeader(question, assessment),
-
-                // NỘI DUNG
+                AnimatedProgressBar(progress: progress), 
                 Expanded(
-                  child: Stack(
-                    children: [
-                      FadeSlideAnimation(
-                        child: _buildQuestionContent(question),
-                      ),
-                      if (surveyViewModel.isLoading.value)
-                        const Center(
-                          child: CupertinoActivityIndicator(
-                            radius: 16,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                _buildRecordingButton(),
-                const SizedBox(height: 16),
-                _buildActionButtons(assessment, question),
-              ],
-            );
-          }),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorState() {
-    final errorMessage = surveyViewModel.errorMessage.value ?? '';
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.white),
-          const SizedBox(height: 16),
-          Text(
-            errorMessage.isNotEmpty ? errorMessage : 'Không thể tải câu hỏi',
-            style: const TextStyle(fontSize: 16, color: Colors.white),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () => surveyViewModel.fetchCurrentAssessmentQuestion(widget.assessmentId),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: const Text('Thử lại', style: TextStyle(fontSize: 14)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuestionContent(dynamic question) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildQuestionCard(question),
-          if (transcript != null) ...[
-            const SizedBox(height: 24),
-            _buildTranscriptSection(),
-          ],
-        ],
-      ),
-    );
-  }
-
-
-  Widget _buildProgressHeader(dynamic question, dynamic assessment) {
-    final double progress = question.questionNumber / assessment.totalQuestions;
-    final int currentQuestion = question.questionNumber;
-
-    return Container(
-      key: ValueKey('progress_header_$currentQuestion'),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Câu hỏi ${question.questionNumber}/${assessment.totalQuestions}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              Row(
-                children: [
-                  Text(
-                    '${(progress * 100).toInt()}%',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: AnimatedProgressBar(
-              key: ValueKey('progress_bar_$currentQuestion'),
-              progress: progress,
-              backgroundColor: Colors.white.withOpacity(0.3),
-              valueColor: Colors.white,
-              minHeight: 8,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuestionCard(dynamic question) {
-    return Container(
-      padding:  const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  question.question ?? 'Không có câu hỏi',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
-                ),
-              ),
-              if (question.wordGuides?.isNotEmpty == true)
-                IconButton(
-                  onPressed: () => _showWordGuidesBottomSheet(question.wordGuides),
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Spacer(flex: 2),
+                        _buildQuestionContent(question),
+                        const Spacer(flex: 3),
+                      ],
                     ),
-                    child: Icon(Icons.help_outline, color: AppColors.primary, size: 24),
-                  ),
-                  tooltip: 'Từ vựng hỗ trợ',
-                ),
-            ],
-          ),
-          if (question.promptText != null && question.promptText.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              question.promptText,
-              style: TextStyle(fontSize: 16, color: AppColors.primary, fontWeight: FontWeight.w500),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.withOpacity(0.1)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.translate, color: Colors.blue[600], size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    question.vietnameseTranslation ?? 'Không có bản dịch',
-                    style: TextStyle(fontSize: 15, color: Colors.blue[700], fontStyle: FontStyle.italic),
                   ),
                 ),
+                 _buildRecordingControls(),
+                 _buildBottomNavBar(),
               ],
             ),
-          ),
-        ],
+          );
+        }),
       ),
     );
   }
 
-  Widget _buildRecordingButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        children: [
-          GestureDetector(
-            onTap: _isRecording ? _stopRecording : _startRecording,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: _isRecording ? Colors.red : AppColors.primary,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: (_isRecording ? Colors.red : AppColors.primary).withOpacity(0.4),
-                    blurRadius: 20,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: Icon(
-                _isRecording ? Icons.stop : Icons.mic,
-                color: Colors.white,
-                size: 40,
-              ),
+  // --- FIXED: Translation logic is now more robust ---
+  Widget _buildQuestionContent(dynamic question) {
+    return Column(
+      children: [
+        if (question.question != null)
+          Text(
+            question.question,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: AppColors.textSecondary, height: 1.5),
+          ),
+        
+        if (question.promptText != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24.0),
+            child: Text(
+              question.promptText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            _isRecording ? 'Đang ghi âm...' : 'Nhấn để ghi âm',
-            style: TextStyle(fontSize: 14, color: Colors.grey[700], fontWeight: FontWeight.w500),
+
+        if (_isTranslating)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 24.0),
+            child: CupertinoActivityIndicator(),
+          )
+        else if (_translatedText != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24.0),
+            child: Text(
+              _translatedText!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 18, fontStyle: FontStyle.italic, color: AppColors.primary, height: 1.4),
+            ),
           ),
-          if (recordedFilePath != null && !_isRecording) ...[
-            const SizedBox(height: 8),
+        
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (question.promptText != null)
+              TextButton.icon(
+                onPressed: () async {
+                  if (_translatedText != null) {
+                    setState(() {
+                      _translatedText = null;
+                    });
+                    return;
+                  }
+
+                  if (question.vietnameseTranslation != null && question.vietnameseTranslation.isNotEmpty) {
+                    setState(() {
+                      _translatedText = question.vietnameseTranslation;
+                    });
+                  } else {
+                    setState(() {
+                      _isTranslating = true;
+                    });
+                    try {
+                      final translation = await _translator.translate(question.promptText, to: 'vi');
+                      setState(() {
+                        _translatedText = translation.text;
+                      });
+                    } catch (e) {
+                      _showErrorSnackBar('Dịch thất bại');
+                    } finally {
+                      setState(() {
+                        _isTranslating = false;
+                      });
+                    }
+                  }
+                },
+                icon: const Icon(Icons.translate, color: AppColors.primary, size: 20),
+                label: Text(_translatedText == null ? 'Dịch' : 'Ẩn dịch', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+              ),
+            
+            if (question.promptText != null && question.wordGuides?.isNotEmpty == true)
+              const SizedBox(width: 16),
+
+            if (question.wordGuides?.isNotEmpty == true)
+              TextButton.icon(
+                onPressed: () => _showWordGuidesBottomSheet(question.wordGuides),
+                icon: const Icon(Icons.lightbulb_outline, color: AppColors.primary, size: 20),
+                label: const Text('Gợi ý', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecordingControls() {
+    bool canSubmit = recordedFilePath != null && !_isRecording;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        children: [
+          if (recordedFilePath != null && !_isRecording)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Đã ghi âm',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.green),
-                ),
                 IconButton(
-                  icon: Icon(Icons.play_circle, color: AppColors.primary, size: 28),
-                  tooltip: 'Nghe lại',
-                  onPressed: () async {
-                    if (recordedFilePath != null) {
-                      await _audioPlayer.play(DeviceFileSource(recordedFilePath!));
-                    }
-                  },
+                  onPressed: _playRecording,
+                  icon: Icon(_isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill, color: AppColors.primary, size: 40),
+                ),
+                const SizedBox(width: 20),
+                IconButton(
+                  onPressed: () => setState(() { recordedFilePath = null; _recordingDuration = Duration.zero; }),
+                  icon: const Icon(Icons.replay, color: AppColors.textSecondary, size: 30),
                 ),
               ],
             ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTranscriptSection() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Kết quả nhận diện', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          Text(
-            transcript!,
-            style: const TextStyle(fontSize: 16, color: Colors.black87, height: 1.5),
+          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: _toggleRecording,
+            child: Container(
+              width: 80, height: 80,
+              decoration: BoxDecoration(
+                color: _isRecording ? Colors.red : AppColors.primary,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: (_isRecording ? Colors.red : AppColors.primary).withOpacity(0.3), blurRadius: 10, spreadRadius: 3)],
+              ),
+              child: Icon(_isRecording ? Icons.stop : Icons.mic, color: Colors.white, size: 40),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildActionButtons(dynamic assessment, dynamic question) {
+  Widget _buildBottomNavBar() {
+    bool canSubmit = recordedFilePath != null && !_isRecording;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2)),
+        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TextButton(
+            onPressed: () => _submitAnswer(isSkipped: true),
+            child: const Text('Bỏ qua', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          ElevatedButton(
+            onPressed: canSubmit ? () => _submitAnswer() : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.grey.shade300,
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Tiếp tục', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () async {
-                  final success = await surveyViewModel.submitVoiceAnswer(
-                    assessmentId: assessment.assessmentId,
-                    questionNumber: question.questionNumber,
-                    isSkipped: true,
-                    audioFilePath: null,
-                    recordingDurationSeconds: 0,
-                  );
-                  if (success && mounted) _navigateNext(assessment);
-                },
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.grey[400]!),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text('Bỏ qua', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              flex: 2,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)]),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (recordedFilePath == null || !File(recordedFilePath!).existsSync()) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Bạn chưa ghi âm câu trả lời!')),
-                      );
-                      return;
-                    }
-
-                    int duration = 0;
-                    try {
-                      final audioFile = File(recordedFilePath!);
-                      duration = audioFile.existsSync() ? audioFile.lengthSync() ~/ 16000 : 0;
-                    } catch (_) {}
-
-                    final success = await surveyViewModel.submitVoiceAnswer(
-                      assessmentId: assessment.assessmentId,
-                      questionNumber: question.questionNumber,
-                      isSkipped: false,
-                      audioFilePath: recordedFilePath,
-                      recordingDurationSeconds: duration,
-                    );
-
-                    if (success && mounted) {
-                      _navigateNext(assessment);
-                    } else if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Gửi câu trả lời thất bại!')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text(
-                    'Gửi câu trả lời',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
-  }
-
-  void _navigateNext(dynamic assessment) async {
-    final question = surveyViewModel.currentQuestion.value;
-    final isLastQuestion = question != null && question.questionNumber >= assessment.totalQuestions;
-
-    if (isLastQuestion) {
-      final result = await surveyViewModel.completeAssessment(assessment.assessmentId);
-      if (result != null && mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => AssessmentResultScreen(result: result)),
-        );
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể lấy kết quả đánh giá. Vui lòng thử lại!')),
-        );
-      }
-    } else {
-      setState(() {
-        recordedFilePath = null;
-        transcript = null;
-        _isRecording = false;
-      });
-      await surveyViewModel.fetchCurrentAssessmentQuestion(assessment.assessmentId);
-    }
   }
 }

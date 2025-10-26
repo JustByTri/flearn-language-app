@@ -2,7 +2,7 @@
 import "../model/login_request.dart";
 import "../model/login_response.dart";
 import "../model/response.dart";
-
+import '../model/logout_request.dart';
 import "../model/user.dart";
 
 abstract class IAuthRepository {
@@ -13,7 +13,7 @@ abstract class IAuthRepository {
       String password,
       String confirmedPassword,
       );
-
+  Future<void> logout(String refreshToken);
   Future<LoginResponse> confirmEmail(String otp);
 
   Future<LoginResponse> resendOtp(String email);
