@@ -1,186 +1,275 @@
+import 'dart:ui' show lerpDouble, MaskFilter, BlurStyle, ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../core/constants/colors.dart';
-import '../../features/auth/view/home_screen.dart';
-import '../../features/auth/view/profile_screen.dart';
-import '../../features/course/view/course_screen.dart';
-import '../../features/topic/view/topic_screen.dart';
+import '../controllers/navigation_controller.dart';
+import 'package:flearn_app/core/constants/colors.dart';
 
-class NavigationController extends GetxController {
-  final RxInt selectedIndex = 0.obs;
-
-  Widget getScreen(int index) {
-    switch (index) {
-      case 0:
-        return const HomeScreen();
-      case 1:
-        return const TopicScreen();
-      case 2:
-        return const CourseScreen();
-      case 3:
-        return const ProfileScreen();
-      default:
-        return const HomeScreen();
-    }
-  }
-
-  void onDestinationSelected(int index) {
-    selectedIndex.value = index;
-  }
-}
-
+// =======================================================================
+// 1. WIDGET CHÍNH BAO BỌC SCAFFOLD VÀ THANH ĐIỀU HƯỚNG
+// =======================================================================
 class NavigationMenu extends StatelessWidget {
   const NavigationMenu({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final NavigationController controller = Get.put(NavigationController());
+    final controller = Get.find<NavigationController>();
 
     return Scaffold(
-      body: Obx(
-            () => AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: child,
-          ),
-          child: SizedBox(
-            key: ValueKey<int>(controller.selectedIndex.value),
-            child: controller.getScreen(controller.selectedIndex.value),
+      extendBody: true,
+      backgroundColor: Colors.white, // Nền trắng
+      body: Obx(() => IndexedStack(
+        index: controller.selectedIndex.value,
+        children: controller.screens,
+      )),
+      bottomNavigationBar: Obx(
+            () => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          child: CustomBottomNavBar(
+            selectedIndex: controller.selectedIndex.value,
+            onDestinationSelected: (index) =>
+            controller.selectedIndex.value = index,
           ),
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 12,
-              offset: const Offset(0, -2),
+    );
+  }
+}
+
+// =======================================================================
+// 2. WIDGET THANH ĐIỀU HƯỚNG TÙY CHỈNH (STATEFUL)
+// =======================================================================
+class CustomBottomNavBar extends StatefulWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  const CustomBottomNavBar({
+    super.key,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  @override
+  State<CustomBottomNavBar> createState() => _CustomBottomNavBarState();
+}
+
+class _CustomBottomNavBarState extends State<CustomBottomNavBar>
+    with TickerProviderStateMixin {
+  late AnimationController _animationController;
+  int _fromIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fromIndex = widget.selectedIndex;
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant CustomBottomNavBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedIndex != oldWidget.selectedIndex) {
+      _fromIndex = oldWidget.selectedIndex;
+      _animationController
+        ..reset()
+        ..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  double _centerXForIndex(int idx, double totalWidth) {
+    final double slotWidth = totalWidth / 5;
+    return (idx + 0.5) * slotWidth;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.all(Radius.circular(30)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+        child: Container(
+          height: 65,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50.withOpacity(0.9), // Nền xám nhạt, đục
+            borderRadius: const BorderRadius.all(Radius.circular(30)),
+            border: Border.all(
+              color: Colors.grey.shade200, // Viền xám nhạt
+              width: 1.5,
             ),
-          ],
-        ),
-        child: SafeArea(
-          child: Obx(() {
-            final currentIndex = controller.selectedIndex.value;
-            return SizedBox(
-              height: 65,
-              child: Stack(
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08), // Shadow nhẹ
+                blurRadius: 15,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final double totalWidth = constraints.maxWidth;
+              final double fromX = _centerXForIndex(_fromIndex, totalWidth);
+              final double toX =
+              _centerXForIndex(widget.selectedIndex, totalWidth);
+
+              const double baseBubbleW = 70.0;
+              const double baseBubbleH = 60.0;
+              const double topPadding = 2.5;
+
+              return Stack(
                 children: [
-                  // Animated sliding indicator
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 400),
-                    curve: Curves.easeInOut,
-                    left: currentIndex * (MediaQuery.of(context).size.width / 4),
-                    top: 0,
-                    bottom: 0,
-                    width: MediaQuery.of(context).size.width / 4,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.primary,
-                            AppColors.primary.withOpacity(0.8),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                  SizedBox.expand(
+                    child: AnimatedBuilder(
+                      animation: _animationController,
+                      builder: (context, _) {
+                        final double t = _animationController.value;
+                        final double progress =
+                        Curves.easeInOutCubicEmphasized.transform(t);
+                        final double currentX =
+                        (t == 0.0) ? toX : lerpDouble(fromX, toX, progress)!;
+
+                        return CustomPaint(
+                          painter: _GlassBubblePainter(
+                            currentX: currentX,
+                            progress: t,
+                            baseWidth: baseBubbleW,
+                            baseHeight: baseBubbleH,
+                            topPadding: topPadding,
+                            borderColors: [
+                              Colors.blue.shade400.withOpacity(0.02),     // ← ĐỔI ĐÂY: Màu viền trên
+                              Colors.blue.shade300.withOpacity(0.02),     // ← ĐỔI ĐÂY: Màu viền giữa
+                              Colors.blue.shade500.withOpacity(0.02),
+                            ],
+
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ),
-                  // Nav items
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildNavItem(
-                        icon: Icons.home_rounded,
-                        label: 'Trang chủ',
-                        index: 0,
-                        currentIndex: currentIndex,
-                        onTap: () => controller.onDestinationSelected(0),
-                      ),
-                      _buildNavItem(
-                        icon: Icons.chat_bubble_rounded,
-                        label: 'AI Chat',
-                        index: 1,
-                        currentIndex: currentIndex,
-                        onTap: () => controller.onDestinationSelected(1),
-                      ),
-                      _buildNavItem(
-                        icon: Icons.menu_book_rounded,
-                        label: 'Khóa học',
-                        index: 2,
-                        currentIndex: currentIndex,
-                        onTap: () => controller.onDestinationSelected(2),
-                      ),
-                      _buildNavItem(
-                        icon: Icons.person_rounded,
-                        label: 'Tài khoản',
-                        index: 3,
-                        currentIndex: currentIndex,
-                        onTap: () => controller.onDestinationSelected(3),
-                      ),
+                      Expanded(
+                          child: _buildNavItem(Icons.home, Icons.home_outlined,
+                              0, "Trang chủ")),
+                      Expanded(
+                          child: _buildNavItem(
+                              Icons.speaker_notes, Icons.speaker_notes_outlined, 1, "Roleplay")),
+                      Expanded(
+                          child: _buildNavItem(Icons.book,
+                              Icons.book_outlined, 2, "Khoá học")),
+                      Expanded(
+                          child: _buildNavItem(Icons.school,
+                              Icons.school_outlined, 3, "Lớp học")),
+                      Expanded(
+                          child: _buildNavItem(Icons.person,
+                              Icons.person_outline, 4, "Tài khoản")),
                     ],
                   ),
                 ],
-              ),
-            );
-          }),
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required int index,
-    required int currentIndex,
-    required VoidCallback onTap,
-  }) {
-    final isSelected = index == currentIndex;
+  Widget _buildNavItem(
+      IconData selectedIcon, IconData unselectedIcon, int index, String label) {
+    final isSelected = widget.selectedIndex == index;
+    final color = isSelected ? Colors.blue.shade600 : Colors.grey.shade600; // Màu phù hợp với nền trắng
 
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: double.infinity,
-          alignment: Alignment.center,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? Colors.white : Colors.grey[700],
-                size: 24,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.grey[700],
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  letterSpacing: 0.1,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+    return GestureDetector(
+      onTap: () => widget.onDestinationSelected(index),
+      behavior: HitTestBehavior.translucent,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(isSelected ? selectedIcon : unselectedIcon,
+              color: color, size: 24),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+            ),
           ),
-        ),
+        ],
       ),
     );
+  }
+}
+
+// =======================================================================
+// 3. PAINTER ĐỂ VẼ BONG BÓNG HIỆU ỨNG THỦY TINH
+// =======================================================================
+class _GlassBubblePainter extends CustomPainter {
+  final double currentX;
+  final double progress;
+  final double baseWidth;
+  final double baseHeight;
+  final double topPadding;
+  final List<Color> borderColors;
+
+  _GlassBubblePainter({
+    required this.currentX,
+    required this.progress,
+    required this.baseWidth,
+    required this.baseHeight,
+    required this.topPadding,
+    this.borderColors = const [Colors.white, Colors.white24],
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _drawBubble(canvas, size, 1.0);
+  }
+
+  void _drawBubble(Canvas canvas, Size size, double opacity) {
+    final double centerY = topPadding + baseHeight / 2;
+    final double gooeyProgress = (progress * (1 - progress)) * 4;
+    final double stretch = lerpDouble(0, 15, gooeyProgress)!.clamp(0, 15);
+    final double bubbleW = baseWidth + stretch;
+    final double bubbleH = baseHeight - lerpDouble(0, 5, gooeyProgress)!;
+    final RRect bubbleRRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+          center: Offset(currentX, centerY), width: bubbleW, height: bubbleH),
+      Radius.circular(30 - (stretch * 0.5)),
+    );
+
+    // Bong bóng xanh dương nổi bật trên nền trắng
+    final Paint glassPaint = Paint()
+      ..color = Colors.blue.shade500.withOpacity(0.35 * opacity)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+    canvas.drawRRect(bubbleRRect, glassPaint);
+
+    final Paint borderPaint = Paint()
+      ..shader = LinearGradient(
+        colors:
+        borderColors.map((c) => c.withOpacity(c.opacity * opacity)).toList(),
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(bubbleRRect.outerRect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    canvas.drawRRect(bubbleRRect, borderPaint);
+
+    final Path path = Path()..addRRect(bubbleRRect);
+    canvas.drawShadow(
+        path,   Colors.black.withOpacity(0.3 * opacity), 6.0, true);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GlassBubblePainter oldDelegate) {
+    return currentX != oldDelegate.currentX || progress != oldDelegate.progress;
   }
 }

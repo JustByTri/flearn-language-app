@@ -16,15 +16,12 @@ class SurveyScreen extends StatefulWidget {
 }
 
 class _SurveyScreenState extends State<SurveyScreen> {
-  final surveyViewModel = Get.put(SurveyViewModel(Get.find()));
-
-
+  final surveyViewModel = Get.find<SurveyViewModel>(); // Use Get.find since it's already put
   final Set<int> selectedGoalIds = {};
 
   @override
   void initState() {
     super.initState();
-
     final box = GetStorage();
     final storedLang = box.read('selectedLanguageId') as String?;
     if (storedLang != null) {
@@ -35,177 +32,144 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primary.withOpacity(0.9),
-              AppColors.primary.withOpacity(0.6),
-              AppColors.primary.withOpacity(0.3),
-              Colors.white,
-            ],
-            stops: const [0.0, 0.3, 0.6, 1.0],
-          ),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: AppColors.textPrimary),
+          onPressed: () => Navigator.of(context).pop(), // Nút back
         ),
-        child: SafeArea(
-          child: Obx(() {
-            if (surveyViewModel.isLoadingGoals.value) {
-              return const Center(child: CircularProgressIndicator(color: Colors.white));
-            }
-
-            final goals = surveyViewModel.goals;
-
-            return FadeSlideAnimation(
-              child: Column(
-                children: [
-                  // Header
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                    child: Text(
-                      'Bạn muốn đạt được mục tiêu gì?',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+        title: const Text(
+          'Mục tiêu của bạn',
+          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Obx(() {
+          if (surveyViewModel.isLoadingGoals.value) {
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          }
+          return FadeSlideAnimation(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                  child: Text(
+                    'Bạn muốn học để làm gì? Chọn một hoặc nhiều mục tiêu.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.textSecondary,
                     ),
                   ),
-
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: ListView.builder(
-                        itemCount: goals.length,
-                        itemBuilder: (context, index) {
-                          return _buildGoalCard(goals[index]);
-                        },
-                      ),
-                    ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    itemCount: surveyViewModel.goals.length,
+                    itemBuilder: (context, index) {
+                      return _buildGoalCard(surveyViewModel.goals[index]);
+                    },
                   ),
-
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: _buildStartButton(),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: _buildStartButton(),
+                ),
+              ],
+            ),
+          );
+        }),
       ),
     );
   }
 
   Widget _buildGoalCard(Goal goal) {
     final isSelected = selectedGoalIds.contains(goal.id);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            setState(() {
-              if (isSelected) {
-                selectedGoalIds.remove(goal.id);
-              } else {
-                selectedGoalIds.add(goal.id);
-              }
-            });
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.primary : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isSelected ? AppColors.primary : Colors.grey.shade300,
-                width: isSelected ? 3 : 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isSelected
-                      ? AppColors.primary.withOpacity(0.3)
-                      : Colors.black.withOpacity(0.1),
-                  blurRadius: isSelected ? 15 : 10,
-                  offset: Offset(0, isSelected ? 6 : 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        goal.name,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        goal.description,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isSelected ? Colors.white.withOpacity(0.9) : AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                if (isSelected)
-                  const Icon(Icons.check_circle, color: Colors.white, size: 28),
-              ],
-            ),
+    return GestureDetector(
+      onTap: () {
+        // Logic is preserved
+        setState(() {
+          if (isSelected) {
+            selectedGoalIds.remove(goal.id);
+          } else {
+            selectedGoalIds.add(goal.id);
+          }
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : Colors.grey.shade300,
+            width: 1.5,
           ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: isSelected ? AppColors.primary : Colors.grey.shade400,
+              size: 28,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    goal.name,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (goal.description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      goal.description,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildStartButton() {
-    return Container(
+    final bool isEnabled = selectedGoalIds.isNotEmpty;
+    return SizedBox(
       width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: selectedGoalIds.isNotEmpty
-              ? [AppColors.primary, AppColors.primary.withOpacity(0.8)]
-              : [Colors.grey, Colors.grey.shade400],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: (selectedGoalIds.isNotEmpty ? AppColors.primary : Colors.grey).withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      height: 52,
       child: ElevatedButton(
-        onPressed: selectedGoalIds.isNotEmpty ? _startAssessment : null,
+        onPressed: isEnabled ? _startAssessment : null, // Logic is preserved
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: AppColors.primary, // Blue button
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey.shade300,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: isEnabled ? 2 : 0,
         ),
         child: const Text(
           'Bắt đầu đánh giá',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
           ),
         ),
       ),
@@ -213,6 +177,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
   }
 
   Future<void> _startAssessment() async {
+    // This entire block of logic is preserved
     final languageId = GetStorage().read('selectedLanguageId') as String?;
     if (languageId == null || selectedGoalIds.isEmpty) return;
 
@@ -227,8 +192,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
       );
     } else if (mounted) {
       final errorMsg = surveyViewModel.errorMessage.value ?? '';
-      if (errorMsg.contains('ASSESSMENT_ALREADY_ACCEPTED') ||
-          errorMsg.contains('chấp nhận kết quả')) {
+      if (errorMsg.contains('ASSESSMENT_ALREADY_ACCEPTED') || errorMsg.contains('chấp nhận kết quả')) {
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
@@ -252,7 +216,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể tạo assessment. Vui lòng thử lại!')),
+          const SnackBar(content: Text('Không thể tạo bài đánh giá. Vui lòng thử lại!')),
         );
       }
     }

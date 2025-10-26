@@ -6,7 +6,7 @@ import 'package:flearn_app/core/constants/colors.dart';
 import 'package:get/get.dart';
 
 import '../../../shared/widgets/app_scaffold.dart';
-import '../../../shared/widgets/mainBottomNavbar.dart';
+import '../../../shared/controllers/navigation_controller.dart';
 import '../../auth/view/home_screen.dart';
 import '../model/course.dart';
 import '../viewmodel/course_viewmodel.dart';

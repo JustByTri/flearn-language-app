@@ -13,7 +13,7 @@ class Course {
   final String courseLevel;
   final String courseSkill;
   final int numLessons;
-
+final List<String> topics;
   Course({
     required this.courseID,
     required this.title,
@@ -22,6 +22,7 @@ class Course {
     this.publishedAt,
     this.status,
     required this.price,
+    required this.topics,
     required this.discountPrice,
     required this.courseType,
     required this.teacherName,
@@ -46,6 +47,9 @@ class Course {
       language: json['languageInfo']?['name'] ?? '',
       courseLevel: json['courseLevel'] ?? '',
       courseSkill: json['courseSkill'] ?? '',
+      topics : (json['topics'] as List<dynamic>? ?? [])
+          .map((e) => e['name']?.toString() ?? '')
+          .toList(),
       numLessons: (json['numLessons'] ?? 0) is int ? json['numLessons'] : int.tryParse(json['numLessons']?.toString() ?? '0') ?? 0,
     );
   }

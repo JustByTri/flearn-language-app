@@ -12,7 +12,11 @@ class LoginViewModel extends GetxController {
   final IAuthRepository _authRepository;
   final storage = GetStorage();
   var isLoading = false.obs;
-
+  void logout() {
+    storage.remove('accessToken');
+    storage.remove('refreshToken');
+    storage.remove('user');
+  }
   LoginViewModel(this._authRepository);
 
   Future<bool> login(String email, String password) async {
@@ -40,8 +44,14 @@ class LoginViewModel extends GetxController {
           'refreshToken',
           response.result!.refreshToken,
         );
-
-        print(" Login successful - tokens saved");
+        // Lưu thông tin user và activeLanguage vào storage
+        await storage.write('user', {
+          ...?response.result!.user,
+          'languageId': response.result!.activeLanguage?['languageId'],
+          'languageName': response.result!.activeLanguage?['languageName'],
+          'languageCode': response.result!.activeLanguage?['languageCode'],
+        });
+        print(" Login successful - tokens and user saved");
         return true;
       } else {
         print(
@@ -97,10 +107,7 @@ class LoginViewModel extends GetxController {
     return storage.read('refreshToken');
   }
 
-  void logout() {
-    storage.remove('accessToken');
-    storage.remove('refreshToken');
-  }
+
 
   Future<Map<String, dynamic>?>
   checkSurveyRequired() async {
@@ -111,6 +118,14 @@ class LoginViewModel extends GetxController {
     } catch (e) {
       print("checkSurveyRequired error: $e");
       return null;
+    }
+  }
+  Future<void> logoutApi(String refreshToken) async {
+    try {
+      await _authRepository.logout(refreshToken);
+    } catch (e) {
+      print("Lỗi khi gọi API logout: $e");
+      // Dù API có lỗi, ta vẫn thực hiện logout ở phía client
     }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:dio/dio.dart';
 
 import '../data/repository.dart';
 import '../model/assessment.dart';
@@ -6,7 +7,7 @@ import '../model/assessment_result.dart';
 import '../model/goal.dart';
 
 class SurveyViewModel extends GetxController {
-  final ISurveyRepository _Repository;
+  final ISurveyRepository _repository;
 
   var isLoading = false.obs;
 
@@ -24,12 +25,12 @@ class SurveyViewModel extends GetxController {
 
   var errorMessage = RxnString();
 
-  SurveyViewModel(this._Repository);
+  SurveyViewModel(this._repository);
 
   Future<void> fetchLanguages() async {
     try {
       isLoadingLanguages.value = true;
-      final map = await _Repository.getLanguages();
+      final map = await _repository.getLanguages();
       if (map.isNotEmpty) {
         languages.assignAll(map);
         selectedLanguageId ??= map.keys.first;
@@ -44,7 +45,7 @@ class SurveyViewModel extends GetxController {
   Future<void> fetchGoals() async {
     try {
       isLoadingGoals.value = true;
-      final list = await _Repository.getGoals();
+      final list = await _repository.getGoals();
       if (list.isNotEmpty) {
         goals.assignAll(list);
       }
@@ -55,18 +56,21 @@ class SurveyViewModel extends GetxController {
     }
   }
 
-
   Future<void> startAssessment(String languageId, List<int> goalIds) async {
     try {
       isLoading.value = true;
-      final result = await _Repository.startAssessment(languageId, goalIds);
+      final result = await _repository.startAssessment(languageId, goalIds);
       if (result != null) {
         assessment.value = result;
+        errorMessage.value = null; // Clear previous errors
         print("Assessment started: ${result.assessmentId}");
       } else {
         print("Failed to start assessment");
       }
+    } on DioError catch (e) {
+      errorMessage.value = e.response?.data?['message'] ?? 'Lỗi không xác định';
     } catch (e) {
+      errorMessage.value = 'Đã có lỗi xảy ra. Vui lòng thử lại.';
       print('startAssessment error: $e');
     } finally {
       isLoading.value = false;
@@ -75,20 +79,24 @@ class SurveyViewModel extends GetxController {
 
   Future<void> fetchCurrentAssessmentQuestion(String assessmentId) async {
     try {
-      isLoading.value = true;
-      final question = await _Repository.getCurrentAssessmentQuestion(assessmentId);
-      if (question != null) {
-        currentQuestion.value = question;
-        errorMessage.value = null;
-        print("Fetched current assessment question: ${question.question}");
+      isLoadingCurrentQuestion.value = true;
+      final question = await _repository.getCurrentAssessmentQuestion(assessmentId);
+      currentQuestion.value = question;
+      errorMessage.value = null; // Clear error on success
+    } on DioError catch (e) {
+      final responseMessage = e.response?.data?['message'] as String? ?? '';
+      if (responseMessage.contains('Đã hoàn thành')) {
+        errorMessage.value = 'ASSESSMENT_COMPLETED'; // Set special flag
       } else {
-        errorMessage.value = "Không thể tải câu hỏi";
-        print("No current assessment question found");
+        errorMessage.value = responseMessage;
       }
+      currentQuestion.value = null; 
+      print('fetchCurrentAssessmentQuestion failed: ${e.response?.statusCode} $responseMessage');
     } catch (e) {
+      errorMessage.value = 'Lỗi không xác định khi tải câu hỏi.';
       print('fetchCurrentAssessmentQuestion error: $e');
     } finally {
-      isLoading.value = false;
+      isLoadingCurrentQuestion.value = false;
     }
   }
 
@@ -101,18 +109,13 @@ class SurveyViewModel extends GetxController {
   }) async {
     try {
       isLoading.value = true;
-      final result = await _Repository.submitVoiceAnswer(
+      final result = await _repository.submitVoiceAnswer(
         assessmentId: assessmentId,
         questionNumber: questionNumber,
         isSkipped: isSkipped,
         audioFilePath: audioFilePath,
         recordingDurationSeconds: recordingDurationSeconds,
       );
-      if (result) {
-        print("Voice answer submitted successfully");
-      } else {
-        print("Voice answer submission failed");
-      }
       return result;
     } catch (e) {
       print('submitVoiceAnswer error: $e');
@@ -122,16 +125,10 @@ class SurveyViewModel extends GetxController {
     }
   }
 
-
   Future<AssessmentResult?> completeAssessment(String assessmentId) async {
     try {
       isLoading.value = true;
-      final result = await _Repository.completeAssessment(assessmentId);
-      if (result != null) {
-        print("Assessment completed: $result");
-      } else {
-        print("Failed to complete assessment");
-      }
+      final result = await _repository.completeAssessment(assessmentId);
       return result;
     } catch (e) {
       print('completeAssessment error: $e');
@@ -141,16 +138,11 @@ class SurveyViewModel extends GetxController {
     }
   }
 
-
-  Future<bool> acceptVoiceAssessment(String languageId) async {
+  // --- FIXED: Changed parameter and added function ---
+  Future<bool> acceptVoiceAssessment(String learnerLanguageId) async {
     try {
       isLoading.value = true;
-      final result = await _Repository.acceptVoiceAssessment(languageId);
-      if (result) {
-        print("Voice assessment accepted for languageId: $languageId");
-      } else {
-        print("Failed to accept voice assessment");
-      }
+      final result = await _repository.acceptVoiceAssessment(learnerLanguageId);
       return result;
     } catch (e) {
       print('acceptVoiceAssessment error: $e');
@@ -160,18 +152,18 @@ class SurveyViewModel extends GetxController {
     }
   }
 
-  Future<bool> rejectVoiceAssessment(String languageId) async {
+  Future<bool> rejectVoiceAssessment(String learnerLanguageId) async {
     try {
       isLoading.value = true;
-      final result = await _Repository.rejectVoiceAssessment(languageId);
+      final result = await _repository.rejectVoiceAssessment(learnerLanguageId);
       if (result) {
-        print("Voice assessment accepted for languageId: $languageId");
+        print("Voice assessment rejected for learnerLanguageId: $learnerLanguageId");
       } else {
-        print("Failed to accept voice assessment");
+        print("Failed to reject voice assessment");
       }
       return result;
     } catch (e) {
-      print('acceptVoiceAssessment error: $e');
+      print('rejectVoiceAssessment error: $e');
       return false;
     } finally {
       isLoading.value = false;

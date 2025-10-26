@@ -1,4 +1,6 @@
+
 import 'package:flearn_app/features/survey/view/language_screen.dart';
+import 'package:flearn_app/features/auth/view/welcome_survey_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
@@ -39,23 +41,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _onLoginPressed() async {
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
+
     if (emailController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Vui lòng nhập email"),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showErrorSnackBar("Vui lòng nhập email của bạn");
       return;
     }
 
     if (passwordController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Vui lòng nhập mật khẩu"),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showErrorSnackBar("Vui lòng nhập mật khẩu");
       return;
     }
 
@@ -67,54 +62,24 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (success) {
-      final surveyStatus = await loginViewModel
-          .checkSurveyRequired();
-
+      final surveyStatus = await loginViewModel.checkSurveyRequired();
 
       if (surveyStatus != null) {
         final box = GetStorage();
         box.write('surveyStatus', surveyStatus);
       }
 
-      if (surveyStatus == null) {
-
+      if (surveyStatus == null || surveyStatus['assessmentRequired'] != true) {
         Get.offAll(() => const NavigationMenu());
-        return;
-      }
-
-
-      if (surveyStatus['assessmentRequired'] == true) {
+      } else {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(
-            builder: (context) => const LanguageScreen(),
-          ),
-              (route) => false,
+          MaterialPageRoute(builder: (context) => const WelcomeSurveyScreen()),
+          (route) => false,
         );
-      } else {
-        Get.offAll(() => const NavigationMenu());
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error, color: Colors.white),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  "Thông tin đăng nhập không chính xác",
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      _showErrorSnackBar("Thông tin đăng nhập không chính xác");
     }
   }
 
@@ -128,134 +93,116 @@ class _LoginScreenState extends State<LoginScreen> {
 
         final surveyStatus = await loginViewModel.checkSurveyRequired();
 
-        if (surveyStatus == null) {
+        if (surveyStatus == null || surveyStatus['assessmentRequired'] != true) {
           Get.offAll(() => const HomeScreen());
-        } else if (surveyStatus['assessmentRequired'] == true) {
+        } else {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => const LanguageScreen()),
-                (route) => false,
+            MaterialPageRoute(builder: (context) => const WelcomeSurveyScreen()),
+            (route) => false,
           );
-        } else {
-          Get.offAll(() => const HomeScreen());
         }
       } else {
         _showErrorSnackBar("Đăng nhập Google thất bại");
       }
     } catch (e) {
       debugPrint('Sign-in error: $e');
-      _showErrorSnackBar("Đăng nhập Google thất bại");
+      _showErrorSnackBar("Đã có lỗi xảy ra. Vui lòng thử lại.");
     } finally {
       loginViewModel.isLoading.value = false;
     }
   }
 
-
   void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            const Icon(
-              Icons.check_circle,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+        content: Text(message),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
       ),
     );
   }
 
   void _showErrorSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+        content: Text(message),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    void _dismissKeyboard() =>
-        FocusScope.of(context).unfocus();
     final size = MediaQuery.of(context).size;
-    final padding = size.width * 0.04;
 
-    return GestureDetector(
-      onTap: _dismissKeyboard,
-      child: Scaffold(
-        body: Container(
-          color: AppColors.primary.withOpacity(0.6),
-          child: Stack(
-            children: [
-              _buildMainContent(context, padding),
-              _buildLoadingOverlay(),
-            ],
-          ),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Stack(
+          children: [
+            // --- Main Content ---
+            SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildHeader(size),
+                  _buildForm(size),
+                ],
+              ),
+            ),
+
+            // --- Loading Overlay ---
+            _buildLoadingOverlay(),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildMainContent(
-      BuildContext context,
-      double padding,
-      ) {
-    final size = MediaQuery.of(context).size;
-
-    return Center(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: padding,
-          ),
+  Widget _buildHeader(Size size) {
+    return ClipPath(
+      clipper: WaveClipper(),
+      child: Container(
+        height: size.height * 0.30,
+        width: double.infinity,
+        color: AppColors.primary,
+        child: SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildLogo(),
-              SizedBox(height: size.height * 0.04),
-              _buildEmailField(),
-              SizedBox(height: size.height * 0.025),
-              _buildPasswordField(),
+              Hero(
+                tag: 'app_logo',
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Image.asset(
+                      'assets/images/logo_flearn.png',
+                      height: size.height * 0.09,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Material(
+                      color: Colors.transparent,
+                      child: Text(
+                        'Learn',
+                        style: TextStyle(
+                          fontSize: (size.width * 0.6).clamp(40.0, 50.0),
+                          fontWeight: FontWeight.w900 ,
+                          color: Colors.white,
+                          height: 1.0,
+                          fontFamily: 'Montserrat'
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               SizedBox(height: size.height * 0.02),
-              _buildRememberMeAndForgotPassword(context),
-              SizedBox(height: size.height * 0.04),
-              _buildLoginButton(context),
-              SizedBox(height: size.height * 0.03),
-              _buildDivider(),
-              SizedBox(height: size.height * 0.03),
-              _buildGoogleLoginButton(context),
-              SizedBox(height: size.height * 0.04),
-              _buildSignUpLink(context),
-              SizedBox(height: size.height * 0.025),
             ],
           ),
         ),
@@ -263,44 +210,35 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildLogo() {
-    final size = MediaQuery.of(context).size;
-    final logoSize = size.width * 0.21;
-
-    return Hero(
-      tag: 'app_logo',
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _buildForm(Size size) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: size.width * 0.06),
+      child: Column(
         children: [
-          Image.asset(
-            'assets/images/logo_flearn.png',
-            width: logoSize,
-            height: logoSize,
-            fit: BoxFit.contain,
-
-            color: null,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                width: logoSize,
-                height: logoSize,
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              );
-            },
-          ),
+          const SizedBox(height: 24),
+          // --- ĐĂNG NHẬP TITLE ---
           Text(
-            'Learn',
+            "Đăng nhập",
             style: TextStyle(
-              fontSize: logoSize * 0.6,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: logoSize * 0.1,
-              height: 1.0,
+              fontSize: (size.width * 0.08).clamp(28.0, 34.0),
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
             ),
           ),
+          const SizedBox(height: 24),
+          _buildEmailField(),
+          const SizedBox(height: 20),
+          _buildPasswordField(),
+          const SizedBox(height: 16),
+          _buildRememberMeAndForgotPassword(),
+          const SizedBox(height: 24),
+          _buildLoginButton(),
+          const SizedBox(height: 24),
+          _buildDivider(),
+          const SizedBox(height: 24),
+          _buildGoogleLoginButton(),
+          const SizedBox(height: 24),
+          _buildSignUpLink(),
         ],
       ),
     );
@@ -310,145 +248,82 @@ class _LoginScreenState extends State<LoginScreen> {
     return MyTextField(
       controller: emailController,
       hintText: "Email hoặc tên người dùng",
+      prefixIcon: const Icon(Icons.email_outlined, color: AppColors.textSecondary),
       textInputAction: TextInputAction.next,
     );
   }
 
   Widget _buildPasswordField() {
-    final size = MediaQuery.of(context).size;
-
     return MyTextField(
       controller: passwordController,
       hintText: "Mật khẩu",
       obscureText: _obscurePassword,
+      prefixIcon: const Icon(Icons.lock_outline, color: AppColors.textSecondary),
       suffixIcon: IconButton(
         icon: Icon(
-          _obscurePassword
-              ? Icons.visibility_off_outlined
-              : Icons.visibility_outlined,
-          color: AppColors.primary,
-          size: size.width * 0.05,
+          _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+          color: AppColors.textSecondary,
         ),
-        onPressed: () => setState(
-              () => _obscurePassword = !_obscurePassword,
-        ),
+        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
       ),
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => _onLoginPressed(),
     );
   }
 
-  Widget _buildRememberMeAndForgotPassword(
-      BuildContext context,
-      ) {
+  Widget _buildRememberMeAndForgotPassword() {
     final size = MediaQuery.of(context).size;
+    final style = TextStyle(
+      color: AppColors.textSecondary,
+      fontSize: (size.width * 0.035).clamp(12.0, 14.0),
+      fontWeight: FontWeight.w500,
+    );
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
+        InkWell(
+          onTap: () => setState(() => _rememberMe = !_rememberMe),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: size.width * 0.05,
-                height: size.width * 0.05,
-                child: Checkbox(
-                  value: _rememberMe,
-                  onChanged: (value) => setState(
-                        () => _rememberMe = value ?? false,
-                  ),
-                  activeColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
+              Checkbox(
+                value: _rememberMe,
+                onChanged: (value) => setState(() => _rememberMe = value ?? false),
+                activeColor: AppColors.primary,
+                visualDensity: VisualDensity.compact,
               ),
-              SizedBox(width: size.width * 0.01),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(
-                        () => _rememberMe = !_rememberMe,
-                  ),
-                  child: Text(
-                    'Ghi nhớ đăng nhập',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: (size.width * 0.035).clamp(
-                        12.0,
-                        14.0,
-                      ),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
+              Text('Ghi nhớ', style: style),
             ],
           ),
         ),
-        Expanded(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                    const ForgotPasswordScreen(),
-                  ),
-                );
-              },
-              child: Text(
-                "Quên mật khẩu?",
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: (size.width * 0.035).clamp(
-                    12.0,
-                    14.0,
-                  ),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+        TextButton(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
           ),
+          child: Text("Quên mật khẩu?", style: style.copyWith(color: AppColors.primary)),
         ),
       ],
     );
   }
 
-  Widget _buildLoginButton(BuildContext context) {
+  Widget _buildLoginButton() {
     final size = MediaQuery.of(context).size;
-
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      height: 52,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        onPressed: loginViewModel.isLoading.value
-            ? null
-            : _onLoginPressed,
+        onPressed: loginViewModel.isLoading.value ? null : _onLoginPressed,
         child: Text(
           "Đăng nhập",
           style: TextStyle(
-            fontSize: (size.width * 0.045).clamp(
-              14.0,
-              16.0,
-            ),
+            fontSize: (size.width * 0.045).clamp(16.0, 18.0),
             fontWeight: FontWeight.bold,
-            color: Colors.white,
           ),
         ),
       ),
@@ -456,126 +331,65 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildDivider() {
-    final size = MediaQuery.of(context).size;
-
     return Row(
       children: [
-        Expanded(child: Divider(color: Colors.grey[400])),
+        const Expanded(child: Divider()),
         Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: size.width * 0.04,
-          ),
-          child: Text(
-            'Hoặc',
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-              fontSize: (size.width * 0.035).clamp(
-                12.0,
-                14.0,
-              ),
-            ),
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text('Hoặc', style: TextStyle(color: Colors.grey[600])),
         ),
-        Expanded(child: Divider(color: Colors.grey[400])),
+        const Expanded(child: Divider()),
       ],
     );
   }
 
-  Widget _buildGoogleLoginButton(BuildContext context) {
+  Widget _buildGoogleLoginButton() {
     final size = MediaQuery.of(context).size;
-
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: ClipRect(
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 0,
-          ),
-          onPressed: loginViewModel.isLoading.value
-              ? null
-              : _onGoogleLoginPressed,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              SvgPicture.asset(
-                'assets/icons/google-icon-logo-svgrepo-com.svg',
-                width: size.width * 0.04,
-                height: size.width * 0.04,
-              ),
-              SizedBox(width: size.width * 0.01),
-              Expanded(
-                child: Text(
-                  "Đăng nhập với Google",
-                  style: TextStyle(
-                    fontSize: (size.width * 0.035).clamp(
-                      12.0,
-                      14.0,
-                    ),
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
+      height: 52,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.grey[100],
+          foregroundColor: Colors.black87,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
+        ),
+        onPressed: loginViewModel.isLoading.value ? null : _onGoogleLoginPressed,
+        icon: SvgPicture.asset(
+          'assets/icons/google-icon-logo-svgrepo-com.svg',
+          width: size.width * 0.05,
+        ),
+        label: Text(
+          "Đăng nhập với Google",
+          style: TextStyle(
+            fontSize: (size.width * 0.04).clamp(14.0, 16.0),
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSignUpLink(BuildContext context) {
+  Widget _buildSignUpLink() {
     final size = MediaQuery.of(context).size;
+    final style = TextStyle(
+      color: AppColors.textSecondary,
+      fontSize: (size.width * 0.038).clamp(13.0, 15.0),
+    );
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          "Chưa có tài khoản? ",
-          style: TextStyle(
-            color: Colors.grey[700],
-            fontSize: (size.width * 0.035).clamp(
-              12.0,
-              14.0,
-            ),
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
+        Text("Chưa có tài khoản?", style: style),
         TextButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                const RegisterScreen(),
-              ),
-            );
-          },
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const RegisterScreen()),
+          ),
           child: Text(
             "Đăng ký ngay",
-            style: TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: (size.width * 0.035).clamp(
-                12.0,
-                14.0,
-              ),
-            ),
-            overflow: TextOverflow.ellipsis,
+            style: style.copyWith(fontWeight: FontWeight.bold, color: AppColors.primary),
           ),
         ),
       ],
@@ -584,16 +398,43 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLoadingOverlay() {
     return Obx(
-          () => loginViewModel.isLoading.value
+      () => loginViewModel.isLoading.value
           ? Container(
-        color: Colors.black.withOpacity(0.5),
-        child: const Center(
-          child: CircularProgressIndicator(
-            color: AppColors.primary,
-          ),
-        ),
-      )
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+            )
           : const SizedBox.shrink(),
     );
   }
+}
+
+// Custom Clipper for the wave effect
+class WaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    var path = Path();
+    path.lineTo(0, size.height * 0.85); // Start
+    var firstControlPoint = Offset(size.width / 4, size.height);
+    var firstEndPoint = Offset(size.width / 2.2, size.height - 30.0);
+    path.quadraticBezierTo(firstControlPoint.dx, firstControlPoint.dy,
+        firstEndPoint.dx, firstEndPoint.dy);
+
+    var secondControlPoint =
+        Offset(size.width - (size.width / 3.2), size.height - 65);
+    var secondEndPoint = Offset(size.width, size.height - 40);
+    path.quadraticBezierTo(secondControlPoint.dx, secondControlPoint.dy,
+        secondEndPoint.dx, secondEndPoint.dy);
+
+    path.lineTo(size.width, size.height - 40);
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
