@@ -9,11 +9,9 @@ class ScheduleService implements IScheduleRepository {
   @override
   Future<List<TeacherClass>> getTeacherSchedules({String? languageId}) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse(
-      'https://f-learn.app/api/student/classes/available?${languageId != null ? '?languageId=$languageId' : ''}',
-    );
-    print('[ScheduleService] GET $url');
-    print('[ScheduleService] accessToken: $accessToken');
+    final query = languageId != null ? '?languageId=$languageId' : '';
+    final url = Uri.parse('https://f-learn.app/api/student/classes/available$query');
+
     try {
       final response = await http.get(
         url,
@@ -22,25 +20,21 @@ class ScheduleService implements IScheduleRepository {
           "Content-Type": "application/json",
         },
       );
-      print('[ScheduleService] Response status: ${response.statusCode}');
-      print('[ScheduleService] Response body: ${response.body}');
       if (response.statusCode == 200) {
         final jsonBody = jsonDecode(response.body);
         final data = jsonBody['data'] as List<dynamic>? ?? [];
-        print('[ScheduleService] Parsed ${data.length} schedules');
         return data.map((item) => TeacherClass.fromJson(item)).toList();
       } else {
-        print('[ScheduleService] Error: ${response.body}');
         throw Exception('Failed to load teacher schedules: ${response.body}');
       }
     } catch (e) {
-      print('[ScheduleService] Exception: $e');
+      print('[ScheduleService] getTeacherSchedules Exception: $e');
       rethrow;
     }
   }
 
   @override
-  Future<Map<String, dynamic>> enroll({required String classId}) async {
+  Future<Map<String, dynamic>> bookClass(String classId) async {
     final accessToken = GetStorage().read('accessToken');
     final url = Uri.parse('https://f-learn.app/api/student/classes/$classId/enroll');
     try {
@@ -52,14 +46,16 @@ class ScheduleService implements IScheduleRepository {
         },
       );
 
-      print('[ScheduleService] Enroll Response body: ${response.body}');
+      final body = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        return body as Map<String, dynamic>;
       } else {
-        throw Exception('Failed to enroll: ${response.body}');
+        // Try to get a meaningful error message from the API response
+        final message = body['message'] ?? 'Failed to enroll';
+        throw Exception(message);
       }
     } catch (e) {
-      print('[ScheduleService] Enroll Exception: $e');
+      print('[ScheduleService] bookClass Exception: $e');
       rethrow;
     }
   }
@@ -76,7 +72,6 @@ class ScheduleService implements IScheduleRepository {
           "Content-Type": "application/json",
         },
       );
-      print('[ScheduleService] MyEnrollments Response: ${response.body}');
       if (response.statusCode == 200) {
         final jsonBody = jsonDecode(response.body);
         final data = jsonBody['data'] as List<dynamic>? ?? [];
@@ -85,9 +80,8 @@ class ScheduleService implements IScheduleRepository {
         throw Exception('Failed to load enrollments: ${response.body}');
       }
     } catch (e) {
-      print('[ScheduleService] MyEnrollments Exception: $e');
+      print('[ScheduleService] getMyEnrollments Exception: $e');
       rethrow;
     }
   }
-
 }

@@ -48,7 +48,7 @@ final List<String> topics;
       courseLevel: json['courseLevel'] ?? '',
       courseSkill: json['courseSkill'] ?? '',
       topics : (json['topics'] as List<dynamic>? ?? [])
-          .map((e) => e['name']?.toString() ?? '')
+          .map((e) => e['topicName']?.toString() ?? '')
           .toList(),
       numLessons: (json['numLessons'] ?? 0) is int ? json['numLessons'] : int.tryParse(json['numLessons']?.toString() ?? '0') ?? 0,
     );
