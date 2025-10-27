@@ -1,3 +1,4 @@
+import 'dart:io';
 
 import "../model/login_request.dart";
 import "../model/login_response.dart";
@@ -22,11 +23,18 @@ abstract class IAuthRepository {
 
   Future<LoginResponse> loginWithGoogle(String idToken);
 
-
-
   Future<bool> forgotPassword(String email);
   Future<bool> resetPassword(String email, String otp, String newPassword, String confirmPassword);
 
+  Future<ResponseModel> updateProfile({
+    String? fullName,
+    String? userName,
+    File? avatar,
+  });
   Future<Map<String, dynamic>> checkSurveyRequired();
-
+  Future<ResponseModel> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  });
 }

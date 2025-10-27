@@ -22,7 +22,6 @@ class LoginViewModel extends GetxController {
   Future<Map<String, bool>> login(String email, String password) async {
     try {
       isLoading.value = true;
-      print(" Starting login with email: $email");
 
       final request = LoginRequest(
         usernameOrEmail: email,
@@ -30,38 +29,24 @@ class LoginViewModel extends GetxController {
       );
       final response = await _authRepository.login(request);
 
-      print(
-        "Login response - isSuccess: ${response.isSuccess}",
-      );
-      print(" Login response - result: ${response.result}");
-
       if (response.isSuccess && response.result != null) {
-        await storage.write(
-          'accessToken',
-          response.result!.accessToken,
-        );
-        await storage.write(
-          'refreshToken',
-          response.result!.refreshToken,
-        );
-        // Lưu thông tin user và activeLanguage vào storage
+        await storage.write('accessToken', response.result!.accessToken,);
+        await storage.write('refreshToken', response.result!.refreshToken,);
+
         await storage.write('user', {
           ...?response.result!.user,
           'languageId': response.result!.activeLanguage?['languageId'],
           'languageName': response.result!.activeLanguage?['languageName'],
           'languageCode': response.result!.activeLanguage?['languageCode'],
         });
-        print(" Login successful - tokens and user saved");
+
         final surveyRequired = response.result!.activeLanguage == null;
         return {'success': true, 'surveyRequired': surveyRequired};
       } else {
-        print(
-          " Login failed - isSuccess: ${response.isSuccess}, result is null: ${response.result == null}",
-        );
         return {'success': false, 'surveyRequired': false};
       }
     } catch (e) {
-      print(" Login exception: $e");
+      debugPrint("Login exception: $e");
       return {'success': false, 'surveyRequired': false};
     } finally {
       isLoading.value = false;
@@ -77,14 +62,13 @@ class LoginViewModel extends GetxController {
       );
       final account = await googleSignIn.signIn();
       final auth = await account?.authentication;
-      if (auth?.idToken == null) {
+      final idToken = auth?.idToken;
+      if (idToken == null) {
         throw Exception("No Google ID Token found");
       }
-      debugPrint('Google ID Token: ${auth!.idToken}');
-      final response = await _authRepository
-          .loginWithGoogle(auth.idToken!);
-      if (response.isSuccess && response.result != null) {
 
+      final response = await _authRepository.loginWithGoogle(idToken);
+      if (response.isSuccess && response.result != null) {
         await storage.write('accessToken', response.result!.accessToken);
         await storage.write('refreshToken', response.result!.refreshToken);
         await storage.write('user', {
@@ -93,7 +77,7 @@ class LoginViewModel extends GetxController {
           'languageName': response.result!.activeLanguage?['languageName'],
           'languageCode': response.result!.activeLanguage?['languageCode'],
         });
-        debugPrint("Login thành công, data from api: ${response.result}");
+
         final surveyRequired = response.result!.activeLanguage == null;
         return {'success': true, 'surveyRequired': surveyRequired};
       } else {
@@ -120,7 +104,6 @@ class LoginViewModel extends GetxController {
       await _authRepository.logout(refreshToken);
     } catch (e) {
       print("Lỗi khi gọi API logout: $e");
-      // Dù API có lỗi, ta vẫn thực hiện logout ở phía client
     }
   }
 }
