@@ -75,10 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchOtherData() async {
     try {
-      final surveyStatus = await loginViewModel.checkSurveyRequired();
-      if (surveyStatus != null) {
-        GetStorage().write('surveyStatus', surveyStatus);
-      }
       await courseViewModel.fetchCourses();
       await topicViewModel.fetchTopics();
       await teacherScheduleViewModel.fetchSchedules();
@@ -461,10 +457,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                 }
               },
-              backgroundColor: Colors.grey.shade100,
-              selectedColor: AppColors.primary.withOpacity(0.8),
+              backgroundColor: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.grey.shade100,
+              selectedColor: AppColors.primary.withOpacity(0.2),
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textPrimary,
+                color: isSelected ? AppColors.primary : AppColors.textPrimary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
               shape: RoundedRectangleBorder(
@@ -472,7 +468,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 side: BorderSide(color: isSelected ? AppColors.primary : Colors.grey.shade300),
               ),
               showCheckmark: false,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
             );
           },
         ),
@@ -483,72 +478,71 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildPopularCourses() {
     return Obx(() {
       if (courseViewModel.isLoadingCourse.value) {
-        return const Center(child: CircularProgressIndicator());
+        return const Center(child: CupertinoActivityIndicator());
       }
-      final filteredCourses = _selectedTopicName == null
-          ? courseViewModel.courses
-          : courseViewModel.courses.where((c) => c.topics.contains(_selectedTopicName)).toList();
+      final filteredCourses = courseViewModel.courses.where((course) {
+        return _selectedTopicName == null || course.topics == _selectedTopicName;
+      }).toList();
 
       if (filteredCourses.isEmpty) {
-        return const Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 40.0),
-            child: Text(
-              'Hiện tại chưa có khoá học',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          ),
-        );
+        return const Center(child: Text('Không có khoá học nào.'));
       }
-      return GridView.builder(
+
+      return ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.75,
-        ),
         itemCount: filteredCourses.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final course = filteredCourses[index];
-          return Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    child: Image.network(
-                      course.imageUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.image_not_supported)),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(course.title, style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Text(course.teacherName, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                      const SizedBox(height: 4),
-                      Text('${course.price} VND', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
+          return CourseCard(course: course);
         },
       );
     });
   }
 }
 
+class CourseCard extends StatelessWidget {
+  final Course course;
+
+  const CourseCard({super.key, required this.course});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
+      child: Row(
+        children: [
+          (course.imageUrl != null && course.imageUrl!.isNotEmpty)
+              ? Image.network(course.imageUrl!, width: 100, height: 100, fit: BoxFit.cover)
+              : Container(width: 100, height: 100, color: Colors.grey.shade200, child: const Icon(Icons.school, color: Colors.grey)),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(course.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(course.description ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.orange, size: 16),
+                      const SizedBox(width: 4),
+                      Text('${ 'N/A'} (1k+)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      Text('${course.numLessons} buổi', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

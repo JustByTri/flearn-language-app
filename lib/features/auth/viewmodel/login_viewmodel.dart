@@ -19,7 +19,7 @@ class LoginViewModel extends GetxController {
   }
   LoginViewModel(this._authRepository);
 
-  Future<bool> login(String email, String password) async {
+  Future<Map<String, bool>> login(String email, String password) async {
     try {
       isLoading.value = true;
       print(" Starting login with email: $email");
@@ -52,22 +52,23 @@ class LoginViewModel extends GetxController {
           'languageCode': response.result!.activeLanguage?['languageCode'],
         });
         print(" Login successful - tokens and user saved");
-        return true;
+        final surveyRequired = response.result!.activeLanguage == null;
+        return {'success': true, 'surveyRequired': surveyRequired};
       } else {
         print(
           " Login failed - isSuccess: ${response.isSuccess}, result is null: ${response.result == null}",
         );
-        return false;
+        return {'success': false, 'surveyRequired': false};
       }
     } catch (e) {
       print(" Login exception: $e");
-      return false;
+      return {'success': false, 'surveyRequired': false};
     } finally {
       isLoading.value = false;
     }
   }
 
-  Future<bool> loginWithGoogle() async {
+  Future<Map<String, bool>> loginWithGoogle() async {
     try {
       isLoading.value = true;
       final GoogleSignIn googleSignIn = GoogleSignIn(
@@ -86,14 +87,21 @@ class LoginViewModel extends GetxController {
 
         await storage.write('accessToken', response.result!.accessToken);
         await storage.write('refreshToken', response.result!.refreshToken);
+        await storage.write('user', {
+          ...?response.result!.user,
+          'languageId': response.result!.activeLanguage?['languageId'],
+          'languageName': response.result!.activeLanguage?['languageName'],
+          'languageCode': response.result!.activeLanguage?['languageCode'],
+        });
         debugPrint("Login thành công, data from api: ${response.result}");
-        return true;
+        final surveyRequired = response.result!.activeLanguage == null;
+        return {'success': true, 'surveyRequired': surveyRequired};
       } else {
-        return false;
+        return {'success': false, 'surveyRequired': false};
       }
     } catch (e) {
       debugPrint('Sign-in error: $e');
-      return false;
+      return {'success': false, 'surveyRequired': false};
     } finally {
       isLoading.value = false;
     }
@@ -107,19 +115,6 @@ class LoginViewModel extends GetxController {
     return storage.read('refreshToken');
   }
 
-
-
-  Future<Map<String, dynamic>?>
-  checkSurveyRequired() async {
-    try {
-      final result = await _authRepository
-          .checkSurveyRequired();
-      return result;
-    } catch (e) {
-      print("checkSurveyRequired error: $e");
-      return null;
-    }
-  }
   Future<void> logoutApi(String refreshToken) async {
     try {
       await _authRepository.logout(refreshToken);
