@@ -4,7 +4,6 @@ import 'package:flearn_app/features/auth/view/welcome_survey_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/constants/colors.dart';
@@ -12,7 +11,6 @@ import '../../../shared/widgets/mainBottomNavbar.dart';
 import '../../../shared/widgets/my_textField.dart';
 import '../viewmodel/login_viewmodel.dart';
 import 'forgotpassword_screen.dart';
-import 'home_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -54,29 +52,19 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    final success = await loginViewModel.login(
+    final result = await loginViewModel.login(
       emailController.text.trim(),
       passwordController.text.trim(),
     );
 
     if (!mounted) return;
 
-    if (success) {
-      final surveyStatus = await loginViewModel.checkSurveyRequired();
-
-      if (surveyStatus != null) {
-        final box = GetStorage();
-        box.write('surveyStatus', surveyStatus);
-      }
-
-      if (surveyStatus == null || surveyStatus['assessmentRequired'] != true) {
-        Get.offAll(() => const NavigationMenu());
+    if (result['success'] == true) {
+      _showSuccessSnackBar("Đăng nhập thành công!");
+      if (result['surveyRequired'] == true) {
+        Get.offAll(() => const WelcomeSurveyScreen());
       } else {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const WelcomeSurveyScreen()),
-          (route) => false,
-        );
+        Get.offAll(() => const NavigationMenu());
       }
     } else {
       _showErrorSnackBar("Thông tin đăng nhập không chính xác");
@@ -85,22 +73,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _onGoogleLoginPressed() async {
     try {
-      loginViewModel.isLoading.value = true;
-      final userCredential = await loginViewModel.loginWithGoogle();
+      final result = await loginViewModel.loginWithGoogle();
 
-      if (userCredential) {
+      if (!mounted) return;
+
+      if (result['success'] == true) {
         _showSuccessSnackBar("Đăng nhập Google thành công!");
-
-        final surveyStatus = await loginViewModel.checkSurveyRequired();
-
-        if (surveyStatus == null || surveyStatus['assessmentRequired'] != true) {
-          Get.offAll(() => const HomeScreen());
+        if (result['surveyRequired'] == true) {
+          Get.offAll(() => const WelcomeSurveyScreen());
         } else {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const WelcomeSurveyScreen()),
-            (route) => false,
-          );
+          Get.offAll(() => const NavigationMenu());
         }
       } else {
         _showErrorSnackBar("Đăng nhập Google thất bại");
@@ -108,8 +90,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       debugPrint('Sign-in error: $e');
       _showErrorSnackBar("Đã có lỗi xảy ra. Vui lòng thử lại.");
-    } finally {
-      loginViewModel.isLoading.value = false;
     }
   }
 
