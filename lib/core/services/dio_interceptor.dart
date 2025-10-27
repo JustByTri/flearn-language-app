@@ -12,7 +12,7 @@ class DioInterceptor extends Interceptor {
 
     // Lấy token từ GetStorage
     final box = GetStorage();
-    final token = box.read('token');
+    final token = box.read('accessToken');
 
     // Nếu có token, đính kèm nó vào header Authorization
     if (token != null) {

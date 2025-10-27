@@ -21,7 +21,11 @@ class AppScaffold extends StatelessWidget {
     return Scaffold(
       appBar: appBar,
       backgroundColor: backgroundColor,
-      body: body, 
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        top: false,
+        child: body,
+      ),
       bottomNavigationBar: bottomNavigationBar,
       floatingActionButton: floatingActionButton,
     );
