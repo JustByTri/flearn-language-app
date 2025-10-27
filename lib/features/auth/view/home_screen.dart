@@ -12,6 +12,7 @@ import 'package:get_storage/get_storage.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../course/viewmodel/course_viewmodel.dart';
 import '../../schedule/viewmodel/teacher_schedule_viewmodel.dart';
+import '../../survey/view/survey_screen.dart';
 import '../../survey/viewmodel/survey_viewmodel.dart';
 
 class Language {
@@ -115,33 +116,68 @@ class _HomeScreenState extends State<HomeScreen> {
     final box = GetStorage();
     final token = box.read('accessToken');
 
-    Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
 
+    Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
     try {
-      final response = await _dio.post(
-        'https://f-learn.app/api/VoiceAssessment/switch-language/$languageId',
+      final assessmentResponse = await _dio.get(
+        'https://f-learn.app/api/VoiceAssessment/check-lang-assessment/$languageId',
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
-          validateStatus: (status) {
-            return status != null && status < 500;
-          },
+          validateStatus: (status) => status != null && status < 500,
         ),
       );
-
       Get.back();
 
-      final action = response.data['action'];
-      if (action == 'REQUIRE_ASSESSMENT' || action == 'RESUME_ASSESSMENT') {
+      final assessmentData = assessmentResponse.data?['data'];
+      final hasCompletedAssessment = assessmentData?['hasCompletedAssessment'] ?? false;
+
+      if (!hasCompletedAssessment) {
+
         Get.dialog(
           AlertDialog(
             title: const Text('Thông báo'),
-            content: const Text('Trước khi chuyển ngôn ngữ, bạn hãy làm một chút khảo sát nhé.'),
+            content: Text(assessmentData?['message'] ?? 'Trước khi chuyển ngôn ngữ, bạn hãy làm một chút khảo sát nhé.'),
             actions: [
               TextButton(onPressed: () => Get.back(), child: const Text('Huỷ')),
               TextButton(
-                onPressed: () {
+                onPressed: () async {
                   Get.back();
-                  Get.toNamed('/survey');
+
+
+                  Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+                  final response = await _dio.post(
+                    'https://f-learn.app/api/VoiceAssessment/switch-language/$languageId',
+                    options: Options(
+                      headers: {'Authorization': 'Bearer $token'},
+                      validateStatus: (status) => status != null && status < 500,
+                    ),
+                  );
+                  Get.back();
+
+                  if (response.statusCode == 200 && (response.data['success'] == true)) {
+                    final user = box.read('user');
+                    if (user != null) {
+                      user['languageId'] = languageId;
+                      box.write('user', user);
+                    } else {
+                      box.write('user', {'languageId': languageId});
+                    }
+                    box.write('selectedLanguageId', languageId);
+
+                    if (mounted) {
+                      setState(() {
+                        _selectedLanguageId = languageId;
+                      });
+                    }
+
+                    await _loadInitialData();
+
+
+                    Get.offAll(() => const SurveyScreen());
+                  } else {
+                    final message = response.data?['message'] ?? 'Có lỗi xảy ra, vui lòng thử lại.';
+                    Get.snackbar('Lỗi', message, snackPosition: SnackPosition.BOTTOM);
+                  }
                 },
                 child: const Text('Đồng ý'),
               ),
@@ -151,6 +187,17 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
+      // Đã hoàn thành khảo sát, gọi API switch-language và đổi ngôn ngữ luôn
+      Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+      final response = await _dio.post(
+        'https://f-learn.app/api/VoiceAssessment/switch-language/$languageId',
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+      Get.back();
+
       if (response.statusCode == 200 && (response.data['success'] == true)) {
         final user = box.read('user');
         if (user != null) {
@@ -159,6 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
         } else {
           box.write('user', {'languageId': languageId});
         }
+        box.write('selectedLanguageId', languageId);
 
         if (mounted) {
           setState(() {
@@ -306,80 +354,80 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   Widget _buildSearchBar() {
     return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(12),
-        ),
-        child: const TextField(
-            decoration: InputDecoration(
-                icon: Icon(CupertinoIcons.search, color: Colors.grey),
-                border: InputBorder.none,
-                hintText: 'Tìm kiếm khóa học...',
-            ),
-        ),
-    );
-}
-
-Widget _buildPromoBanner() {
-  return Container(
-    height: 150,
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(16),
-      gradient: const LinearGradient(
-        colors: [AppColors.primary, Colors.blueAccent],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
       ),
-    ),
-    child: Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Center(
-              child: Text(
-                'Khám phá các khoá học mới',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.left,
-              ),
-            ),
-          ),
+      child: const TextField(
+        decoration: InputDecoration(
+          icon: Icon(CupertinoIcons.search, color: Colors.grey),
+          border: InputBorder.none,
+          hintText: 'Tìm kiếm khóa học...',
         ),
-        Expanded(
-          flex: 3,
-          child: Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                'assets/images/homescreen.png',
-                height: 120,
-                width: double.infinity,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-Widget _buildSectionHeader({required String title}) {
-    return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-            Text('Xem tất cả', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-        ],
+      ),
     );
-}
+  }
+
+  Widget _buildPromoBanner() {
+    return Container(
+      height: 150,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, Colors.blueAccent],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Center(
+                child: Text(
+                  'Khám phá các khoá học mới',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.left,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  'assets/images/homescreen.png',
+                  height: 120,
+                  width: double.infinity,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({required String title}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        Text('Xem tất cả', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+      ],
+    );
+  }
 
 
   Widget _buildTopicFilter() {
@@ -389,7 +437,7 @@ Widget _buildSectionHeader({required String title}) {
       }
       // Create a new list with an 'All' topic
       final List<TopicModel> topicsWithAll = [
-        TopicModel(topicId: 'all', name: 'Tất cả', description: ''),
+        TopicModel(topicId: 'all', name: 'For you', description: ''),
         ...topicViewModel.topics,
       ];
 
