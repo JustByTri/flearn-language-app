@@ -1,5 +1,6 @@
 import 'package:flearn_app/features/course/data/course_repository.dart';
 import 'package:flearn_app/features/course/data/course_service.dart';
+import 'package:flearn_app/features/course/viewmodel/course_viewmodel.dart';
 import 'package:flearn_app/features/schedule/data/repository.dart';
 import 'package:flearn_app/features/schedule/data/service.dart';
 import 'package:flearn_app/features/survey/data/repository.dart';
@@ -20,7 +21,7 @@ final sl = GetIt.instance;
 void setupDI() {
   Get.lazyPut<Dio>(() {
     final dio = Dio(BaseOptions(
-      baseUrl: 'https://f-learn.app/api', // Đặt base URL ở đây
+      baseUrl: 'https://f-learn.app/api',
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
     ));
@@ -32,5 +33,6 @@ void setupDI() {
   Get.lazyPut<ICourseRepository>(() => CourseService());
   Get.lazyPut<ISurveyRepository>(() => serviceSurvey());
   Get.lazyPut<IScheduleRepository>(() => ScheduleService());
+  Get.lazyPut<CourseViewModel>(() => CourseViewModel(Get.find<ICourseRepository>()), fenix: true);
 
 }

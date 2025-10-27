@@ -1,34 +1,94 @@
+import 'package:flutter/material.dart';
+import 'package:flearn_app/features/schedule/data/repository.dart';
 import 'package:get/get.dart';
-import '../data/repository.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../model/schedule_model.dart';
 
 class TeacherScheduleViewModel extends GetxController {
   final IScheduleRepository service;
+
   TeacherScheduleViewModel({required this.service});
 
-  var isLoading = false.obs;
+  var isLoading = true.obs;
   var schedules = <TeacherClass>[].obs;
   var errorMessage = ''.obs;
 
-  Future<void> fetchSchedules({String? languageId}) async {
-    isLoading.value = true;
-    errorMessage.value = '';
+  var isBooking = false.obs;
+  String? _lastBookedClassId;
+  var _waitingForPayment = false;
+
+  @override
+  void onInit() {
+    super.onInit();
+    fetchSchedules();
+  }
+
+  Future<void> fetchSchedules() async {
     try {
+      isLoading.value = true;
+      errorMessage.value = '';
+      final languageId = GetStorage().read('selectedLanguageId') as String?;
       final result = await service.getTeacherSchedules(languageId: languageId);
       schedules.value = result;
     } catch (e) {
-      errorMessage.value = e.toString();
-      schedules.clear();
+      errorMessage.value = "Không thể tải lịch học. Vui lòng thử lại.";
+      print('fetchSchedules error: $e');
     } finally {
       isLoading.value = false;
     }
   }
-  Future<Map<String, dynamic>> enrollClass(String classId) async {
+
+  Future<void> bookClass(String classId) async {
+    if (isBooking.value) return;
+
     try {
-      final result = await service.enroll(classId: classId);
-      return result;
+      isBooking.value = true;
+      final response = await service.bookClass(classId);
+      final paymentUrl = response['paymentUrl'] as String?;
+
+      if (paymentUrl != null && paymentUrl.isNotEmpty) {
+        final uri = Uri.parse(paymentUrl);
+        if (await canLaunchUrl(uri)) {
+          _lastBookedClassId = classId;
+          _waitingForPayment = true;
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          Get.snackbar('Lỗi', 'Không thể mở trang thanh toán. Vui lòng thử lại.');
+        }
+      } else {
+        Get.snackbar('Thành công', 'Bạn đã đặt lớp thành công!');
+        await fetchSchedules();
+      }
     } catch (e) {
-      rethrow;
+      Get.snackbar('Lỗi', 'Đặt lịch thất bại. Vui lòng thử lại sau.');
+      print('bookClass error: $e');
+    } finally {
+      isBooking.value = false;
+    }
+  }
+
+  void onAppResumed() {
+    if (_waitingForPayment && _lastBookedClassId != null) {
+      _waitingForPayment = false;
+
+      Get.dialog(
+        const Center(child: CircularProgressIndicator()),
+        barrierDismissible: false,
+      );
+
+      Future.delayed(const Duration(seconds: 3), () async {
+        try {
+          await fetchSchedules();
+          Get.back();
+          Get.snackbar('Thông báo', 'Chào mừng quay trở lại! Lịch học của bạn đang được cập nhật.');
+        } catch (e) {
+          Get.back();
+          Get.snackbar('Lỗi', 'Không thể cập nhật trạng thái lịch học.');
+        } finally {
+           _lastBookedClassId = null;
+        }
+      });
     }
   }
 }

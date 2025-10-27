@@ -33,10 +33,7 @@ class _TopicScreenState extends State<TopicScreen> {
         backgroundColor: Colors.white,
         elevation: 0.5,
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: AppColors.textPrimary),
-          onPressed: () => Get.back(),
-        ),
+
         title: const Text(
           "Chủ đề Roleplay",
           style: TextStyle(
@@ -46,37 +43,50 @@ class _TopicScreenState extends State<TopicScreen> {
           ),
         ),
       ),
-      body: Obx(() {
-        if (topicViewModel.isLoadingTopics.value) {
-          return const Center(child: CupertinoActivityIndicator(radius: 15));
-        }
+      body: RefreshIndicator(
+        onRefresh: topicViewModel.fetchTopics,
+        child: Obx(() {
+          if (topicViewModel.isLoadingTopics.value &&
+              topicViewModel.topics.isEmpty) {
+            return const Center(child: CupertinoActivityIndicator(radius: 15));
+          }
 
-        if (topicViewModel.topics.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(CupertinoIcons.bubble_left_bubble_right, size: 60, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                const Text(
-                  "Chưa có chủ đề nào",
-                  style: TextStyle(fontSize: 17, color: Colors.grey),
-                ),
-              ],
+          if (topicViewModel.topics.isEmpty) {
+            return Center(
+              child: ListView(
+                // Use ListView to make the empty message scrollable and work with RefreshIndicator
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+                  Icon(CupertinoIcons.bubble_left_bubble_right,
+                      size: 60, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Chưa có chủ đề nào",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 17, color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final topics = topicViewModel.topics;
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.85,
             ),
+            itemCount: topics.length,
+            itemBuilder: (context, index) {
+              final topic = topics[index];
+              return _buildTopicCard(topic, index);
+            },
           );
-        }
-
-        final topics = topicViewModel.topics;
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-          itemCount: topics.length,
-          itemBuilder: (context, index) {
-            final topic = topics[index];
-            return _buildTopicCard(topic, index);
-          },
-        );
-      }),
+        }),
+      ),
     );
   }
 
@@ -99,8 +109,7 @@ class _TopicScreenState extends State<TopicScreen> {
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 20),
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
@@ -111,51 +120,53 @@ class _TopicScreenState extends State<TopicScreen> {
           boxShadow: [
             BoxShadow(
               color: gradient[1].withOpacity(0.3),
-              blurRadius: 15,
-              spreadRadius: -5,
-              offset: const Offset(0, 10),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              topic.name,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,1))]
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              topic.description,
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.white.withOpacity(0.9),
-                height: 1.4,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Luyện tập ngay",
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontWeight: FontWeight.w500,
-                  ),
+                  topic.name,
+                  style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                            color: Colors.black26,
+                            blurRadius: 4,
+                            offset: Offset(0, 1))
+                      ]),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(width: 8),
-                const Icon(
-                  CupertinoIcons.arrow_right,
+                const SizedBox(height: 8),
+                Text(
+                  topic.description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                    height: 1.3,
+                  ),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(
+                  CupertinoIcons.arrow_right_circle_fill,
                   color: Colors.white,
-                  size: 18,
+                  size: 28,
                 ),
               ],
             )

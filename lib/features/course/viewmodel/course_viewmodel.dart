@@ -26,8 +26,8 @@ class CourseViewModel extends GetxController {
       isLoadingCourse.value = true;
       final list = await _courseRepository.getCourse();
       courses.assignAll(list);
-    } catch (e) {
-      print('fetchTopics error: $e');
+      print('fetchCourses: fetched ${list.length} courses');
+
     } finally {
       isLoadingCourse.value = false;
     }

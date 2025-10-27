@@ -80,6 +80,11 @@ class TeacherClass {
       isEnrollmentOpen: json['isEnrollmentOpen'] ?? false,
     );
   }
+  
+  // Helpers to move logic from the View
+  bool get isFull => availableSlots <= 0;
+  bool get isAlmostFull => !isFull && capacity > 0 && (currentEnrollments / capacity) >= 0.8;
+  int get durationInMinutes => endDateTime.difference(startDateTime).inMinutes;
 }
 
 class Pagination {
