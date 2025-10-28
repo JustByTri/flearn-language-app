@@ -84,4 +84,52 @@ class ScheduleService implements IScheduleRepository {
       rethrow;
     }
   }
+
+  @override
+  Future<bool> confirmPaymentCallback({
+    required String transactionId,
+    required int amount,
+    required String classId,
+    required String studentId,
+    String status = 'PAID',
+    String paymentMethod = 'PAYOS',
+    String? paidAtIso,
+    String? signature,
+    String? description,
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/student/classes/payment-callback');
+    try {
+      final body = {
+        "transactionId": transactionId,
+        "status": status,
+        "amount": amount,
+        "signature": signature ?? "",
+        "paidAt": paidAtIso ?? DateTime.now().toIso8601String(),
+        "paymentMethod": paymentMethod,
+        "description": description ?? "",
+        "studentID": studentId,
+        "classID": classId,
+      };
+      final response = await http.post(
+        url,
+        headers: {
+          "Authorization": "Bearer $accessToken",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode(body),
+      );
+      final jsonBody = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return jsonBody['success'] == true;
+      } else {
+        print('[ScheduleService] confirmPaymentCallback failed: ${response.statusCode} ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('[ScheduleService] confirmPaymentCallback Exception: $e');
+      return false;
+    }
+  }
+
 }
