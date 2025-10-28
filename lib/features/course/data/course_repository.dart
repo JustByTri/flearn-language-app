@@ -5,7 +5,7 @@ import '../model/course_unit.dart';
 
 
 abstract class ICourseRepository{
-  Future<List<Course>> getCourse({int page = 1, int pageSize = 10});
+  Future<List<Course>> getCourse({int page = 1, int pageSize = 4});
 
   Future<List<CourseUnit>> getCourseUnit(String courseId, {int page, int pageSize});
 

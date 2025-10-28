@@ -10,15 +10,29 @@ class StudentScheduleScreen extends StatefulWidget {
   State<StudentScheduleScreen> createState() => _StudentScheduleScreenState();
 }
 
-class _StudentScheduleScreenState extends State<StudentScheduleScreen> {
+class _StudentScheduleScreenState extends State<StudentScheduleScreen> with WidgetsBindingObserver {
   late final ScheduleViewModel viewModel;
   DateTime _currentStart = DateTime.now();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     viewModel = Get.put(ScheduleViewModel(service: Get.find()));
     _loadEnrollments();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadEnrollments();
+    }
   }
 
   Future<void> _loadEnrollments() async {

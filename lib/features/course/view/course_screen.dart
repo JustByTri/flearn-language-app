@@ -16,17 +16,36 @@ class CourseScreen extends StatefulWidget {
 }
 
 class _CourseScreenState extends State<CourseScreen> {
-  // FIX #1: Use Get.put() to create a dedicated ViewModel instance for this screen.
-  // This ensures data is fetched correctly every time you open the screen.
   final CourseViewModel courseViewModel = Get.put(CourseViewModel(Get.find()));
+  final ScrollController _scrollController = ScrollController();
+  bool _showPager = false;
 
   @override
   void initState() {
     super.initState();
-    // Fetch courses when the screen is initialized.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      courseViewModel.fetchCourses();
+      courseViewModel.fetchPage(1);
     });
+
+    _scrollController.addListener(() {
+      if (!_scrollController.hasClients) return;
+
+      final currentOffset = _scrollController.offset;
+      final maxScroll = _scrollController.position.maxScrollExtent;
+
+      // Chỉ hiện pager khi scroll gần cuối (còn 200px) VÀ có thể scroll được
+      final shouldShow = maxScroll > 0 && currentOffset >= maxScroll - 200;
+
+      if (shouldShow != _showPager) {
+        setState(() => _showPager = shouldShow);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -51,52 +70,114 @@ class _CourseScreenState extends State<CourseScreen> {
         ),
       ),
       body: Obx(() {
-        if (courseViewModel.isLoadingCourse.value &&
-            courseViewModel.courses.isEmpty) {
+        if (courseViewModel.isLoadingCourse.value && courseViewModel.courses.isEmpty) {
           return const Center(
-            child: CupertinoActivityIndicator(
-              radius: 15,
-              color: AppColors.primary,
-            ),
+            child: CupertinoActivityIndicator(radius: 15, color: AppColors.primary),
           );
         }
 
-        final List<Course> filteredCourses;
-        // FIX: Improve filtering logic
-        if (widget.topic != null && widget.topic!.isNotEmpty) {
-           filteredCourses = courseViewModel.courses
-              .where((course) => course.topics.contains(widget.topic))
-              .toList();
-        } else {
-          filteredCourses = courseViewModel.courses.toList();
-        }
+        final List<Course> filteredCourses = (widget.topic != null && widget.topic!.isNotEmpty)
+            ? courseViewModel.courses.where((c) => c.topics.contains(widget.topic)).toList()
+            : courseViewModel.courses.toList();
 
-        if (filteredCourses.isEmpty) {
-          return _buildEmptyState();
-        }
+        if (filteredCourses.isEmpty) return _buildEmptyState();
 
         return RefreshIndicator(
-          onRefresh: () => courseViewModel.fetchCourses(),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: filteredCourses.length,
-            itemBuilder: (context, index) {
-              final course = filteredCourses[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: _buildCourseCard(course),
-              );
-            },
+          onRefresh: () => courseViewModel.fetchPage(1),
+          child: Stack(
+            children: [
+              ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                itemCount: filteredCourses.length,
+                itemBuilder: (context, index) {
+                  final course = filteredCourses[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: _buildCourseCard(course),
+                  );
+                },
+              ),
+
+              // THANH PAGING
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 300),
+                  offset: _showPager ? Offset.zero : const Offset(0, 1),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 300),
+                    opacity: _showPager ? 1.0 : 0.0,
+                    child: _buildPager(),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       }),
     );
   }
 
+  Widget _buildPager() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Obx(() => Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: courseViewModel.hasPrevPage.value
+                      ? () => courseViewModel.prevPage()
+                      : null,
+                  icon: const Icon(CupertinoIcons.chevron_left, size: 18),
+                  label: const Text('Trước'),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Trang ${courseViewModel.currentPage.value}',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ),
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: courseViewModel.hasNextPage.value
+                      ? () => courseViewModel.nextPage()
+                      : null,
+                  label: const Text('Sau'),
+                  iconAlignment: IconAlignment.end,
+                  icon: const Icon(CupertinoIcons.chevron_right, size: 18),
+                ),
+              ),
+            ],
+          ),
+        )),
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
-    // FIX: Wrap with RefreshIndicator and ListView to allow pull-to-refresh on an empty screen
     return RefreshIndicator(
-       onRefresh: () => courseViewModel.fetchCourses(),
+      onRefresh: () => courseViewModel.fetchPage(1),
       child: Center(
         child: ListView(
           shrinkWrap: true,
@@ -107,11 +188,7 @@ class _CourseScreenState extends State<CourseScreen> {
             const Text(
               'Không có khóa học nào',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -129,8 +206,7 @@ class _CourseScreenState extends State<CourseScreen> {
     return GestureDetector(
       onTap: () {
         Get.to(
-          () => CourseUnitScreen(
-              courseId: course.courseID, courseTitle: course.title),
+              () => CourseUnitScreen(courseId: course.courseID, courseTitle: course.title),
           transition: Transition.cupertino,
         );
       },
@@ -139,12 +215,7 @@ class _CourseScreenState extends State<CourseScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(
-              // FIX #2: Changed withValues to withOpacity to prevent crash.
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 4))
           ],
         ),
         child: Column(
@@ -160,22 +231,14 @@ class _CourseScreenState extends State<CourseScreen> {
                   const SizedBox(height: 8),
                   Text(
                     course.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     course.description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                      height: 1.4,
-                    ),
+                    style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -191,17 +254,13 @@ class _CourseScreenState extends State<CourseScreen> {
   }
 
   Widget _buildCourseImage(Course course) {
-    // FIX: Handle null or empty imageUrl gracefully.
     if (course.imageUrl.isEmpty) {
       return AspectRatio(
         aspectRatio: 16 / 9,
         child: Container(
           decoration: BoxDecoration(
             color: Colors.grey.shade200,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              topRight: Radius.circular(16),
-            ),
+            borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
           ),
           child: Icon(Icons.image_not_supported, color: Colors.grey.shade400, size: 40),
         ),
@@ -209,10 +268,7 @@ class _CourseScreenState extends State<CourseScreen> {
     }
 
     return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(16),
-        topRight: Radius.circular(16),
-      ),
+      borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
       child: AspectRatio(
         aspectRatio: 16 / 9,
         child: Image.network(
@@ -234,21 +290,16 @@ class _CourseScreenState extends State<CourseScreen> {
   }
 
   Widget _buildCourseType(Course course) {
-    bool isFree = course.courseType == "Free";
+    final bool isFree = course.courseType == "Free";
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        // FIX #2: Changed withValues to withOpacity to prevent crash.
         color: (isFree ? AppColors.success : AppColors.warning).withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         isFree ? "Miễn phí" : "Trả phí",
-        style: TextStyle(
-          color: isFree ? AppColors.success : AppColors.warning,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        style: TextStyle(color: isFree ? AppColors.success : AppColors.warning, fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -257,7 +308,6 @@ class _CourseScreenState extends State<CourseScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // FIX: Use Expanded and Flexible to prevent text overflow.
         Expanded(
           child: Row(
             children: [
@@ -266,10 +316,7 @@ class _CourseScreenState extends State<CourseScreen> {
               Flexible(
                 child: Text(
                   course.teacherName,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500),
+                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -283,13 +330,10 @@ class _CourseScreenState extends State<CourseScreen> {
             const SizedBox(width: 6),
             Text(
               '${course.numLessons} bài học',
-              style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500),
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
             ),
           ],
-        )
+        ),
       ],
     );
   }

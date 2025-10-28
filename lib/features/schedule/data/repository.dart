@@ -8,4 +8,16 @@ abstract class IScheduleRepository {
   Future<Map<String, dynamic>> bookClass(String classId);
 
   Future<List<Enrollment>> getMyEnrollments();
+
+  Future<bool> confirmPaymentCallback({
+    required String transactionId,
+    required int amount,
+    required String classId,
+    required String studentId,
+    String status = 'PAID',
+    String paymentMethod = 'PAYOS',
+    String? paidAtIso,
+    String? signature,
+    String? description,
+  });
 }

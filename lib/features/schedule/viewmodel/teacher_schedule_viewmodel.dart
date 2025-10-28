@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../model/schedule_model.dart';
+import 'schedule_viewmodel.dart';
 
 class TeacherScheduleViewModel extends GetxController {
   final IScheduleRepository service;
@@ -16,6 +17,8 @@ class TeacherScheduleViewModel extends GetxController {
 
   var isBooking = false.obs;
   String? _lastBookedClassId;
+  String? _lastTransactionId;
+  int? _lastAmount;
   var _waitingForPayment = false;
 
   @override
@@ -45,7 +48,12 @@ class TeacherScheduleViewModel extends GetxController {
     try {
       isBooking.value = true;
       final response = await service.bookClass(classId);
-      final paymentUrl = response['paymentUrl'] as String?;
+      final data = (response['data'] as Map?) ?? response;
+      final paymentUrl = data['paymentUrl'] as String?;
+      _lastTransactionId = data['transactionId']?.toString();
+      _lastAmount = (data['amount'] is int) ? data['amount'] as int : int.tryParse('${data['amount']}');
+
+      print('Payment URL: $paymentUrl');
 
       if (paymentUrl != null && paymentUrl.isNotEmpty) {
         final uri = Uri.parse(paymentUrl);
@@ -72,21 +80,41 @@ class TeacherScheduleViewModel extends GetxController {
     if (_waitingForPayment && _lastBookedClassId != null) {
       _waitingForPayment = false;
 
-      Get.dialog(
-        const Center(child: CircularProgressIndicator()),
-        barrierDismissible: false,
-      );
+      Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
 
-      Future.delayed(const Duration(seconds: 3), () async {
+      Future.delayed(const Duration(seconds: 1), () async {
         try {
+          final user = GetStorage().read('user') as Map?;
+          final studentId = user?['userID']?.toString() ?? user?['id']?.toString() ?? '';
+
+          final ok = (_lastTransactionId != null && _lastAmount != null && studentId.isNotEmpty)
+              ? await service.confirmPaymentCallback(
+            transactionId: _lastTransactionId!,
+            amount: _lastAmount!,
+            classId: _lastBookedClassId!,
+            studentId: studentId,
+          )
+              : false;
+
           await fetchSchedules();
+
+          if (Get.isRegistered<ScheduleViewModel>()) {
+            await Get.find<ScheduleViewModel>().fetchMyEnrollments();
+          }
+
           Get.back();
-          Get.snackbar('Thông báo', 'Chào mừng quay trở lại! Lịch học của bạn đang được cập nhật.');
+          if (ok) {
+            Get.snackbar('Thành công', 'Thanh toán thành công. Lịch học của bạn đã được xác nhận.');
+          } else {
+            Get.snackbar('Thông báo', 'Không xác nhận được thanh toán. Vui lòng kiểm tra đơn hàng.');
+          }
         } catch (e) {
           Get.back();
           Get.snackbar('Lỗi', 'Không thể cập nhật trạng thái lịch học.');
         } finally {
-           _lastBookedClassId = null;
+          _lastBookedClassId = null;
+          _lastTransactionId = null;
+          _lastAmount = null;
         }
       });
     }
