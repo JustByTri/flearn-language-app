@@ -4,6 +4,7 @@ import "../model/login_request.dart";
 import "../model/login_response.dart";
 import "../model/response.dart";
 import '../model/logout_request.dart';
+import "../model/roadmap_detail.dart";
 import "../model/user.dart";
 
 abstract class IAuthRepository {
@@ -37,4 +38,6 @@ abstract class IAuthRepository {
     required String newPassword,
     required String confirmPassword,
   });
+
+  Future<RoadmapDetailsResponse> fetchRoadmapDetails(String learnerLanguageId);
 }

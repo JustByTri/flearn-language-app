@@ -1,3 +1,4 @@
+import 'package:flearn_app/di.dart';
 import 'package:flearn_app/features/auth/view/change_password_screen.dart';
 import 'package:flearn_app/features/auth/view/edit_profile_screen.dart';
 import 'package:flutter/cupertino.dart';
@@ -40,7 +41,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _navigateToLogin() {
+
+    setupDI();
     Get.offAll(() => const LoginScreen(), transition: Transition.rightToLeftWithFade);
+
   }
 
   Future<void> _showLogoutConfirmation() async {
