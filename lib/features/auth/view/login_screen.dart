@@ -1,10 +1,7 @@
-
-import 'package:flearn_app/features/survey/view/language_screen.dart';
 import 'package:flearn_app/features/auth/view/welcome_survey_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/mainBottomNavbar.dart';
@@ -29,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _rememberMe = false;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  
 
   @override
   void dispose() {
@@ -156,30 +153,13 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Hero(
                 tag: 'app_logo',
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/logo_flearn.png',
-                      height: size.height * 0.09,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 6),
-                    Material(
-                      color: Colors.transparent,
-                      child: Text(
-                        'Learn',
-                        style: TextStyle(
-                          fontSize: (size.width * 0.6).clamp(40.0, 50.0),
-                          fontWeight: FontWeight.w900 ,
-                          color: Colors.white,
-                          height: 1.0,
-                          fontFamily: 'Montserrat'
-                        ),
-                      ),
-                    ),
-                  ],
+                child: Transform.scale(
+                  scale: 5.0,
+                  child: Image.asset(
+                    'assets/images/1.png',
+                    width: (size.width * 0.25).clamp(100.0, 180.0),
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
               SizedBox(height: size.height * 0.02),

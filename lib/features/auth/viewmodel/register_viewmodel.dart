@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 
@@ -11,7 +10,7 @@ class RegisterViewModel extends GetxController {
 
   RegisterViewModel(this._authRepository);
 
-  Future<bool> register(
+  Future<Map<String, dynamic>> register(
       String userName,
       String email,
       String password,
@@ -19,7 +18,7 @@ class RegisterViewModel extends GetxController {
       ) async {
     try {
       isLoading.value = true;
-      print("Starting registration with email: $email");
+      print("Starting registration with userName: $userName, email: $email");
 
       final response = await _authRepository.register(
         userName,
@@ -29,19 +28,25 @@ class RegisterViewModel extends GetxController {
       );
 
       print("Register response - isSuccess: ${response.isSuccess}");
+      print("Register response - message: ${response.message}");
       print("Register response - result: ${response.result}");
 
       if (response.isSuccess) {
-        print("Registration successful - waiting for OTP verification");
-        return true;
+        // store registered email for confirm flow
+        try {
+          await storage.write('registeredEmail', email);
+        } catch (e) {
+          print('Failed to write registeredEmail to storage: $e');
+        }
+
+        return {'success': true, 'message': response.message ?? 'Đăng ký thành công'};
       } else {
-        print("Registration failed - isSuccess: ${response.isSuccess}");
-        return false;
+        return {'success': false, 'message': response.message ?? 'Đăng ký thất bại'};
       }
 
     } catch (e) {
       print(" Registration exception: $e");
-      return false;
+      return {'success': false, 'message': 'Lỗi khi đăng ký: $e'};
     } finally {
       isLoading.value = false;
     }
