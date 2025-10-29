@@ -2,6 +2,7 @@ import 'package:country_icons/country_icons.dart';
 import 'package:dio/dio.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:flearn_app/features/auth/viewmodel/login_viewmodel.dart';
+import 'package:flearn_app/features/auth/viewmodel/roadmapDetail_viewmodel.dart';
 import 'package:flearn_app/features/course/model/course.dart';
 import 'package:flearn_app/features/topic/model/topic.dart';
 import 'package:flearn_app/features/topic/viewmodel/topic_viewmodel.dart';
@@ -10,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../course/view/course_screen.dart';
 import '../../course/viewmodel/course_viewmodel.dart';
 import '../../schedule/viewmodel/teacher_schedule_viewmodel.dart';
 import '../../survey/view/survey_screen.dart';
@@ -51,11 +53,16 @@ class _HomeScreenState extends State<HomeScreen> {
   late TopicViewModel topicViewModel;
   final Dio _dio = Dio();
 
+  late String? _learnerLanguageId;
+  late List<dynamic> _roadmapCourses = [];
+  bool _isLoadingRoadmap = false;
+
   @override
   void initState() {
     super.initState();
     _initializeViewModels();
     _loadInitialData();
+    _fetchRoadmapIfNeeded();
   }
 
   void _initializeViewModels() {
@@ -113,6 +120,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final token = box.read('accessToken');
 
 
+    setState(() {
+      _isLoadingRoadmap = true;
+      _roadmapCourses = [];
+      // _selectedLanguageId = languageId;
+    });
+
     Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
     try {
       final assessmentResponse = await _dio.get(
@@ -128,7 +141,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final hasCompletedAssessment = assessmentData?['hasCompletedAssessment'] ?? false;
 
       if (!hasCompletedAssessment) {
-
         Get.dialog(
           AlertDialog(
             title: const Text('Thông báo'),
@@ -167,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     }
 
                     await _loadInitialData();
-
+                    await _fetchRoadmapIfNeeded();
 
                     Get.offAll(() => const SurveyScreen());
                   } else {
@@ -209,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _selectedLanguageId = languageId;
           });
         }
-
+        await _fetchRoadmapIfNeeded();
         await _loadInitialData();
 
         Get.snackbar('Thành công', 'Đã chuyển sang ngôn ngữ mới!', snackPosition: SnackPosition.BOTTOM);
@@ -223,7 +235,61 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       debugPrint('Lỗi xử lý chuyển ngôn ngữ: $e');
       Get.snackbar('Lỗi nghiêm trọng', 'Không thể kết nối đến máy chủ.', snackPosition: SnackPosition.BOTTOM);
+      setState(() {
+        _isLoadingRoadmap = false;
+      });
     }
+  }
+
+  Future<void> _fetchRoadmapIfNeeded() async {
+    setState(() => _isLoadingRoadmap = true);
+
+    final box = GetStorage();
+    final user = box.read('user');
+    final activeLanguageId = user?['languageId'];
+
+    // Gọi API check-required
+    final surveyStatus = await loginViewModel.checkSurveyRequired();
+    final acceptedLanguages = surveyStatus?['acceptedLanguages'] as List<dynamic>? ?? [];
+
+    // Tìm learnerLanguageId đúng
+    String? learnerLanguageId;
+    for (final lang in acceptedLanguages) {
+      if (lang['languageId'] == activeLanguageId) {
+        learnerLanguageId = lang['learnerLanguageId'];
+        break;
+      }
+    }
+    _learnerLanguageId = learnerLanguageId;
+
+
+    if (_learnerLanguageId != null) {
+      _roadmapCourses = await fetchRoadmapDetail(_learnerLanguageId!);
+    } else {
+      _roadmapCourses = [];
+    }
+
+    setState(() => _isLoadingRoadmap = false);
+  }
+
+
+  Future<List<Course>> fetchRoadmapDetail(String learnerLanguageId) async {
+    final roadmapViewModel = Get.put(RoadmapDetailViewModel(Get.find()));
+    await roadmapViewModel.fetchRoadmapDetails(learnerLanguageId);
+
+    List<Course> courses = [];
+    for (final detail in roadmapViewModel.details) {
+      try {
+        // Gọi API lấy course detail theo courseId
+        final response = await _dio.get('https://f-learn.app/api/courses/${detail.courseId}');
+        if (response.statusCode == 200 && response.data['status'] == 'success') {
+          courses.add(Course.fromJson(response.data['data']));
+        }
+      } catch (e) {
+        debugPrint('Lỗi lấy courseId ${detail.courseId}: $e');
+      }
+    }
+    return courses;
   }
 
   @override
@@ -251,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 20),
                 _buildSectionHeader(title: 'Khóa học phổ biến'),
                 const SizedBox(height: 12),
-                _buildPopularCourses(),
+                _buildRoadmapCourses(),
                 const SizedBox(height: 20),
               ],
             ),
@@ -420,7 +486,19 @@ class _HomeScreenState extends State<HomeScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-        Text('Xem tất cả', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+        GestureDetector(
+          onTap: () {
+            // Chuyển sang CourseScreen với paging
+            Get.to(
+                  () => CourseScreen(topic: _selectedTopicName),
+              transition: Transition.cupertino,
+            );
+          },
+          child: const Text(
+            'Xem tất cả',
+            style: TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600),
+          ),
+        ),
       ],
     );
   }
@@ -475,6 +553,25 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Widget _buildRoadmapCourses() {
+    if (_isLoadingRoadmap) {
+      return const Center(child: CupertinoActivityIndicator());
+    }
+    if (_roadmapCourses.isEmpty) {
+      return const Center(child: Text('Không có lộ trình học.'));
+    }
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _roadmapCourses.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final course = _roadmapCourses[index];
+        return CourseCard(course: course);
+      },
+    );
+  }
+
   Widget _buildPopularCourses() {
     return Obx(() {
       if (courseViewModel.isLoadingCourse.value) {
@@ -488,17 +585,81 @@ class _HomeScreenState extends State<HomeScreen> {
         return const Center(child: Text('Không có khoá học nào.'));
       }
 
-      return ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: filteredCourses.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final course = filteredCourses[index];
-          return CourseCard(course: course);
-        },
+      return Column(
+        children: [
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredCourses.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final course = filteredCourses[index];
+              return CourseCard(course: course);
+            },
+          ),
+          const SizedBox(height: 16),
+          // THANH PAGING NẰM TRONG DANH SÁCH
+          _buildPager(),
+          const SizedBox(height: 100), // Padding để tránh navbar
+        ],
       );
     });
+  }
+
+  Widget _buildPager() {
+    return Obx(() => Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Flexible(
+            child: OutlinedButton.icon(
+              onPressed: courseViewModel.hasPrevPage.value
+                  ? () => courseViewModel.prevPage()
+                  : null,
+              icon: const Icon(CupertinoIcons.left_chevron, size: 18),
+              label: const Text('Trước', overflow: TextOverflow.ellipsis),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              'Trang ${courseViewModel.currentPage.value}',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+          ),
+          Flexible(
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              onPressed: courseViewModel.hasNextPage.value
+                  ? () => courseViewModel.nextPage()
+                  : null,
+              label: const Text('Sau', overflow: TextOverflow.ellipsis),
+              icon: const Icon(CupertinoIcons.right_chevron, size: 18),
+            ),
+          ),
+        ],
+      ),
+    ));
   }
 }
 

@@ -9,6 +9,7 @@ import "../../../config/api_config.dart";
 import "../model/login_request.dart";
 import "../model/login_response.dart";
 import "../model/response.dart";
+import "../model/roadmap_detail.dart";
 import "../model/user.dart";
 import "auth_repository.dart";
 import "../model/logout_request.dart";
@@ -240,4 +241,19 @@ class AuthService implements IAuthRepository {
       throw Exception('Failed to change password: '+e.message!);
     }
   }
+
+  Future<RoadmapDetailsResponse> fetchRoadmapDetails(String learnerLanguageId) async {
+    try {
+      final response = await _dio.get(
+        '/VoiceAssessment/roadmap-details/$learnerLanguageId',
+      );
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        return RoadmapDetailsResponse.fromJson(response.data);
+      }
+      throw Exception(response.data['message'] ?? 'Lỗi lấy roadmap');
+    } on DioException catch (e) {
+      throw Exception('Roadmap details error: ${e.message}');
+    }
+  }
+
 }
