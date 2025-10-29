@@ -109,128 +109,77 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
     final padding = size.width * 0.06;
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primary.withOpacity(0.9),
-              AppColors.primary.withOpacity(0.6),
-              AppColors.primary.withOpacity(0.3),
-              Colors.white,
-            ],
-            stops: const [0.0, 0.3, 0.6, 1.0],
-          ),
-        ),
-        child: Stack(
-          children: [
-            _buildBackgroundCircles(),
-            _buildMainContent(context, padding),
-            _buildLoadingOverlay(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBackgroundCircles() {
-    final size = MediaQuery.of(context).size;
-
-    return Stack(
-      children: [
-        Positioned(
-          top: -size.height * 0.03,
-          right: -size.width * 0.08,
-          child: Container(
-            width: size.width * 0.3,
-            height: size.width * 0.3,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.1),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: -size.height * 0.02,
-          left: -size.width * 0.05,
-          child: Container(
-            width: size.width * 0.2,
-            height: size.width * 0.2,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.1),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMainContent(BuildContext context, double padding) {
-    return Center(
-      child: SingleChildScrollView(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: padding),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildLogo(),
-                  const SizedBox(height: 30),
-                  Text(
-                    'Quên mật khẩu',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildHeader(size),
+              Center(
+                child: SingleChildScrollView(
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: SlideTransition(
+                      position: _slideAnimation,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: padding),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(height: 30),
+                            Text(
+                              'Quên mật khẩu',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _buildEmailField(),
+                            const SizedBox(height: 32),
+                            _buildSendOtpButton(),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  _buildEmailField(),
-                  const SizedBox(height: 32),
-                  _buildSendOtpButton(),
-                  const SizedBox(height: 20),
-                ],
+                ),
               ),
-            ),
+              _buildLoadingOverlay(),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLogo() {
-    final size = MediaQuery.of(context).size;
-    final logoSize = size.width * 0.25;
-
-    return Hero(
-      tag: 'app_logo',
+  Widget _buildHeader(Size size) {
+    return ClipPath(
+      clipper: WaveClipper(),
       child: Container(
-        width: logoSize,
-        height: logoSize,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        height: size.height * 0.30,
+        width: double.infinity,
+        color: AppColors.primary,
+        child: SafeArea(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Hero(
+                tag: 'app_logo',
+                child: Transform.scale(
+                  scale: 5.0,
+                  child: Image.asset(
+                    'assets/images/1.png',
+                    width: (size.width * 0.25).clamp(100.0, 180.0),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              SizedBox(height: size.height * 0.02),
+            ],
           ),
-          borderRadius: BorderRadius.circular(logoSize / 2),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withOpacity(0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Icon(
-          Icons.school_rounded,
-          size: logoSize * 0.5,
-          color: Colors.white,
         ),
       ),
     );
@@ -332,4 +281,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
           : const SizedBox.shrink(),
     );
   }
+}
+
+class WaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    var path = Path();
+    path.lineTo(0, size.height * 0.85);
+    var firstControlPoint = Offset(size.width / 4, size.height);
+    var firstEndPoint = Offset(size.width / 2.2, size.height - 30.0);
+    path.quadraticBezierTo(firstControlPoint.dx, firstControlPoint.dy,
+        firstEndPoint.dx, firstEndPoint.dy);
+    var secondControlPoint =
+        Offset(size.width - (size.width / 3.2), size.height - 65);
+    var secondEndPoint = Offset(size.width, size.height - 40);
+    path.quadraticBezierTo(secondControlPoint.dx, secondControlPoint.dy,
+        secondEndPoint.dx, secondEndPoint.dy);
+    path.lineTo(size.width, size.height - 40);
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

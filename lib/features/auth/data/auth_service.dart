@@ -50,6 +50,18 @@ class AuthService implements IAuthRepository {
       );
       return LoginResponse.fromJson(response.data);
     } on DioException catch (e) {
+      // Nếu server trả lỗi với body (ví dụ validation 400), đọc body và trả về LoginResponse từ body
+      if (e.response != null && e.response?.data != null) {
+        try {
+          // In log để debug
+          print('Register API returned error status: ${e.response?.statusCode}');
+          print('Register API error body: ${e.response?.data}');
+          return LoginResponse.fromJson(e.response!.data);
+        } catch (ex) {
+          // Nếu không parse được, ném ngoại lệ gốc
+          throw Exception('Registration error (unparsable response): ${e.message}');
+        }
+      }
       throw Exception('Registration error: ${e.message}');
     }
   }
