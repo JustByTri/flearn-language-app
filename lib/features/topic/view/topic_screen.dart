@@ -25,45 +25,55 @@ class _TopicScreenState extends State<TopicScreen> {
     });
   }
 
+  // Scale responsive
+  double _scale(double size) {
+    final width = MediaQuery.of(context).size.width;
+    if (width > 600) return size * 1.3;
+    if (width > 400) return size * 1.1;
+    return size;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final horizontalPadding = screenWidth * 0.04;
+    final cardSpacing = screenWidth * 0.04;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA), // A very light grey background
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
         centerTitle: true,
-
-        title: const Text(
+        title: Text(
           "Chủ đề Roleplay",
           style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
-            fontSize: 20,
+            fontSize: _scale(20),
           ),
         ),
       ),
       body: RefreshIndicator(
         onRefresh: topicViewModel.fetchTopics,
         child: Obx(() {
-          if (topicViewModel.isLoadingTopics.value &&
-              topicViewModel.topics.isEmpty) {
+          if (topicViewModel.isLoadingTopics.value && topicViewModel.topics.isEmpty) {
             return const Center(child: CupertinoActivityIndicator(radius: 15));
           }
 
           if (topicViewModel.topics.isEmpty) {
             return Center(
               child: ListView(
-                // Use ListView to make the empty message scrollable and work with RefreshIndicator
                 children: [
-                  SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+                  SizedBox(height: screenHeight * 0.3),
                   Icon(CupertinoIcons.bubble_left_bubble_right,
-                      size: 60, color: Colors.grey.shade400),
+                      size: _scale(60), color: Colors.grey.shade400),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     "Chưa có chủ đề nào",
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 17, color: Colors.grey),
+                    style: TextStyle(fontSize: _scale(17), color: Colors.grey),
                   ),
                 ],
               ),
@@ -71,106 +81,162 @@ class _TopicScreenState extends State<TopicScreen> {
           }
 
           final topics = topicViewModel.topics;
-          return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.85,
+          return Padding(
+            padding: EdgeInsets.only(bottom: kBottomNavigationBarHeight + 16), // ← DÒNG QUAN TRỌNG
+            child: GridView.builder(
+              padding: EdgeInsets.all(horizontalPadding),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 200,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: topics.length,
+              itemBuilder: (context, index) {
+                final topic = topics[index];
+                return _buildTopicCard(topic, index, _scale);
+              },
             ),
-            itemCount: topics.length,
-            itemBuilder: (context, index) {
-              final topic = topics[index];
-              return _buildTopicCard(topic, index);
-            },
           );
         }),
       ),
     );
   }
 
-  Widget _buildTopicCard(TopicModel topic, int index) {
-    final List<List<Color>> gradients = [
-      [const Color(0xFF6DD5FA), const Color(0xFF2980B9)],
-      [const Color(0xFFC5E1A5), const Color(0xFF7CB342)],
-      [const Color(0xFFFFD54F), const Color(0xFFFFA000)],
-      [const Color(0xFFCE93D8), const Color(0xFF8E24AA)],
-      [const Color(0xFFEF9A9A), const Color(0xFFD32F2F)],
-      [const Color(0xFF81D4FA), const Color(0xFF0277BD)],
-    ];
-    final gradient = gradients[index % gradients.length];
-
+  Widget _buildTopicCard(TopicModel topic, int index, Function(double) scale) {
     return GestureDetector(
       onTap: () {
         Get.to(
-          () => ConfirmContextScreen(topic: topic),
+              () => ConfirmContextScreen(topic: topic),
           transition: Transition.cupertino,
         );
       },
       child: Container(
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-            colors: gradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          borderRadius: BorderRadius.circular(scale(20)),
           boxShadow: [
             BoxShadow(
-              color: gradient[1].withOpacity(0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: scale(10),
+              offset: Offset(0, scale(5)),
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  topic.name,
-                  style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                            color: Colors.black26,
-                            blurRadius: 4,
-                            offset: Offset(0, 1))
-                      ]),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  topic.description,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withOpacity(0.9),
-                    height: 1.3,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(scale(20)),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // === BACKGROUND IMAGE ===
+              Image.network(
+                topic.imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey.shade300,
+                    child: Icon(
+                      CupertinoIcons.photo,
+                      size: scale(50),
+                      color: Colors.grey.shade500,
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    color: Colors.grey.shade200,
+                    child: Center(
+                      child: CupertinoActivityIndicator(radius: scale(10)),
+                    ),
+                  );
+                },
+              ),
+
+              // === GRADIENT OVERLAY ===
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.6),
+                      Colors.black.withOpacity(0.3),
+                      Colors.transparent,
+                    ],
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
                   ),
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Icon(
-                  CupertinoIcons.arrow_right_circle_fill,
-                  color: Colors.white,
-                  size: 28,
+              ),
+
+              // === CONTENT ===
+              Padding(
+                padding: EdgeInsets.all(scale(16)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // === TIÊU ĐỀ ===
+                    Text(
+                      topic.topicName,
+                      style: TextStyle(
+                        fontSize: scale(18),
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black54,
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          )
+                        ],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+
+                    SizedBox(height: scale(8)),
+
+                    // === MÔ TẢ ===
+                    Expanded(
+                      child: Text(
+                        topic.topicDescription,
+                        style: TextStyle(
+                          fontSize: scale(13.5),
+                          color: Colors.white.withOpacity(0.95),
+                          height: 1.35,
+                          shadows: const [
+                            Shadow(
+                              color: Colors.black45,
+                              blurRadius: 4,
+                              offset: Offset(0, 1),
+                            )
+                          ],
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+
+                    SizedBox(height: scale(8)),
+
+                    // === ICON ARROW ===
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Container(
+                        padding: EdgeInsets.all(scale(8)),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          CupertinoIcons.arrow_right,
+                          color: Colors.white,
+                          size: scale(20),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            )
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );

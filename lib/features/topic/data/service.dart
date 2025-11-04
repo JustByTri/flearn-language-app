@@ -291,13 +291,10 @@ class service implements IRepository {
   }
 
   @override
-  Future<List<ConversationLanguage>>
-  getConversationLanguages() async {
+  Future<List<LanguageLevel>> getConversationLevels(String languageId) async {
     final storage = GetStorage();
     final accessToken = storage.read('accessToken');
-    final url = Uri.parse(
-      '${ApiConfig.baseUrl}/conversation/languages',
-    );
+    final url = Uri.parse('https://f-learn.app/api/languages/$languageId/levels');
     try {
       final response = await http.get(
         url,
@@ -308,21 +305,14 @@ class service implements IRepository {
       );
       if (response.statusCode == 200) {
         final jsonBody = jsonDecode(response.body);
-        final data =
-            jsonBody['data'] as List<dynamic>? ?? [];
-        return data
-            .map(
-              (item) => ConversationLanguage.fromJson(item),
-        )
-            .toList();
+        final data = jsonBody['data'] as List<dynamic>? ?? [];
+        return data.map((item) => LanguageLevel.fromJson(item)).toList();
       } else {
-        print(
-          'getConversationLanguages failed: ${response.statusCode} ${response.body}',
-        );
+        print('getConversationLevels failed: ${response.statusCode} ${response.body}');
         return [];
       }
     } catch (e) {
-      print('getConversationLanguages error: $e');
+      print('getConversationLevels error: $e');
       return [];
     }
   }

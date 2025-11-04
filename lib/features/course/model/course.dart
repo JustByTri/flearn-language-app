@@ -13,7 +13,7 @@ class Course {
   final String courseLevel;
   final String courseSkill;
   final int numLessons;
-final List<String> topics;
+  final List<String> topics;
   Course({
     required this.courseID,
     required this.title,

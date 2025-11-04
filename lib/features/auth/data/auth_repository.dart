@@ -25,14 +25,14 @@ abstract class IAuthRepository {
   Future<LoginResponse> loginWithGoogle(String idToken);
 
   Future<bool> forgotPassword(String email);
-  Future<bool> resetPassword(String email, String otp, String newPassword, String confirmPassword);
+  Future<Map<String, dynamic>> resetPassword(String email, String otp, String newPassword, String confirmPassword);
 
   Future<ResponseModel> updateProfile({
     String? fullName,
     String? userName,
     File? avatar,
   });
-  Future<Map<String, dynamic>> checkSurveyRequired();
+
   Future<ResponseModel> changePassword({
     required String currentPassword,
     required String newPassword,

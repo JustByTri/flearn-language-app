@@ -10,6 +10,7 @@ import '../../../config/api_config.dart';
 import '../model/assessment.dart';
 import '../model/assessment_result.dart';
 import '../model/goal.dart';
+import '../model/program.dart';
 
 
 class serviceSurvey implements ISurveyRepository {
@@ -40,6 +41,32 @@ class serviceSurvey implements ISurveyRepository {
   }
 
   @override
+  Future<List<Program>> getPrograms(String languageId) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/VoiceAssessment/programs/$languageId');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $accessToken",
+        },
+      );
+      if (response.statusCode == 200) {
+        final jsonBody = jsonDecode(response.body);
+        final data = jsonBody['data'] as List<dynamic>? ?? [];
+        return data.map((item) => Program.fromJson(item)).toList();
+      } else {
+        print('getPrograms failed: ${response.statusCode} ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      print('getPrograms error: $e');
+      return [];
+    }
+  }
+
+  @override
   Future<List<Goal>> getGoals() async {
     final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.getGoal}');
     try {
@@ -59,23 +86,11 @@ class serviceSurvey implements ISurveyRepository {
   }
 
   @override
-  Future<Assessment?> startAssessment(String languageId, List<int> goalIds) async {
+  Future<Assessment?> startAssessment(String languageId, String programId) async {
     final storage = GetStorage();
     final accessToken = storage.read('accessToken');
 
-
-    final queryParameters = {
-      'languageId': languageId,
-      for (var id in goalIds) 'goalIds': id.toString(),
-    };
-
-
-    final queryString = [
-      'languageId=$languageId',
-      ...goalIds.map((id) => 'goalIds=$id')
-    ].join('&');
-
-    final url = Uri.parse('${ApiConfig.baseUrl}/VoiceAssessment/start?$queryString');
+    final url = Uri.parse('${ApiConfig.baseUrl}/VoiceAssessment/start?languageId=$languageId&programId=$programId');
 
     try {
       final response = await http.post(
@@ -109,32 +124,28 @@ class serviceSurvey implements ISurveyRepository {
     final accessToken = storage.read('accessToken');
     final url = Uri.parse('${ApiConfig.baseUrl}/VoiceAssessment/$assessmentId/current-question');
 
-    try {
-      print("Getting current assessment question for assessmentId: $assessmentId");
+    print('[Service] accessToken: $accessToken');
+    print('[Service] GET $url');
 
-      final response = await http.get(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $accessToken",
-        },
-      );
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $accessToken",
+      },
+    );
 
-      print("Current question response status: ${response.statusCode}");
-      print("Current question response body: ${response.body}");
+    print("[Service] Response status: ${response.statusCode}");
+    print("[Service] Response body: ${response.body}");
 
-      if (response.statusCode == 200) {
-        final jsonBody = jsonDecode(response.body);
-        if (jsonBody['success'] == true && jsonBody['data'] != null) {
-          return AssessmentQuestion.fromJson(jsonBody['data']);
-        }
-        return null;
-      } else {
-        print('getCurrentAssessmentQuestion failed: ${response.statusCode} ${response.body}');
-        return null;
+    if (response.statusCode == 200) {
+      final jsonBody = jsonDecode(response.body);
+      if (jsonBody['success'] == true && jsonBody['data'] != null) {
+        return AssessmentQuestion.fromJson(jsonBody['data']);
       }
-    } catch (e) {
-      print('getCurrentAssessmentQuestion error: $e');
+      return null;
+    } else {
+      print('[Service] getCurrentAssessmentQuestion failed: ${response.statusCode} ${response.body}');
       return null;
     }
   }
@@ -195,6 +206,7 @@ class serviceSurvey implements ISurveyRepository {
     final url = Uri.parse('${ApiConfig.baseUrl}/VoiceAssessment/complete/$assessmentId');
 
     try {
+      print('accessToken: $accessToken');
       print("Completing assessment for assessmentId: $assessmentId");
       final response = await http.post(
         url,

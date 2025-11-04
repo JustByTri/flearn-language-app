@@ -5,6 +5,7 @@ import '../data/repository.dart';
 import '../model/assessment.dart';
 import '../model/assessment_result.dart';
 import '../model/goal.dart';
+import '../model/program.dart';
 
 class SurveyViewModel extends GetxController {
   final ISurveyRepository _repository;
@@ -17,6 +18,9 @@ class SurveyViewModel extends GetxController {
 
   var goals = <Goal>[].obs;
   var isLoadingGoals = false.obs;
+
+  var programs = <Program>[].obs;
+  var isLoadingPrograms = false.obs;
 
   var assessment = Rxn<Assessment>();
 
@@ -42,6 +46,20 @@ class SurveyViewModel extends GetxController {
     }
   }
 
+
+  Future<void> fetchPrograms(String languageId) async {
+    try {
+      isLoadingPrograms.value = true;
+      final list = await _repository.getPrograms(languageId);
+      programs.assignAll(list);
+    } catch (e) {
+      print('fetchPrograms error: $e');
+      programs.clear();
+    } finally {
+      isLoadingPrograms.value = false;
+    }
+  }
+
   Future<void> fetchGoals() async {
     try {
       isLoadingGoals.value = true;
@@ -56,21 +74,19 @@ class SurveyViewModel extends GetxController {
     }
   }
 
-  Future<void> startAssessment(String languageId, List<int> goalIds) async {
+  Future<void> startAssessment(String languageId, String programId) async {
     try {
       isLoading.value = true;
-      final result = await _repository.startAssessment(languageId, goalIds);
+      final result = await _repository.startAssessment(languageId, programId);
       if (result != null) {
         assessment.value = result;
-        errorMessage.value = null; // Clear previous errors
+        errorMessage.value = null;
         print("Assessment started: ${result.assessmentId}");
       } else {
         print("Failed to start assessment");
       }
-    } on DioError catch (e) {
-      errorMessage.value = e.response?.data?['message'] ?? 'Lỗi không xác định';
     } catch (e) {
-      errorMessage.value = 'Đã có lỗi xảy ra. Vui lòng thử lại.';
+      errorMessage.value = 'Lỗi không xác định khi bắt đầu đánh giá.';
       print('startAssessment error: $e');
     } finally {
       isLoading.value = false;
@@ -78,23 +94,17 @@ class SurveyViewModel extends GetxController {
   }
 
   Future<void> fetchCurrentAssessmentQuestion(String assessmentId) async {
+    print('[SurveyViewModel] fetchCurrentAssessmentQuestion assessmentId: $assessmentId');
     try {
       isLoadingCurrentQuestion.value = true;
       final question = await _repository.getCurrentAssessmentQuestion(assessmentId);
+      print('[SurveyViewModel] Question result: $question');
       currentQuestion.value = question;
-      errorMessage.value = null; // Clear error on success
-    } on DioError catch (e) {
-      final responseMessage = e.response?.data?['message'] as String? ?? '';
-      if (responseMessage.contains('Đã hoàn thành')) {
-        errorMessage.value = 'ASSESSMENT_COMPLETED'; // Set special flag
-      } else {
-        errorMessage.value = responseMessage;
-      }
-      currentQuestion.value = null; 
-      print('fetchCurrentAssessmentQuestion failed: ${e.response?.statusCode} $responseMessage');
+      errorMessage.value = null;
     } catch (e) {
-      errorMessage.value = 'Lỗi không xác định khi tải câu hỏi.';
-      print('fetchCurrentAssessmentQuestion error: $e');
+      print('[SurveyViewModel] Error: $e');
+      errorMessage.value = 'ASSESSMENT_COMPLETED';
+      currentQuestion.value = null;
     } finally {
       isLoadingCurrentQuestion.value = false;
     }

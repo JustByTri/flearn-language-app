@@ -1,4 +1,4 @@
-import 'package:flearn_app/features/auth/view/welcome_survey_screen.dart';
+import 'package:flearn_app/features/survey/view/welcome_survey_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
@@ -26,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _rememberMe = false;
 
-  
+
 
   @override
   void dispose() {
@@ -175,8 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
       padding: EdgeInsets.symmetric(horizontal: size.width * 0.06),
       child: Column(
         children: [
-          const SizedBox(height: 24),
-          // --- ĐĂNG NHẬP TITLE ---
+          const SizedBox(height: 16),
           Text(
             "Đăng nhập",
             style: TextStyle(
@@ -185,19 +184,19 @@ class _LoginScreenState extends State<LoginScreen> {
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 24),
-          _buildEmailField(),
           const SizedBox(height: 20),
-          _buildPasswordField(),
+          _buildEmailField(),
           const SizedBox(height: 16),
+          _buildPasswordField(),
+          const SizedBox(height: 12),
           _buildRememberMeAndForgotPassword(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           _buildLoginButton(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           _buildDivider(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           _buildGoogleLoginButton(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           _buildSignUpLink(),
         ],
       ),

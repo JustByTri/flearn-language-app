@@ -12,7 +12,7 @@ class ApiConfig {
   static const String checkRequired = "/VoiceAssessment/check-required";
 
   static const String getLanguages = "/languages";
-  static const String getTopic = "/conversation/topics";
+  static const String getTopic = "/topics";
 
 
   static const String getGoal = "/goals";
@@ -20,8 +20,8 @@ class ApiConfig {
   static String voiceAssessmentStart(String languageId, int goalId) =>
       "/VoiceAssessment/start/$languageId?goalId=$goalId";
 
-  static const String acceptVoiceAssessment = "/VoiceAssessment/accept-voice-assessment";
-  static const String rejectVoiceAssessment = "/VoiceAssessment/reject-voice-assessment";
+  static const String acceptVoiceAssessment = "/VoiceAssessment/accept-assessment";
+  static const String rejectVoiceAssessment = "/VoiceAssessment/reject-assessment";
 
 
   static const String getCourse = "/courses";

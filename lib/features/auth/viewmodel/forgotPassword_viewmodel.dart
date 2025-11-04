@@ -14,10 +14,18 @@ class ForgotPasswordViewModel extends GetxController {
     return result;
   }
 
-  Future<bool> resetPassword(String email, String otp, String newPassword, String confirmPassword) async {
+  Future<Map<String, dynamic>> resetPassword(String email, String otp, String newPassword, String confirmPassword) async {
     isLoading.value = true;
-    final result = await _authRepository.resetPassword(email, otp, newPassword, confirmPassword);
-    isLoading.value = false;
-    return result;
+    try {
+      final response = await _authRepository.resetPassword(email, otp, newPassword, confirmPassword);
+      isLoading.value = false;
+      return {'success': response == true};
+    } catch (e) {
+      isLoading.value = false;
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
   }
 }

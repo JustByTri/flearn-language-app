@@ -6,7 +6,8 @@ import 'package:flearn_app/features/schedule/data/service.dart';
 import 'package:flearn_app/features/survey/data/repository.dart';
 import 'package:flearn_app/features/survey/data/service.dart';
 import 'package:flearn_app/features/topic/data/repository.dart';
-import 'package:flearn_app/core/services/dio_interceptor.dart'; 
+import 'package:flearn_app/core/services/dio_interceptor.dart';
+import 'package:flearn_app/shared/controllers/navigation_controller.dart';
 import 'package:get/get.dart';
 import 'package:dio/dio.dart';
 
@@ -26,11 +27,13 @@ void setupDI() {
     dio.interceptors.add(DioInterceptor()); // Tự động thêm token vào mọi request
     return dio;
   }, fenix: true);
-  Get.lazyPut<IAuthRepository>(() => AuthService(Get.find<Dio>()));
-  Get.lazyPut<IRepository>(() => service());
-  Get.lazyPut<ICourseRepository>(() => CourseService());
-  Get.lazyPut<ISurveyRepository>(() => serviceSurvey());
-  Get.lazyPut<IScheduleRepository>(() => ScheduleService());
+  Get.lazyPut<IAuthRepository>(() => AuthService(Get.find<Dio>()), fenix: true);
+  Get.lazyPut<IRepository>(() => service(), fenix: true);
+  Get.lazyPut<ICourseRepository>(() => CourseService(), fenix: true);
+  Get.lazyPut<ISurveyRepository>(() => serviceSurvey(), fenix: true);
+  Get.lazyPut<IScheduleRepository>(() => ScheduleService(), fenix: true);
   Get.lazyPut<CourseViewModel>(() => CourseViewModel(Get.find<ICourseRepository>()), fenix: true);
+
+  Get.lazyPut(() => NavigationController(), fenix: true);
 
 }

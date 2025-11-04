@@ -12,6 +12,7 @@ import 'package:flearn_app/features/topic/viewmodel/topic_viewmodel.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:translator/translator.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../topic/model/topic.dart';
@@ -49,6 +50,16 @@ class _ChatScreenState extends State<ChatScreen> {
   final Set<ChatMessage> _translatedMessages = {};
   bool _isScenarioTranslated = false;
   bool _isRoleTranslated = false;
+  final GoogleTranslator _translator = GoogleTranslator();
+  Map<int, bool> _isTranslatingMessage = {};
+  Map<int, String?> _translatedMessageText = {};
+
+  Offset _taskButtonPosition = Offset(Get.width - 80, 120); // Vị trí mặc định trong vùng trắng
+  Map<int, bool> _isTranslatingTask = {};
+  Map<int, String?> _translatedTaskText = {};
+
+  bool _isTranslatingScenario = false;
+  String? _translatedScenario;
 
   @override
   void initState() {
@@ -130,10 +141,10 @@ class _ChatScreenState extends State<ChatScreen> {
       if (response != null && response['success'] == true && response['data'] != null) {
         final aiMsg = response['data']['messageContent'] ?? '';
         if (aiMsg.isNotEmpty) {
-           _addMessage(ChatMessage(text: aiMsg.trim(), isUser: false, timestamp: DateTime.now()));
+          _addMessage(ChatMessage(text: aiMsg.trim(), isUser: false, timestamp: DateTime.now()));
         }
       } else {
-         _addMessage(ChatMessage(text: "AI không trả lời. Vui lòng thử lại.", isUser: false, timestamp: DateTime.now()));
+        _addMessage(ChatMessage(text: "AI không trả lời. Vui lòng thử lại.", isUser: false, timestamp: DateTime.now()));
       }
     } catch (e) {
       setState(() => _isTyping = false);
@@ -234,7 +245,7 @@ class _ChatScreenState extends State<ChatScreen> {
         url,
         headers: {"Authorization": "Bearer $accessToken"},
       );
-      
+
       if (!mounted) return;
 
       if (response.statusCode == 200) {
@@ -248,9 +259,9 @@ class _ChatScreenState extends State<ChatScreen> {
         Get.snackbar("Lỗi", "Kết thúc thất bại: ${response.body}");
       }
     } catch (e) {
-       Get.snackbar("Lỗi", "Lỗi kết nối: $e");
+      Get.snackbar("Lỗi", "Lỗi kết nối: $e");
     } finally {
-       if(mounted) setState(() => _isEnding = false);
+      if(mounted) setState(() => _isEnding = false);
     }
   }
 
@@ -293,11 +304,11 @@ class _ChatScreenState extends State<ChatScreen> {
               onTap: () {
                 Get.back();
                 setState(() {
-                   if (_translatedMessages.contains(message)) {
-                     _translatedMessages.remove(message);
-                   } else {
-                     _translatedMessages.add(message);
-                   }
+                  if (_translatedMessages.contains(message)) {
+                    _translatedMessages.remove(message);
+                  } else {
+                    _translatedMessages.add(message);
+                  }
                 });
               },
             ),
@@ -342,8 +353,233 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           _buildHeader(),
-          _buildChatBody(),
+          Expanded(
+            child: Stack(
+              children: [
+                _buildChatBody(),
+
+                if (_sessionModel?.tasks != null && _sessionModel!.tasks.isNotEmpty)
+                  _buildFloatingTaskButton(),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingTaskButton() {
+    return Positioned(
+      left: _taskButtonPosition.dx,
+      top: _taskButtonPosition.dy,
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          setState(() {
+
+            _taskButtonPosition = Offset(
+              (_taskButtonPosition.dx + details.delta.dx).clamp(10.0, Get.width - 70),
+              (_taskButtonPosition.dy + details.delta.dy).clamp(10.0, Get.height - 200),
+            );
+          });
+        },
+        child: Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.assignment, color: Colors.white, size: 28),
+            onPressed: _showTasksDialog,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTasksDialog() {
+    List<String> taskContents = [];
+    if (_sessionModel?.tasks != null) {
+      for (var task in _sessionModel!.tasks) {
+        if (task is Map<String, dynamic> && task.containsKey('taskDescription') && task['taskDescription'] is String) {
+          taskContents.add(task['taskDescription']);
+        }
+      }
+    }
+
+    if (taskContents.isEmpty) return;
+
+    // Reset translation state khi mở dialog
+    _isTranslatingTask.clear();
+    _translatedTaskText.clear();
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "Nhiệm vụ của bạn",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Get.back(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...taskContents.asMap().entries.map((entry) {
+                final index = entry.key;
+                final taskContent = entry.value;
+                return _buildTaskItem(index, taskContent);
+              }),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
+      isDismissible: true,
+      enableDrag: true,
+      isScrollControlled: true,
+    );
+  }
+
+  Widget _buildTaskItem(int index, String taskContent) {
+    return StatefulBuilder(
+      builder: (context, setDialogState) {
+        final isTranslating = _isTranslatingTask[index] ?? false;
+        final translatedText = _translatedTaskText[index];
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.check_circle_outline, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      taskContent,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: AppColors.textPrimary,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // === NÚT DỊCH / HIỂN THỊ BẢN DỊCH ===
+              Padding(
+                padding: const EdgeInsets.only(left: 32),
+                child: isTranslating
+                    ? const CupertinoActivityIndicator()
+                    : (translatedText != null)
+                    ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      translatedText,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                        color: AppColors.primary,
+                        height: 1.4,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        setDialogState(() {
+                          _translatedTaskText[index] = null;
+                        });
+                      },
+                      icon: const Icon(Icons.close, color: AppColors.primary, size: 16),
+                      label: const Text('Ẩn dịch', style: TextStyle(color: AppColors.primary, fontSize: 13)),
+                    ),
+                  ],
+                )
+                    : TextButton.icon(
+                  onPressed: () async {
+                    setDialogState(() {
+                      _isTranslatingTask[index] = true;
+                    });
+                    try {
+                      final translation = await _translator.translate(taskContent, to: 'vi');
+                      setDialogState(() {
+                        _translatedTaskText[index] = translation.text;
+                      });
+                    } catch (e) {
+                      Get.snackbar('Lỗi', 'Dịch thất bại');
+                    } finally {
+                      setDialogState(() {
+                        _isTranslatingTask[index] = false;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.translate, color: AppColors.primary, size: 16),
+                  label: const Text('Dịch', style: TextStyle(color: AppColors.primary, fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildChatBody() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                itemCount: _messages.length + (_isTyping ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (_isTyping && index == _messages.length) {
+                    return _buildTypingIndicator();
+                  }
+                  return _buildMessageBubble(_messages[index]);
+                },
+              ),
+            ),
+            _buildInputArea(),
+          ],
+        ),
       ),
     );
   }
@@ -377,95 +613,108 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                   GestureDetector(
-                     onTap: () => setState(() => _isScenarioTranslated = !_isScenarioTranslated),
-                     child: Text.rich(TextSpan(children: [
-                       const TextSpan(text: "Kịch bản: ", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                       TextSpan(text: _getTranslatedText(_sessionModel?.scenarioDescription ?? '...', _isScenarioTranslated),
-                         style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.normal))
-                     ]))
-                   ),
+                  // === KỊCH BẢN VỚI NÚT DỊCH (DÙNG STACK ĐỂ ĐÈ) ===
+                  Stack(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              "Kịch bản: ${_sessionModel?.scenarioDescription ?? '...'}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _isTranslatingScenario
+                              ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CupertinoActivityIndicator(color: Colors.white),
+                          )
+                              : IconButton(
+                            icon: const Icon(Icons.translate, color: Colors.white, size: 22),
+                            tooltip: 'Dịch sang tiếng Việt',
+                            onPressed: () async {
+                              setState(() => _isTranslatingScenario = true);
+                              try {
+                                final translation = await _translator.translate(
+                                  _sessionModel?.scenarioDescription ?? '',
+                                  to: 'vi',
+                                );
+                                setState(() {
+                                  _translatedScenario = translation.text;
+                                });
+                              } catch (e) {
+                                Get.snackbar('Lỗi', 'Dịch thất bại');
+                              } finally {
+                                setState(() => _isTranslatingScenario = false);
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      // === PHẦN DỊCH ĐÈ LÊN ===
+                      if (_translatedScenario != null)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.95),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.language, color: Colors.white, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _translatedScenario!,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                                  onPressed: () => setState(() => _translatedScenario = null),
+                                  tooltip: 'Ẩn dịch',
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
+                  // Vai của bạn giữ nguyên
                   GestureDetector(
-                     onTap: () => setState(() => _isRoleTranslated = !_isRoleTranslated),
-                     child: Text.rich(TextSpan(children: [
-                       TextSpan(text: "Vai của bạn: ", style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15, fontWeight: FontWeight.bold)),
-                       TextSpan(text: _getTranslatedText(_sessionModel?.characterRole ?? '...', _isRoleTranslated),
-                         style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15))
-                     ]))
-                   ),
+                    onTap: () => setState(() => _isRoleTranslated = !_isRoleTranslated),
+                    child: Text.rich(TextSpan(children: [
+                      TextSpan(
+                        text: "Vai của bạn: ",
+                        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                      TextSpan(
+                        text: _getTranslatedText(_sessionModel?.characterRole ?? '...', _isRoleTranslated),
+                        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15),
+                      )
+                    ])),
+                  ),
                 ],
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildChatBody() {
-    return Expanded(
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          child: Column(
-            children: [
-              if (_sessionModel?.tasks != null && _sessionModel!.tasks.isNotEmpty)
-                _buildTasks(),
-              Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  itemCount: _messages.length + (_isTyping ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (_isTyping && index == _messages.length) {
-                      return _buildTypingIndicator();
-                    }
-                    return _buildMessageBubble(_messages[index]);
-                  },
-                ),
-              ),
-              _buildInputArea(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTasks(){
-    List<String> taskContents = [];
-    if (_sessionModel?.tasks != null) {
-      for (var task in _sessionModel!.tasks) {
-        if (task is Map<String, dynamic> && task.containsKey('taskDescription') && task['taskDescription'] is String) {
-          taskContents.add(task['taskDescription']);
-        }
-      }
-    }
-
-    if (taskContents.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200))
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("Nhiệm vụ của bạn:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primary)),
-          const SizedBox(height: 8),
-          ...taskContents.map((taskContent) => Padding(
-            padding: const EdgeInsets.only(bottom: 4.0),
-            child: Text("- $taskContent", style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4)),
-          ))
-        ],
       ),
     );
   }
@@ -488,6 +737,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final displayText = _getTranslatedText(message.text, isTranslated);
     final words = displayText.split(' ');
+
+    final msgIndex = _messages.indexOf(message);
 
     return Column(
       crossAxisAlignment: align,
@@ -523,6 +774,57 @@ class _ChatScreenState extends State<ChatScreen> {
             style: const TextStyle(color: Colors.grey, fontSize: 11),
           ),
         ),
+        if (!isUser)
+          Padding(
+            padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+            child: _isTranslatingMessage[msgIndex] == true
+                ? const CupertinoActivityIndicator()
+                : (_translatedMessageText[msgIndex] != null)
+                ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _translatedMessageText[msgIndex]!,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontStyle: FontStyle.italic,
+                    color: AppColors.primary,
+                    height: 1.4,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _translatedMessageText[msgIndex] = null;
+                    });
+                  },
+                  icon: const Icon(Icons.close, color: AppColors.primary, size: 18),
+                  label: const Text('Ẩn dịch', style: TextStyle(color: AppColors.primary)),
+                ),
+              ],
+            )
+                : TextButton.icon(
+              onPressed: () async {
+                setState(() {
+                  _isTranslatingMessage[msgIndex] = true;
+                });
+                try {
+                  final translation = await _translator.translate(message.text, to: 'vi');
+                  setState(() {
+                    _translatedMessageText[msgIndex] = translation.text;
+                  });
+                } catch (e) {
+                  Get.snackbar('Lỗi', 'Dịch thất bại');
+                } finally {
+                  setState(() {
+                    _isTranslatingMessage[msgIndex] = false;
+                  });
+                }
+              },
+              icon: const Icon(Icons.translate, color: AppColors.primary, size: 18),
+              label: const Text('Dịch', style: TextStyle(color: AppColors.primary)),
+            ),
+          ),
       ],
     );
   }
@@ -597,11 +899,11 @@ class ChatMessage {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ChatMessage &&
-          runtimeType == other.runtimeType &&
-          text == other.text &&
-          isUser == other.isUser &&
-          timestamp == other.timestamp;
+          other is ChatMessage &&
+              runtimeType == other.runtimeType &&
+              text == other.text &&
+              isUser == other.isUser &&
+              timestamp == other.timestamp;
 
   @override
   int get hashCode => text.hashCode ^ isUser.hashCode ^ timestamp.hashCode;

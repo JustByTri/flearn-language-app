@@ -107,13 +107,4 @@ class LoginViewModel extends GetxController {
     }
   }
 
-  Future<Map<String, dynamic>?> checkSurveyRequired() async {
-    try {
-      final result = await _authRepository.checkSurveyRequired();
-      return result;
-    } catch (e) {
-      print("checkSurveyRequired error: $e");
-      return null;
-    }
-  }
 }

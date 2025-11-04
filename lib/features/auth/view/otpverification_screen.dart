@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flearn_app/features/survey/view/welcome_survey_screen.dart';
 import 'package:flearn_app/features/survey/view/survey_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 
 import '../../../core/constants/colors.dart';
+import '../../../shared/widgets/mainBottomNavbar.dart';
 import '../../survey/view/language_screen.dart';
 import '../viewmodel/otp_viewmodel.dart';
 import 'home_screen.dart';
@@ -28,8 +30,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   int _secondsLeft = 60;
   Timer? _timer;
   bool _canResend = false;
-
-
 
   @override
   void initState() {
@@ -68,7 +68,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       }
     });
   }
-
 
   @override
   void dispose() {
@@ -120,12 +119,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     await otpViewModel.confirmEmail(otpCode);
     if (!mounted) return;
 
-    final surveyStatus = await otpViewModel.checkSurveyRequired();
-    if (surveyStatus != null) {
-      final box = GetStorage();
-      box.write('surveyStatus', surveyStatus);
-    }
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("Xác thực email thành công!"),
@@ -134,33 +127,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     );
 
 
-
-
-    if (!mounted) return;
-
-    if (surveyStatus == null) {
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false,
-      );
-      return;
-    }
-
-    if (surveyStatus['assessmentRequired'] == true) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LanguageScreen()),
-            (route) => false,
-      );
-    } else {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false,
-      );
-    }
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const WelcomeSurveyScreen()),
+          (route) => false,
+    );
   }
 
   Future<void> _resendOtp() async {

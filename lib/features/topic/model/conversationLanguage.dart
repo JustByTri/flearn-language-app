@@ -1,46 +1,41 @@
-class ConversationLanguageResponse {
+class LanguageLevelResponse {
   final bool success;
-  final String message;
-  final List<ConversationLanguage> data;
+  final List<LanguageLevel> data;
 
-  ConversationLanguageResponse({
+  LanguageLevelResponse({
     required this.success,
-    required this.message,
     required this.data,
   });
 
-  factory ConversationLanguageResponse.fromJson(Map<String, dynamic> json) {
-    return ConversationLanguageResponse(
+  factory LanguageLevelResponse.fromJson(Map<String, dynamic> json) {
+    return LanguageLevelResponse(
       success: json['success'] ?? false,
-      message: json['message'] ?? '',
       data: (json['data'] as List<dynamic>? ?? [])
-          .map((e) => ConversationLanguage.fromJson(e))
+          .map((e) => LanguageLevel.fromJson(e))
           .toList(),
     );
   }
 }
 
-class ConversationLanguage {
-  final String languageId;
-  final String languageName;
-  final String languageCode;
-  final List<String> availableLevels;
+class LanguageLevel {
+  final String languageLevelID;
+  final String levelName;
+  final String description;
+  final int orderIndex;
 
-  ConversationLanguage({
-    required this.languageId,
-    required this.languageName,
-    required this.languageCode,
-    required this.availableLevels,
+  LanguageLevel({
+    required this.languageLevelID,
+    required this.levelName,
+    required this.description,
+    required this.orderIndex,
   });
 
-  factory ConversationLanguage.fromJson(Map<String, dynamic> json) {
-    return ConversationLanguage(
-      languageId: json['languageId'] ?? '',
-      languageName: json['languageName'] ?? '',
-      languageCode: json['languageCode'] ?? '',
-      availableLevels: (json['availableLevels'] as List<dynamic>? ?? [])
-          .map((e) => e.toString())
-          .toList(),
+  factory LanguageLevel.fromJson(Map<String, dynamic> json) {
+    return LanguageLevel(
+      languageLevelID: json['languageLevelID'] ?? '',
+      levelName: json['levelName'] ?? '',
+      description: json['description'] ?? '',
+      orderIndex: json['orderIndex'] ?? 0,
     );
   }
 }

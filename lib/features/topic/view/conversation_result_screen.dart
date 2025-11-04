@@ -59,11 +59,18 @@ class ConversationResultScreen extends StatelessWidget {
               _buildFeedbackList("Gợi ý cải thiện", improvements, CupertinoIcons.arrow_up_circle, Colors.orange),
             const SizedBox(height: 24),
             _buildStatsRow(totalMessages, sessionDuration),
-             const SizedBox(height: 30),
-             Center(
+            const SizedBox(height: 30),
+            Center(
               child: TextButton(
-                onPressed: ()=> Get.offAll(()=> const HomeScreen()), 
-                child: const Text("Về trang chủ", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 16),)
+                onPressed: ()=> Get.offAll(()=> const HomeScreen()),
+                child: const Text(
+                  "Về trang chủ",
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ),
             )
           ],
@@ -78,8 +85,8 @@ class ConversationResultScreen extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primary, Color(0xFF6A1B9A)],
-          begin: Alignment.topLeft, end: Alignment.bottomRight), 
+            colors: [AppColors.primary, Color(0xFF6A1B9A)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Row(
@@ -112,9 +119,9 @@ class ConversationResultScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))]
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))]
       ),
       child: Text(
         text,
@@ -129,13 +136,13 @@ class ConversationResultScreen extends StatelessWidget {
       children: [
         _buildSectionTitle(title),
         Container(
-           margin: const EdgeInsets.only(bottom: 20),
-           padding: const EdgeInsets.all(16),
-           decoration: BoxDecoration(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(15),
               boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))]
-           ),
+          ),
           child: Column(
             children: items.map((item) => Padding(
               padding: const EdgeInsets.only(bottom: 10.0),
@@ -176,18 +183,18 @@ class ConversationResultScreen extends StatelessWidget {
 
   Widget _buildStatItem(IconData icon, String value, Color color) {
     return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Column(
-          children: [
-             Icon(icon, color: color, size: 28),
-             const SizedBox(height: 8),
-             Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+        ],
+      ),
     );
   }
 

@@ -43,7 +43,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
   void initState() {
     super.initState();
     _requestPermissions();
-    surveyViewModel.fetchCurrentAssessmentQuestion(widget.assessmentId);
+    _loadQuestion();
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() {
@@ -84,7 +84,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
     await _recorder.start(const RecordConfig(encoder: AudioEncoder.wav), path: filePath);
     setState(() {
       _isRecording = true;
-      recordedFilePath = null; 
+      recordedFilePath = null;
     });
   }
 
@@ -151,7 +151,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
         ),
         child: Column(
           children: [
-             Padding(
+            Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -161,8 +161,8 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close), 
-                    onPressed: () => Navigator.pop(context)
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context)
                   ),
                 ],
               ),
@@ -178,15 +178,15 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                     elevation: 0,
                     color: Colors.grey[50],
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey[200]!)
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.grey[200]!)
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(12.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                           Text(word.word ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          Text(word.word ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                           if(word.pronunciation != null) ...[
                             const SizedBox(height: 4),
                             Text(word.pronunciation, style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic)),
@@ -211,7 +211,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
   }
 
   Future<void> _handleAssessmentCompletion() async {
-    if (_isCompleting) return; 
+    if (_isCompleting) return;
     setState(() {
       _isCompleting = true;
     });
@@ -228,6 +228,15 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
       _showErrorSnackBar('Không thể lấy kết quả đánh giá.');
       Get.offAll(() => const NavigationMenu());
     }
+  }
+
+  Future<void> _loadQuestion() async {
+
+    print('Gọi fetchCurrentAssessmentQuestion với assessmentId: ${widget.assessmentId}');
+    await surveyViewModel.fetchCurrentAssessmentQuestion(widget.assessmentId);
+    print('Current question: ${surveyViewModel.currentQuestion.value}');
+    print('Error message: ${surveyViewModel.errorMessage.value}');
+
   }
 
   @override
@@ -247,10 +256,10 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
       body: SafeArea(
         child: Obx(() {
           final assessment = surveyViewModel.assessment.value;
-          
+
           if (surveyViewModel.errorMessage.value == 'ASSESSMENT_COMPLETED') {
-             WidgetsBinding.instance.addPostFrameCallback((_) => _handleAssessmentCompletion());
-             return const Center(child: CupertinoActivityIndicator());
+            WidgetsBinding.instance.addPostFrameCallback((_) => _handleAssessmentCompletion());
+            return const Center(child: CupertinoActivityIndicator());
           }
 
           if (surveyViewModel.isLoadingCurrentQuestion.value || assessment == null) {
@@ -260,9 +269,10 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
           final question = surveyViewModel.currentQuestion.value;
 
           if (question == null && !_isCompleting) {
-             WidgetsBinding.instance.addPostFrameCallback((_) => _handleAssessmentCompletion());
-             return const Center(child: CupertinoActivityIndicator());
+            WidgetsBinding.instance.addPostFrameCallback((_) => _handleAssessmentCompletion());
+            return const Center(child: CupertinoActivityIndicator());
           }
+
 
           if (_isCompleting || question == null) {
             return const Center(child: CupertinoActivityIndicator());
@@ -274,7 +284,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
           return FadeSlideAnimation(
             child: Column(
               children: [
-                AnimatedProgressBar(progress: progress), 
+                AnimatedProgressBar(progress: progress),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -288,8 +298,8 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                     ),
                   ),
                 ),
-                 _buildRecordingControls(),
-                 _buildBottomNavBar(),
+                _buildRecordingControls(),
+                _buildBottomNavBar(),
               ],
             ),
           );
@@ -308,7 +318,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: AppColors.textSecondary, height: 1.5),
           ),
-        
+
         if (question.promptText != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24.0),
@@ -333,7 +343,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
               style: const TextStyle(fontSize: 18, fontStyle: FontStyle.italic, color: AppColors.primary, height: 1.4),
             ),
           ),
-        
+
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -372,7 +382,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                 icon: const Icon(Icons.translate, color: AppColors.primary, size: 20),
                 label: Text(_translatedText == null ? 'Dịch' : 'Ẩn dịch', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
               ),
-            
+
             if (question.promptText != null && question.wordGuides?.isNotEmpty == true)
               const SizedBox(width: 16),
 

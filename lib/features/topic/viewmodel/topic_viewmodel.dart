@@ -11,8 +11,8 @@ class TopicViewModel extends GetxController {
   var isLoadingTopics = false.obs;
   var topics = <TopicModel>[].obs;
 
-  var conversationLanguages = <ConversationLanguage>[].obs;
-  var isLoadingLanguages = false.obs;
+  var conversationLevels = <LanguageLevel>[].obs;
+  var isLoadingLevels = false.obs;
 
   final _aiMessageController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get aiMessageStream => _aiMessageController.stream;
@@ -136,15 +136,15 @@ class TopicViewModel extends GetxController {
     }
   }
 
-  Future<void> fetchConversationLanguages() async {
+  Future<void> fetchConversationLevels(String languageId) async {
     try {
-      isLoadingLanguages.value = true;
-      final list = await _authRepository.getConversationLanguages();
-      conversationLanguages.assignAll(list);
+      isLoadingLevels.value = true;
+      final list = await _authRepository.getConversationLevels(languageId);
+      conversationLevels.assignAll(list);
     } catch (e) {
-      print('fetchConversationLanguages error: $e');
+      print('fetchConversationLevels error: $e');
     } finally {
-      isLoadingLanguages.value = false;
+      isLoadingLevels.value = false;
     }
   }
 

@@ -82,7 +82,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchOtherData() async {
     try {
-      await courseViewModel.fetchCourses();
+
+      await courseViewModel.fetchMoreCourses(isRefresh: true);
       await topicViewModel.fetchTopics();
       await teacherScheduleViewModel.fetchSchedules();
     } catch (e) {
@@ -248,21 +249,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = box.read('user');
     final activeLanguageId = user?['languageId'];
 
-    // Gọi API check-required
-    final surveyStatus = await loginViewModel.checkSurveyRequired();
-    final acceptedLanguages = surveyStatus?['acceptedLanguages'] as List<dynamic>? ?? [];
 
-    // Tìm learnerLanguageId đúng
-    String? learnerLanguageId;
-    for (final lang in acceptedLanguages) {
-      if (lang['languageId'] == activeLanguageId) {
-        learnerLanguageId = lang['learnerLanguageId'];
-        break;
-      }
-    }
+    String? learnerLanguageId = user?['learnerLanguageId'];
     _learnerLanguageId = learnerLanguageId;
-
-
     if (_learnerLanguageId != null) {
       _roadmapCourses = await fetchRoadmapDetail(_learnerLanguageId!);
     } else {
@@ -381,6 +370,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (_languages.isEmpty) {
       return const SizedBox.shrink();
+    }
+
+
+    final validIds = _languages.map((lang) => lang.id).toList();
+    if (_selectedLanguageId == null || !validIds.contains(_selectedLanguageId)) {
+      _selectedLanguageId = validIds.isNotEmpty ? validIds.first : null;
     }
 
     return DropdownButtonHideUnderline(
@@ -511,7 +506,12 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       // Create a new list with an 'All' topic
       final List<TopicModel> topicsWithAll = [
-        TopicModel(topicId: 'all', name: 'For you', description: ''),
+        TopicModel(
+          topicId: 'all',
+          topicName: 'For you',
+          topicDescription: '',
+          imageUrl: '',
+        ),
         ...topicViewModel.topics,
       ];
 
@@ -523,15 +523,15 @@ class _HomeScreenState extends State<HomeScreen> {
           separatorBuilder: (_, __) => const SizedBox(width: 8),
           itemBuilder: (context, index) {
             final topic = topicsWithAll[index];
-            final isSelected = (_selectedTopicName == null && topic.topicId == 'all') || (_selectedTopicName == topic.name);
+            final isSelected = (_selectedTopicName == null && topic.topicId == 'all') || (_selectedTopicName == topic.topicName);
 
             return ChoiceChip(
-              label: Text(topic.name),
+              label: Text(topic.topicName),
               selected: isSelected,
               onSelected: (selected) {
                 if (selected) {
                   setState(() {
-                    _selectedTopicName = topic.topicId == 'all' ? null : topic.name;
+                    _selectedTopicName = topic.topicId == 'all' ? null : topic.topicName;
                   });
                 }
               },
@@ -585,6 +585,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return const Center(child: Text('Không có khoá học nào.'));
       }
 
+
       return Column(
         children: [
           ListView.separated(
@@ -598,68 +599,11 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           const SizedBox(height: 16),
-          // THANH PAGING NẰM TRONG DANH SÁCH
-          _buildPager(),
-          const SizedBox(height: 100), // Padding để tránh navbar
+
+          const SizedBox(height: 100),
         ],
       );
     });
-  }
-
-  Widget _buildPager() {
-    return Obx(() => Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(
-            child: OutlinedButton.icon(
-              onPressed: courseViewModel.hasPrevPage.value
-                  ? () => courseViewModel.prevPage()
-                  : null,
-              icon: const Icon(CupertinoIcons.left_chevron, size: 18),
-              label: const Text('Trước', overflow: TextOverflow.ellipsis),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              'Trang ${courseViewModel.currentPage.value}',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-          ),
-          Flexible(
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-              onPressed: courseViewModel.hasNextPage.value
-                  ? () => courseViewModel.nextPage()
-                  : null,
-              label: const Text('Sau', overflow: TextOverflow.ellipsis),
-              icon: const Icon(CupertinoIcons.right_chevron, size: 18),
-            ),
-          ),
-        ],
-      ),
-    ));
   }
 }
 
