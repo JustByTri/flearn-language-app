@@ -2,6 +2,7 @@
 import '../model/assessment.dart';
 import '../model/assessment_result.dart';
 import '../model/goal.dart';
+import '../model/program.dart';
 
 
 abstract class ISurveyRepository{
@@ -9,7 +10,7 @@ abstract class ISurveyRepository{
   Future<Map<String, String>> getLanguages();
 
   Future<List<Goal>> getGoals();
-  Future<Assessment?> startAssessment(String languageId, List<int> goalIds);
+  Future<Assessment?> startAssessment(String languageId, String programId);
 
   Future<AssessmentQuestion?> getCurrentAssessmentQuestion(String assessmentId);
 
@@ -27,5 +28,5 @@ abstract class ISurveyRepository{
 
   Future<bool> rejectVoiceAssessment(String learnerLanguageId);
 
-
+  Future<List<Program>> getPrograms(String languageId);
 }

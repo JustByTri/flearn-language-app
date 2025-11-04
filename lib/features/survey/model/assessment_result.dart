@@ -7,13 +7,18 @@ class AssessmentResult {
   final String languageId;
   final String languageName;
   final String learnerLanguageId;
-  final int goalId;
-  final String goalName;
-  final bool requiresAcceptance;
+  final String programId;
+  final String programName;
+  final int levelConfidence;
+  final String assessmentCompleteness;
+  final int pronunciationScore;
+  final int fluencyScore;
+  final int grammarScore;
+  final int vocabularyScore;
+  final String detailedFeedback;
+  final String nextLevelRequirements;
   final List<dynamic> recommendedCourses;
-  final bool hasRecommendedCourses;
-  final int coursesCount;
-  final bool hasCoursesForLevel;
+  final String completedAt;
 
   AssessmentResult({
     required this.assessmentId,
@@ -24,13 +29,18 @@ class AssessmentResult {
     required this.languageId,
     required this.languageName,
     required this.learnerLanguageId,
-    required this.goalId,
-    required this.goalName,
-    required this.requiresAcceptance,
+    required this.programId,
+    required this.programName,
+    required this.levelConfidence,
+    required this.assessmentCompleteness,
+    required this.pronunciationScore,
+    required this.fluencyScore,
+    required this.grammarScore,
+    required this.vocabularyScore,
+    required this.detailedFeedback,
+    required this.nextLevelRequirements,
     required this.recommendedCourses,
-    required this.hasRecommendedCourses,
-    required this.coursesCount,
-    required this.hasCoursesForLevel,
+    required this.completedAt,
   });
 
   factory AssessmentResult.fromJson(Map<String, dynamic> json) {
@@ -38,18 +48,23 @@ class AssessmentResult {
       assessmentId: json['assessmentId'] ?? '',
       determinedLevel: json['determinedLevel'] ?? '',
       overallScore: json['overallScore'] ?? 0,
-      strengths: List<String>.from(json['strengths'] ?? []),
-      weaknesses: List<String>.from(json['weaknesses'] ?? []),
-      languageId: json['languageId'] ?? '',
+      strengths: List<String>.from(json['keyStrengths'] ?? []),
+      weaknesses: List<String>.from(json['improvementAreas'] ?? []),
+      languageId: json['laguageID'] ?? '', // chú ý typo từ API
       languageName: json['languageName'] ?? '',
       learnerLanguageId: json['learnerLanguageId'] ?? '',
-      goalId: json['goalId'] ?? 0,
-      goalName: json['goalName'] ?? '',
-      requiresAcceptance: json['requiresAcceptance'] ?? false,
+      programId: json['programId'] ?? '',
+      programName: json['programName'] ?? '',
+      levelConfidence: json['levelConfidence'] ?? 0,
+      assessmentCompleteness: json['assessmentCompleteness'] ?? '',
+      pronunciationScore: json['pronunciationScore'] ?? 0,
+      fluencyScore: json['fluencyScore'] ?? 0,
+      grammarScore: json['grammarScore'] ?? 0,
+      vocabularyScore: json['vocabularyScore'] ?? 0,
+      detailedFeedback: json['detailedFeedback'] ?? '',
+      nextLevelRequirements: json['nextLevelRequirements'] ?? '',
       recommendedCourses: json['recommendedCourses'] ?? [],
-      hasRecommendedCourses: json['hasRecommendedCourses'] ?? false,
-      coursesCount: json['coursesCount'] ?? 0,
-      hasCoursesForLevel: json['hasCoursesForLevel'] ?? false,
+      completedAt: json['completedAt'] ?? '',
     );
   }
 }

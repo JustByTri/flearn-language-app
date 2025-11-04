@@ -1,6 +1,7 @@
 import 'package:flearn_app/di.dart';
 import 'package:flearn_app/features/auth/view/change_password_screen.dart';
 import 'package:flearn_app/features/auth/view/edit_profile_screen.dart';
+import 'package:flearn_app/features/auth/view/subcription_plans.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -10,6 +11,7 @@ import '../view/login_screen.dart';
 import '../viewmodel/login_viewmodel.dart';
 import '../viewmodel/user_viewmodel.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -41,10 +43,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _navigateToLogin() {
-
+    Get.deleteAll(force: true);
     setupDI();
     Get.offAll(() => const LoginScreen(), transition: Transition.rightToLeftWithFade);
-
   }
 
   Future<void> _showLogoutConfirmation() async {
@@ -326,6 +327,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   () => const EditProfileScreen(),
               arguments: userViewModel.user.value,
             ),
+          ),
+          _buildDivider(),
+
+          _buildListTile(
+            icon: CupertinoIcons.rocket_fill,
+            label: "Xem gói",
+            subtitle: 'Nâng cấp tài khoản và tăng lượt luyện tập',
+            iconColor: const Color(0xFFFF9500),
+            onTap: () => Get.to(() => const SubscriptionPlansScreen()),
           ),
           _buildDivider(),
           _buildListTile(

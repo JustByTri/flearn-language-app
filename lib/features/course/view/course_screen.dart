@@ -16,161 +16,369 @@ class CourseScreen extends StatefulWidget {
 }
 
 class _CourseScreenState extends State<CourseScreen> {
-  final CourseViewModel courseViewModel = Get.put(CourseViewModel(Get.find()));
-  final ScrollController _scrollController = ScrollController();
-  bool _showPager = false;
+  final CourseViewModel courseViewModel = Get.find<CourseViewModel>();
+  late final ScrollController _scrollController;
+  bool _localLoading = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController()..addListener(_scrollListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      courseViewModel.fetchPage(1);
-    });
-
-    _scrollController.addListener(() {
-      if (!_scrollController.hasClients) return;
-
-      final currentOffset = _scrollController.offset;
-      final maxScroll = _scrollController.position.maxScrollExtent;
-
-      // Chỉ hiện pager khi scroll gần cuối (còn 200px) VÀ có thể scroll được
-      final shouldShow = maxScroll > 0 && currentOffset >= maxScroll - 200;
-
-      if (shouldShow != _showPager) {
-        setState(() => _showPager = shouldShow);
-      }
+      courseViewModel.fetchMoreCourses(isRefresh: true);
     });
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollListener() {
+    if (!mounted) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    final threshold = MediaQuery.of(context).size.height * 0.2;
+
+    if (currentScroll > maxScroll - threshold) {
+      if (courseViewModel.hasMoreCourses.value &&
+          !courseViewModel.isLoadingCourse.value &&
+          !_localLoading) {
+        _startFetchMore();
+      }
+    }
+  }
+
+  Future<void> _startFetchMore() async {
+    if (!mounted || _localLoading || courseViewModel.isLoadingCourse.value) return;
+    setState(() => _localLoading = true);
+    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      await courseViewModel.fetchMoreCourses();
+    } catch (e) {
+      debugPrint('Error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _localLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 0.5,
+        elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: AppColors.textPrimary),
+          icon: const Icon(CupertinoIcons.back, color: Color(0xFF1A1A1A)),
           onPressed: () => Get.back(),
         ),
-        title: Text(
-          widget.topic ?? "Khóa học",
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+        title: const Text(
+          'Các khóa học',
+          style: TextStyle(
+            color: Color(0xFF1A1A1A),
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
           ),
         ),
       ),
-      body: Obx(() {
-        if (courseViewModel.isLoadingCourse.value && courseViewModel.courses.isEmpty) {
-          return const Center(
-            child: CupertinoActivityIndicator(radius: 15, color: AppColors.primary),
-          );
-        }
-
-        final List<Course> filteredCourses = (widget.topic != null && widget.topic!.isNotEmpty)
-            ? courseViewModel.courses.where((c) => c.topics.contains(widget.topic)).toList()
-            : courseViewModel.courses.toList();
-
-        if (filteredCourses.isEmpty) return _buildEmptyState();
-
-        return RefreshIndicator(
-          onRefresh: () => courseViewModel.fetchPage(1),
-          child: Stack(
-            children: [
-              ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                itemCount: filteredCourses.length,
-                itemBuilder: (context, index) {
-                  final course = filteredCourses[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: _buildCourseCard(course),
-                  );
-                },
+      body: Column(
+        children: [
+          // Search bar only
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(8),
               ),
-
-              // THANH PAGING
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: AnimatedSlide(
-                  duration: const Duration(milliseconds: 300),
-                  offset: _showPager ? Offset.zero : const Offset(0, 1),
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 300),
-                    opacity: _showPager ? 1.0 : 0.0,
-                    child: _buildPager(),
-                  ),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: widget.topic ?? 'Programming',
+                  hintStyle: const TextStyle(color: Color(0xFFBBBBBB), fontSize: 15),
+                  prefixIcon: const Icon(Icons.search, color: Color(0xFFBBBBBB), size: 20),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
               ),
-            ],
+            ),
           ),
-        );
-      }),
-    );
-  }
+          // Course list
+          Expanded(
+            child: Obx(() {
+              if (courseViewModel.isLoadingCourse.value && courseViewModel.courses.isEmpty) {
+                return const Center(
+                  child: CupertinoActivityIndicator(radius: 15, color: AppColors.primary),
+                );
+              }
 
-  Widget _buildPager() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+              final List<Course> filteredCourses = (widget.topic != null && widget.topic!.isNotEmpty)
+                  ? courseViewModel.courses.where((c) => c.topics.contains(widget.topic)).toList()
+                  : courseViewModel.courses.toList();
+
+              if (filteredCourses.isEmpty) {
+                return _buildEmptyState();
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async {
+                  _localLoading = false;
+                  await courseViewModel.fetchMoreCourses(isRefresh: true);
+                },
+                color: AppColors.primary,
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: filteredCourses.length +
+                      (courseViewModel.isLoadingCourse.value || _localLoading ? 1 : 0) +
+                      (!courseViewModel.isLoadingCourse.value && !courseViewModel.hasMoreCourses.value ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index >= filteredCourses.length) {
+                      if (courseViewModel.isLoadingCourse.value || _localLoading) {
+                        return _buildInlineLoading();
+                      }
+                      if (!courseViewModel.hasMoreCourses.value) {
+                        return _buildEndOfList();
+                      }
+                      return const SizedBox.shrink();
+                    }
+
+                    final course = filteredCourses[index];
+                    return _buildCourseCard(course);
+                  },
+                ),
+              );
+            }),
           ),
         ],
       ),
-      child: SafeArea(
-        child: Obx(() => Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: courseViewModel.hasPrevPage.value
-                      ? () => courseViewModel.prevPage()
-                      : null,
-                  icon: const Icon(CupertinoIcons.chevron_left, size: 18),
-                  label: const Text('Trước'),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Trang ${courseViewModel.currentPage.value}',
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                ),
-              ),
-              Expanded(
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
+    );
+  }
+
+  Widget _buildCourseCard(Course course) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final imageSize = screenWidth * 0.25;
+
+    return GestureDetector(
+      onTap: () {
+        Get.to(
+              () => CourseUnitScreen(courseId: course.courseID, courseTitle: course.title),
+          transition: Transition.cupertino,
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _buildCourseImageSmall(course, imageSize),
+            ),
+            const SizedBox(width: 14),
+            // Nội dung
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Tiêu đề
+                  Text(
+                    course.title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1A1A),
+                      height: 1.4,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  onPressed: courseViewModel.hasNextPage.value
-                      ? () => courseViewModel.nextPage()
-                      : null,
-                  label: const Text('Sau'),
-                  iconAlignment: IconAlignment.end,
-                  icon: const Icon(CupertinoIcons.chevron_right, size: 18),
-                ),
+                  const SizedBox(height: 8),
+                  // Info rows
+                  _buildInfoRow(CupertinoIcons.play_circle, '${course.numLessons}+ Lessons'),
+                  const SizedBox(height: 4),
+                  _buildInfoRow(CupertinoIcons.time, '115+ Hours'),
+                  const SizedBox(height: 10),
+                  // Avatar + See Details
+                  Row(
+                    children: [
+                      _buildAvatarStack(),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () {
+                          Get.to(
+                                () => CourseUnitScreen(
+                              courseId: course.courseID,
+                              courseTitle: course.title,
+                            ),
+                            transition: Transition.cupertino,
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'See Details',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarStack() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 52,
+          height: 24,
+          child: Stack(
+            children: [
+              Positioned(left: 0, child: _buildAvatar(0)),
+              Positioned(left: 18, child: _buildAvatar(1)),
+              Positioned(left: 36, child: _buildAvatar(2)),
             ],
           ),
-        )),
+        ),
+        const SizedBox(width: 6),
+        const Text(
+          '69k+ Joined',
+          style: TextStyle(fontSize: 11, color: Color(0xFF999999)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAvatar(int index) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.grey.shade300,
+        border: Border.all(color: Colors.white, width: 2),
+      ),
+      child: ClipOval(
+        child: Icon(Icons.person, size: 14, color: Colors.grey.shade500),
+      ),
+    );
+  }
+
+  Widget _buildCourseImageSmall(Course course, double size) {
+    if (course.imageUrl.isEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(Icons.image, color: Colors.grey.shade400, size: size * 0.4),
+      );
+    }
+
+    return Image.network(
+      course.imageUrl,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5F5F5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Center(child: CupertinoActivityIndicator(radius: 10)),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5F5F5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(Icons.broken_image, color: Colors.grey.shade400, size: size * 0.4),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: const Color(0xFF999999)),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF666666)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInlineLoading() {
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 20,
+        bottom: 100 + MediaQuery.of(context).padding.bottom,
+      ),
+      child: const Center(
+        child: CupertinoActivityIndicator(radius: 14),
+      ),
+    );
+  }
+
+  Widget _buildEndOfList() {
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 24,
+        bottom: 100 + MediaQuery.of(context).padding.bottom,
+      ),
+      child: const Center(
+        child: Text(
+          'Bạn đã xem hết tất cả các khóa học',
+          style: TextStyle(color: Color(0xFF999999), fontSize: 14),
+        ),
       ),
     );
   }
@@ -181,6 +389,7 @@ class _CourseScreenState extends State<CourseScreen> {
       child: Center(
         child: ListView(
           shrinkWrap: true,
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
             SizedBox(height: MediaQuery.of(context).size.height * 0.2),
             Icon(CupertinoIcons.book, size: 80, color: Colors.grey.shade300),
@@ -188,153 +397,17 @@ class _CourseScreenState extends State<CourseScreen> {
             const Text(
               'Không có khóa học nào',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
             ),
             const SizedBox(height: 8),
             const Text(
               'Chúng tôi sẽ sớm cập nhật thêm các khóa học mới.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 16, color: Color(0xFF666666)),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildCourseCard(Course course) {
-    return GestureDetector(
-      onTap: () {
-        Get.to(
-              () => CourseUnitScreen(courseId: course.courseID, courseTitle: course.title),
-          transition: Transition.cupertino,
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 4))
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCourseImage(course),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCourseType(course),
-                  const SizedBox(height: 8),
-                  Text(
-                    course.title,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    course.description,
-                    style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildCardFooter(course),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCourseImage(Course course) {
-    if (course.imageUrl.isEmpty) {
-      return AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-          ),
-          child: Icon(Icons.image_not_supported, color: Colors.grey.shade400, size: 40),
-        ),
-      );
-    }
-
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Image.network(
-          course.imageUrl,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return const Center(child: CupertinoActivityIndicator());
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              color: Colors.grey.shade200,
-              child: Icon(Icons.broken_image, color: Colors.grey.shade400, size: 40),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCourseType(Course course) {
-    final bool isFree = course.courseType == "Free";
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: (isFree ? AppColors.success : AppColors.warning).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        isFree ? "Miễn phí" : "Trả phí",
-        style: TextStyle(color: isFree ? AppColors.success : AppColors.warning, fontSize: 12, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-
-  Widget _buildCardFooter(Course course) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              Icon(CupertinoIcons.person_alt_circle, size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  course.teacherName,
-                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        Row(
-          children: [
-            Icon(CupertinoIcons.book, size: 16, color: AppColors.textSecondary),
-            const SizedBox(width: 6),
-            Text(
-              '${course.numLessons} bài học',
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import '../../../core/constants/colors.dart';
 import '../viewmodel/register_viewmodel.dart';
 import 'otpverification_screen.dart';
 
@@ -14,14 +15,12 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _emailOrUserCtrl = TextEditingController();
   final _usernameCtrl = TextEditingController();
-  final _fullnameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   bool _obscure = true;
   bool _obscureConfirm = true;
   final _formKey = GlobalKey<FormState>();
 
-  // field-level error messages
   String? _emailError;
   String? _usernameError;
 
@@ -29,7 +28,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     _emailOrUserCtrl.dispose();
     _usernameCtrl.dispose();
-    _fullnameCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
@@ -41,7 +39,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: Container(
         height: size.height * 0.30,
         width: double.infinity,
-        color: Colors.blue, // AppColors.primary
+        color: AppColors.primary,
         child: SafeArea(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -54,6 +52,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     'assets/images/1.png',
                     width: (size.width * 0.25).clamp(100.0, 180.0),
                     fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.school, size: 60, color: Colors.white);
+                    },
                   ),
                 ),
               ),
@@ -65,179 +66,275 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  InputDecoration fieldDecoration({
+    required String hint,
+    Widget? prefix,
+    Widget? suffix,
+    String? errorText,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: prefix,
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: Colors.white,
+      errorText: errorText,
+      contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12.0),
+        borderSide: const BorderSide(color: Colors.red, width: 1.0),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final registerViewModel = Get.put(RegisterViewModel(Get.find()));
 
-    InputDecoration fieldDecoration({required String hint, Widget? prefix, Widget? suffix}) {
-      return InputDecoration(
-        hintText: hint,
-        prefixIcon: prefix,
-        suffixIcon: suffix,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0), borderSide: BorderSide.none),
-      );
-    }
-
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
         child: SingleChildScrollView(
           child: Column(
             children: [
               _buildHeader(size),
-              // XÓA header/logo màu tím tím (primary) bên dưới, chỉ giữ wave header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 18.0),
+                padding: EdgeInsets.symmetric(horizontal: size.width * 0.06),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     children: [
-                      const SizedBox(height: 8),
-                      Text('Đăng ký', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Đăng ký',
+                        style: TextStyle(
+                          fontSize: (size.width * 0.08).clamp(28.0, 34.0),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
-                      // Username - no spaces allowed
+                      // Username
                       TextFormField(
                         controller: _usernameCtrl,
-                        decoration: fieldDecoration(hint: 'Tên người dùng (không dấu cách)', prefix: const Icon(Icons.person)).copyWith(errorText: _usernameError),
+                        decoration: fieldDecoration(
+                          hint: 'Tên người dùng (không dấu cách)',
+                          prefix: const Icon(Icons.person_outline, color: AppColors.textSecondary),
+                          errorText: _usernameError,
+                        ),
                         inputFormatters: [
                           FilteringTextInputFormatter.deny(RegExp(r'\s')),
                         ],
                         onChanged: (_) {
-                          if (_usernameError != null) setState(() => _usernameError = null);
+                          if (_usernameError != null) {
+                            setState(() => _usernameError = null);
+                          }
                         },
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Vui lòng nhập tên người dùng';
-                          if (v.contains(' ')) return 'Tên người dùng không được chứa khoảng trắng';
+                          if (v.contains(' ')) return 'Không được chứa khoảng trắng';
+                          if (v.length < 3) return 'Tối thiểu 3 ký tự';
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 20),
 
-                      // Email - must be a valid gmail address
+                      // Email
                       TextFormField(
                         controller: _emailOrUserCtrl,
-                        decoration: fieldDecoration(hint: 'Email (chỉ gmail)', prefix: const Icon(Icons.email)).copyWith(errorText: _emailError),
+                        decoration: fieldDecoration(
+                          hint: 'Email (chỉ gmail)',
+                          prefix: const Icon(Icons.email_outlined, color: AppColors.textSecondary),
+                          errorText: _emailError,
+                        ),
                         keyboardType: TextInputType.emailAddress,
                         onChanged: (_) {
-                          if (_emailError != null) setState(() => _emailError = null);
+                          if (_emailError != null) {
+                            setState(() => _emailError = null);
+                          }
                         },
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Vui lòng nhập email';
-                          final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@gmail\.com\b');
-                          if (!emailRegex.hasMatch(v)) return 'Email phải là gmail và đúng định dạng';
+                          final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@gmail\.com$');
+                          if (!emailRegex.hasMatch(v)) return 'Email phải là @gmail.com';
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
-
-
-
+                      const SizedBox(height: 20),
 
                       // Password
                       TextFormField(
                         controller: _passwordCtrl,
+                        obscureText: _obscure,
                         decoration: fieldDecoration(
                           hint: 'Mật khẩu',
-                          prefix: const Icon(Icons.lock),
+                          prefix: const Icon(Icons.lock_outline, color: AppColors.textSecondary),
                           suffix: IconButton(
-                            icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+                            icon: Icon(
+                              _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: AppColors.textSecondary,
+                            ),
                             onPressed: () => setState(() => _obscure = !_obscure),
                           ),
                         ),
-                        obscureText: _obscure,
-                        validator: (v) => (v == null || v.length < 6) ? 'Mật khẩu >= 6 ký tự' : null,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Vui lòng nhập mật khẩu';
+                          if (v.length < 6) return 'Mật khẩu >= 6 ký tự';
+                          return null;
+                        },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 20),
 
-                      // Confirm
+                      // Confirm Password
                       TextFormField(
                         controller: _confirmCtrl,
+                        obscureText: _obscureConfirm,
                         decoration: fieldDecoration(
                           hint: 'Xác nhận mật khẩu',
-                          prefix: const Icon(Icons.lock_outline),
+                          prefix: const Icon(Icons.lock_outline, color: AppColors.textSecondary),
                           suffix: IconButton(
-                            icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
+                            icon: Icon(
+                              _obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: AppColors.textSecondary,
+                            ),
                             onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                           ),
                         ),
-                        obscureText: _obscureConfirm,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Vui lòng xác nhận mật khẩu';
                           if (v != _passwordCtrl.text) return 'Mật khẩu không khớp';
                           return null;
                         },
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 24),
 
-                      // Register button
+                      // Nút Đăng ký
                       SizedBox(
                         width: double.infinity,
+                        height: 52,
                         child: Obx(() {
                           return ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue, // Đổi thành màu xanh
-                              foregroundColor: Colors.white, // Chữ trắng
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             onPressed: registerViewModel.isLoading.value
                                 ? null
                                 : () async {
-                                    if (_formKey.currentState != null && _formKey.currentState!.validate()) {
-                                      // reset field errors
-                                      setState(() {
-                                        _emailError = null;
-                                        _usernameError = null;
-                                      });
+                              if (_formKey.currentState!.validate()) {
+                                setState(() {
+                                  _emailError = null;
+                                  _usernameError = null;
+                                });
 
-                                      // Gọi register với đúng thứ tự: userName, email, password, confirmPassword
-                                      final result = await registerViewModel.register(
-                                        _usernameCtrl.text.trim(), // userName
-                                        _emailOrUserCtrl.text.trim(), // email
-                                        _passwordCtrl.text, // password
-                                        _confirmCtrl.text, // confirmPassword
-                                      );
+                                final result = await registerViewModel.register(
+                                  _usernameCtrl.text.trim(),
+                                  _emailOrUserCtrl.text.trim(),
+                                  _passwordCtrl.text,
+                                  _confirmCtrl.text,
+                                );
 
-                                      debugPrint('Register result: $result');
+                                if (!mounted) return;
 
-                                      if (!mounted) return;
+                                if (result['success'] == true) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(result['message'] ?? 'Đăng ký thành công!'),
+                                      backgroundColor: Colors.green,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                  Get.offAll(() => OtpVerificationScreen(
+                                    email: _emailOrUserCtrl.text.trim(),
+                                  ));
+                                } else {
+                                  final msg = result['message']?.toString() ?? 'Đăng ký thất bại.';
+                                  final lower = msg.toLowerCase();
 
-                                      if (result['success'] == true) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text(result['message'] ?? 'Đăng ký thành công.')),
-                                        );
-                                        debugPrint('Navigating to OTP screen with email: ${_emailOrUserCtrl.text.trim()}');
-                                        // Use offAll to ensure navigation occurs and clears previous stack
-                                        Get.offAll(() => OtpVerificationScreen(email: _emailOrUserCtrl.text.trim()));
-                                        debugPrint('Navigation command executed');
-                                      } else {
-                                        final msg = (result['message'] ?? 'Đăng ký thất bại.').toString();
-                                        debugPrint('Register failed with message: $msg');
-                                        // assign to field-level error if message mentions email or username
-                                        final lower = msg.toLowerCase();
-                                        if (lower.contains('email')) {
-                                          setState(() => _emailError = msg);
-                                        } else if (lower.contains('tên người dùng') || lower.contains('username') || lower.contains('user name') || lower.contains('username')) {
-                                          setState(() => _usernameError = msg);
-                                        } else {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text(msg)),
-                                          );
-                                        }
-                                      }
-                                    }
-                                  },
+                                  if (lower.contains('email')) {
+                                    setState(() => _emailError = msg);
+                                  } else if (lower.contains('tên người dùng') ||
+                                      lower.contains('username')) {
+                                    setState(() => _usernameError = msg);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(msg),
+                                        backgroundColor: Colors.red,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+                            },
                             child: registerViewModel.isLoading.value
-                                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Text('Đăng ký', style: TextStyle(fontSize: 16, color: Colors.white)),
+                                ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                                : Text(
+                              'Đăng ký',
+                              style: TextStyle(
+                                fontSize: (size.width * 0.045).clamp(16.0, 18.0),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           );
                         }),
                       ),
+
+                      const SizedBox(height: 24),
+
+                      // Đăng nhập?
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Đã có tài khoản? ',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: (size.width * 0.038).clamp(13.0, 15.0),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Get.back(),
+                            child: Text(
+                              'Đăng nhập',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: (size.width * 0.038).clamp(13.0, 15.0),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 40),
                     ],
                   ),
                 ),
@@ -255,20 +352,22 @@ class WaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     var path = Path();
     path.lineTo(0, size.height * 0.85);
+
     var firstControlPoint = Offset(size.width / 4, size.height);
-    var firstEndPoint = Offset(size.width / 2.2, size.height - 30.0);
-    path.quadraticBezierTo(firstControlPoint.dx, firstControlPoint.dy,
-        firstEndPoint.dx, firstEndPoint.dy);
-    var secondControlPoint =
-        Offset(size.width - (size.width / 3.2), size.height - 65);
+    var firstEndPoint = Offset(size.width / 2.2, size.height - 30);
+    path.quadraticBezierTo(
+        firstControlPoint.dx, firstControlPoint.dy, firstEndPoint.dx, firstEndPoint.dy);
+
+    var secondControlPoint = Offset(size.width - (size.width / 3.2), size.height - 65);
     var secondEndPoint = Offset(size.width, size.height - 40);
-    path.quadraticBezierTo(secondControlPoint.dx, secondControlPoint.dy,
-        secondEndPoint.dx, secondEndPoint.dy);
-    path.lineTo(size.width, size.height - 40);
+    path.quadraticBezierTo(
+        secondControlPoint.dx, secondControlPoint.dy, secondEndPoint.dx, secondEndPoint.dy);
+
     path.lineTo(size.width, 0);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

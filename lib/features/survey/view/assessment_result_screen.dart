@@ -1,3 +1,4 @@
+import 'package:flearn_app/di.dart';
 import 'package:flearn_app/features/survey/view/language_screen.dart';
 import 'package:flearn_app/features/survey/viewmodel/survey_viewmodel.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +6,8 @@ import 'package:get/get.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/mainBottomNavbar.dart';
 import '../model/assessment_result.dart';
+import '../../../features/auth/viewmodel/login_viewmodel.dart';
+import '../../../features/auth/view/home_screen.dart';
 
 class AssessmentResultScreen extends StatefulWidget {
   final AssessmentResult result;
@@ -25,7 +28,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
       Get.offAll(() => const NavigationMenu());
       return;
     }
-    
+
     setState(() {
       _isAccepting = true;
     });
@@ -34,7 +37,9 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
 
     if (mounted) {
       if (success) {
-        Get.offAll(() => const NavigationMenu());
+
+        setupDI();
+        Get.offAll(() => HomeScreen());
       } else {
         setState(() {
           _isAccepting = false;
@@ -54,12 +59,10 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
     final success = await surveyViewModel.rejectVoiceAssessment(widget.result.learnerLanguageId);
 
     if (mounted) {
-      if (success) {
-        Get.offAll(() => const LanguageScreen());
-      } else {
-        setState(() {
-          _isRejecting = false;
-        });
+
+      Get.offAll(() => const LanguageScreen());
+
+      if (!success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đã có lỗi xảy ra. Vui lòng thử lại.')),
         );
@@ -88,11 +91,11 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
         children: [
           _buildHeader(isUnassessed),
           const SizedBox(height: 24),
-           _buildLevelCard(),
+          _buildLevelCard(),
           const SizedBox(height: 24),
           if (widget.result.strengths.isNotEmpty) ...[
-             _buildStrengthsCard(),
-             const SizedBox(height: 24),
+            _buildStrengthsCard(),
+            const SizedBox(height: 24),
           ],
           if (widget.result.weaknesses.isNotEmpty) ...[
             _buildImprovementsCard(),
@@ -173,9 +176,9 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!)
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[200]!)
       ),
       child: Column(
         crossAxisAlignment: isCentered ? CrossAxisAlignment.center : CrossAxisAlignment.stretch,
@@ -226,14 +229,14 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
             child: _isAccepting
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton(
-                    onPressed: _onAcceptPressed,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Tiếp tục học', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
+              onPressed: _onAcceptPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Khám phá ngay', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -242,9 +245,9 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
             child: _isRejecting
                 ? const Center(child: CircularProgressIndicator())
                 : TextButton(
-                    onPressed: _onRedoPressed,
-                    child: const Text('Làm lại bài đánh giá', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                  ),
+              onPressed: _onRedoPressed,
+              child: const Text('Làm lại bài đánh giá', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+            ),
           ),
         ],
       ),

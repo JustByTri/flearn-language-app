@@ -28,7 +28,7 @@ abstract class IRepository{
 
   Future<Map<String, dynamic>?> getConversationHistory();
 
-  Future<List<ConversationLanguage>> getConversationLanguages();
+  Future<List<LanguageLevel>> getConversationLevels(String languageId);
   Future<void> initSignalR();
   Future<void> disposeSignalR();
   Future<void> joinConversationRoom(String sessionId);

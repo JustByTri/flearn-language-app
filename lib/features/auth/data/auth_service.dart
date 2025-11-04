@@ -33,11 +33,11 @@ class AuthService implements IAuthRepository {
 
   @override
   Future<LoginResponse> register(
-    String userName,
-    String email,
-    String password,
-    String confirmedPassword,
-  ) async {
+      String userName,
+      String email,
+      String password,
+      String confirmedPassword,
+      ) async {
     try {
       final response = await _dio.post(
         '/Auth/register',
@@ -50,18 +50,6 @@ class AuthService implements IAuthRepository {
       );
       return LoginResponse.fromJson(response.data);
     } on DioException catch (e) {
-      // Nếu server trả lỗi với body (ví dụ validation 400), đọc body và trả về LoginResponse từ body
-      if (e.response != null && e.response?.data != null) {
-        try {
-          // In log để debug
-          print('Register API returned error status: ${e.response?.statusCode}');
-          print('Register API error body: ${e.response?.data}');
-          return LoginResponse.fromJson(e.response!.data);
-        } catch (ex) {
-          // Nếu không parse được, ném ngoại lệ gốc
-          throw Exception('Registration error (unparsable response): ${e.message}');
-        }
-      }
       throw Exception('Registration error: ${e.message}');
     }
   }
@@ -78,34 +66,7 @@ class AuthService implements IAuthRepository {
       throw Exception('login error: ${e.message}');
     }
   }
-  Future<Map<String, dynamic>> checkSurveyRequired() async {
-    final storage = GetStorage();
-    final accessToken = storage.read('accessToken');
-    final url = Uri.parse(
-      '${ApiConfig.baseUrl}${ApiConfig.checkRequired}',
-    );
 
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $accessToken",
-        },
-      );
-      print(
-        "Check survey required response: ${response.statusCode} - ${response.body}",
-      );
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        return json['data'] as Map<String, dynamic>;
-      } else {
-        throw Exception("Failed to check survey required");
-      }
-    } catch (e) {
-      throw Exception("Check survey required error: $e");
-    }
-  }
 
   @override
   Future<LoginResponse> confirmEmail(String otp) async {
@@ -118,7 +79,7 @@ class AuthService implements IAuthRepository {
 
     try {
       final response = await _dio.post(
-        '/Auth/confirm-email',
+        '/Auth/verify-otp',
         data: {"email": email, "otpCode": otp},
       );
       return LoginResponse.fromJson(response.data);
@@ -146,7 +107,7 @@ class AuthService implements IAuthRepository {
       final response = await _dio.get('/Auth/me');
       return ResponseModel<User>.fromJson(
         response.data,
-        (json) => User.fromJson(json),
+            (json) => User.fromJson(json),
       );
     } on DioException catch (e) {
       throw Exception("Profile error: "+e.message!);
@@ -167,25 +128,56 @@ class AuthService implements IAuthRepository {
   }
 
   @override
-  Future<bool> resetPassword(
-    String email,
-    String otp,
-    String newPassword,
-    String confirmPassword,
-  ) async {
+  Future<Map<String, dynamic>> resetPassword(
+      String email,
+      String otp,
+      String newPassword,
+      String confirmPassword,
+      ) async {
     try {
       final response = await _dio.post(
         '/Auth/reset-password',
         data: {
           "email": email,
-          "otp": otp,
+          "otpCode": otp,
           "newPassword": newPassword,
           "confirmPassword": confirmPassword,
         },
       );
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        return {'success': true};
+      } else {
+        return {'success': false, 'error': 'Đổi mật khẩu thất bại!'};
+      }
+    } on DioException catch (e) {
+      if (e.response != null && e.response?.data != null) {
+        final data = e.response!.data;
+        String errorMsg = '';
+        if (data is Map && data['errors'] != null) {
+          final errors = data['errors'] as Map<String, dynamic>;
+          errorMsg = errors.values
+              .expand((v) => v as List)
+              .map((msg) => msg.toString())
+              .join('\n');
+        } else if (data['title'] != null) {
+          errorMsg = data['title'].toString();
+        } else {
+          errorMsg = 'Đổi mật khẩu thất bại!';
+        }
+        return {
+          'success': false,
+          'error': errorMsg,
+        };
+      }
+      return {
+        'success': false,
+        'error': e.message ?? 'Đổi mật khẩu thất bại!',
+      };
     } catch (e) {
-      return false;
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
     }
   }
 
@@ -223,7 +215,7 @@ class AuthService implements IAuthRepository {
       );
       return ResponseModel.fromJson(
         response.data,
-        (json) => json, // Nếu không có model cụ thể, trả về json
+            (json) => json, // Nếu không có model cụ thể, trả về json
       );
     } on DioException catch (e) {
       throw Exception('Failed to update profile: '+e.message!);
@@ -247,7 +239,7 @@ class AuthService implements IAuthRepository {
       );
       return ResponseModel.fromJson(
         response.data,
-        (json) => json, // Nếu không có model cụ thể, trả về json
+            (json) => json, // Nếu không có model cụ thể, trả về json
       );
     } on DioException catch (e) {
       throw Exception('Failed to change password: '+e.message!);

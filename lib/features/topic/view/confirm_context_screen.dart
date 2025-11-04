@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../../core/constants/colors.dart';
+import '../model/conversationLanguage.dart';
 import '../model/topic.dart';
 import '../viewmodel/topic_viewmodel.dart';
 import 'chatAi_screen.dart';
@@ -19,37 +20,32 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
   String? _selectedLevel;
   bool _isLoading = false;
 
-  List<String> _getAvailableLevels() {
+  List<LanguageLevel> _getAvailableLevels() {
     final topicViewModel = Get.find<TopicViewModel>();
-    final langId = GetStorage().read('user')?['languageId'];
-    if (langId == null) return [];
-    final lang = topicViewModel.conversationLanguages.firstWhereOrNull((e) => e.languageId == langId);
-    return lang?.availableLevels ?? [];
+    return topicViewModel.conversationLevels;
   }
 
   @override
   void initState() {
     super.initState();
     final topicViewModel = Get.find<TopicViewModel>();
-    if (topicViewModel.conversationLanguages.isEmpty) {
-      topicViewModel.fetchConversationLanguages().then((_) {
+    final langId = GetStorage().read('user')?['languageId'];
+    if (langId != null) {
+      topicViewModel.fetchConversationLevels(langId).then((_) {
         if (mounted) {
           final levels = _getAvailableLevels();
           setState(() {
-            _selectedLevel = levels.isNotEmpty ? levels.first : null;
+            _selectedLevel = levels.isNotEmpty ? levels.first.levelName : null;
           });
         }
       });
-    } else {
-      final levels = _getAvailableLevels();
-      _selectedLevel = levels.isNotEmpty ? levels.first : null;
     }
   }
 
   Future<void> _startConversation() async {
     final levels = _getAvailableLevels();
     if (_selectedLevel == null && levels.isNotEmpty) {
-      _selectedLevel = levels.first;
+      _selectedLevel = levels.first.levelName;
     }
     if (_selectedLevel == null) {
       Get.snackbar(
@@ -75,12 +71,12 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
         topicId: widget.topic.topicId,
         difficultyLevel: _selectedLevel!,
       );
-      
+
       if (!mounted) return;
 
       if (conversationData != null) {
         Get.off(
-          () => ChatScreen(
+              () => ChatScreen(
             topic: widget.topic,
             conversationData: conversationData,
           ),
@@ -98,7 +94,7 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
           snackPosition: SnackPosition.BOTTOM,
         );
       }
-    } 
+    }
   }
 
   @override
@@ -171,32 +167,94 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
     return Container(
       height: Get.height * 0.4,
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.primary, Color(0xFF6A1B9A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+      decoration: BoxDecoration(
+        // Bỏ gradient cũ
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Text(
-            widget.topic.name,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          // === BACKGROUND IMAGE ===
+          Image.network(
+            widget.topic.imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.grey.shade400,
+                child: const Icon(
+                  CupertinoIcons.photo,
+                  size: 80,
+                  color: Colors.white54,
+                ),
+              );
+            },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Container(
+                color: Colors.grey.shade300,
+                child: const Center(
+                  child: CupertinoActivityIndicator(),
+                ),
+              );
+            },
+          ),
+
+          // === GRADIENT OVERLAY ===
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.black.withOpacity(0.7),
+                  Colors.black.withOpacity(0.4),
+                  Colors.transparent,
+                ],
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            widget.topic.description,
-            style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.85), height: 1.5),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
+
+          // === CONTENT ===
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.topic.topicName,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black54,
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      )
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.topic.topicDescription,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withOpacity(0.95),
+                    height: 1.5,
+                    shadows: const [
+                      Shadow(
+                        color: Colors.black45,
+                        blurRadius: 6,
+                        offset: Offset(0, 1),
+                      )
+                    ],
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -206,7 +264,7 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
   Widget _buildLevelSelector() {
     return Obx(() {
       final topicViewModel = Get.find<TopicViewModel>();
-      if (topicViewModel.isLoadingLanguages.value) {
+      if (topicViewModel.isLoadingLevels.value) {
         return const Center(child: CupertinoActivityIndicator());
       }
       final levels = _getAvailableLevels();
@@ -217,14 +275,14 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
         spacing: 12.0,
         runSpacing: 12.0,
         children: levels.map((level) {
-          final isSelected = _selectedLevel == level;
+          final isSelected = _selectedLevel == level.levelName;
           return ChoiceChip(
-            label: Text(level),
+            label: Text(level.levelName),
             selected: isSelected,
             onSelected: (selected) {
               setState(() {
                 if (selected) {
-                  _selectedLevel = level;
+                  _selectedLevel = level.levelName;
                 }
               });
             },
@@ -259,9 +317,9 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
           shadowColor: AppColors.primary.withOpacity(0.4),
         ),
         child: const Text(
-                "Bắt đầu luyện tập",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
+          "Bắt đầu luyện tập",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
       ),
     );
   }

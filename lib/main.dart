@@ -1,4 +1,6 @@
+import 'package:flearn_app/features/auth/view/login_screen.dart';
 import 'package:flearn_app/shared/controllers/navigation_controller.dart';
+import 'package:flearn_app/shared/widgets/authWrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
@@ -6,14 +8,16 @@ import 'package:get_storage/get_storage.dart';
 
 
 import 'di.dart';
-import 'features/auth/view/login_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import 'features/auth/viewmodel/login_viewmodel.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await GetStorage.init();
   await dotenv.load();
   Get.put(NavigationController());
   setupDI();
+  Get.put(LoginViewModel(Get.find()));
   runApp(const MyApp());
 }
 

@@ -54,20 +54,23 @@ class Meta {
 
 class TopicModel {
   final String topicId;
-  final String name;
-  final String description;
+  final String topicName;
+  final String topicDescription;
+  final String imageUrl;
 
   TopicModel({
     required this.topicId,
-    required this.name,
-    required this.description,
+    required this.topicName,
+    required this.topicDescription,
+    required this.imageUrl,
   });
 
   factory TopicModel.fromJson(Map<String, dynamic> json) {
     return TopicModel(
       topicId: json['topicId']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      description: json['description']?.toString() ?? '',
+      topicName: json['topicName']?.toString() ?? '',
+      topicDescription: json['topicDescription']?.toString() ?? '',
+      imageUrl: json['imageUrl']?.toString() ?? '',
     );
   }
 }
