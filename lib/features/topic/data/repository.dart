@@ -35,15 +35,19 @@ abstract class IRepository{
   Future<void> sendConversationMessageSignalR({
     required String sessionId,
     required String messageContent,
-    required int messageType,
-    String? audioUrl,
-    int? audioDuration,
-    String? transcript,
+    required String messageType,
   });
   Future<void> sendVoiceMessageSignalR({
     required String sessionId,
     required String audioUrl,
     required int audioDuration,
-    String? transcript,
   });
+  Future<void> sendVoiceMessageBase64SignalR({
+    required String sessionId,
+    required String base64Audio,
+    required String mimeType,
+    required int audioDuration,
+  });
+
+  Future<Map<String, dynamic>?> fetchConversationUsage();
 }

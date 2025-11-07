@@ -8,46 +8,80 @@ import '../model/topic.dart';
 
 class TopicViewModel extends GetxController {
   final IRepository _authRepository;
+  TopicViewModel(this._authRepository);
+
+  // UI states
   var isLoadingTopics = false.obs;
   var topics = <TopicModel>[].obs;
 
   var conversationLevels = <LanguageLevel>[].obs;
   var isLoadingLevels = false.obs;
 
+  var conversationUsage = Rxn<Map<String, dynamic>>();
+  var isLoadingConversationUsage = false.obs;
+
+  // Stream broadcast cho AI message
   final _aiMessageController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get aiMessageStream => _aiMessageController.stream;
 
-  TopicViewModel(this._authRepository);
+  bool _signalRInitialized = false;
+  bool _callbacksWired = false;
 
   Future<void> initSignalR() async {
-    await _authRepository.initSignalR();
+    if (!_signalRInitialized) {
+      await _authRepository.initSignalR();
+      _signalRInitialized = true;
+      print('[VM] SignalR initialized');
+    }
+    _wireServiceCallbacksIfNeeded();
+  }
+
+  void _wireServiceCallbacksIfNeeded() {
+    if (_callbacksWired) return;
     if (_authRepository is service) {
-      (_authRepository as service).onAiMessageReceived = (msg) {
-        _aiMessageController.add(msg);
+      final svc = _authRepository as service;
+      svc.onAiMessageReceived = (msg) {
+        // msg đã là Map<String, dynamic> (service đã chuẩn hóa)
+        if (!_aiMessageController.isClosed) {
+          print('[VM] onAiMessageReceived -> $msg');
+          _aiMessageController.add(msg);
+        } else {
+          print('[VM] aiMessageController closed, drop msg');
+        }
       };
+      _callbacksWired = true;
+      print('[VM] Service callbacks wired');
+    } else {
+      print('[VM] Repository is not concrete service; cannot wire AI callback');
     }
   }
 
   Future<void> disposeSignalR() async {
     await _authRepository.disposeSignalR();
-    await _aiMessageController.close();
+    _signalRInitialized = false;
+    _callbacksWired = false; // lần sau init sẽ gắn lại callback
+    print('[VM] SignalR disposed');
+    // KHÔNG close _aiMessageController ở đây
   }
 
+  @override
+  void onClose() {
+    if (!_aiMessageController.isClosed) {
+      _aiMessageController.close();
+    }
+    super.onClose();
+  }
+
+  // ---------- Bridge methods ----------
   Future<void> sendConversationMessageSignalR({
     required String sessionId,
     required String messageContent,
-    required int messageType,
-    String? audioUrl,
-    int? audioDuration,
-    String? transcript,
+    required String messageType,
   }) async {
     await _authRepository.sendConversationMessageSignalR(
       sessionId: sessionId,
       messageContent: messageContent,
       messageType: messageType,
-      audioUrl: audioUrl,
-      audioDuration: audioDuration,
-      transcript: transcript,
     );
   }
 
@@ -55,13 +89,11 @@ class TopicViewModel extends GetxController {
     required String sessionId,
     required String audioUrl,
     required int audioDuration,
-    String? transcript,
   }) async {
     await _authRepository.sendVoiceMessageSignalR(
       sessionId: sessionId,
       audioUrl: audioUrl,
       audioDuration: audioDuration,
-      transcript: transcript,
     );
   }
 
@@ -124,11 +156,12 @@ class TopicViewModel extends GetxController {
     String? transcript,
   }) async {
     try {
+      final safeTranscript = (transcript == null || transcript.trim().isEmpty || transcript == 'string') ? null : transcript;
       return await _authRepository.sendVoiceMessage(
         sessionId: sessionId,
         audioFilePath: audioFilePath,
         audioDuration: audioDuration,
-        transcript: transcript,
+        transcript: safeTranscript,
       );
     } catch (e) {
       print('sendVoiceMessage error: $e');
@@ -149,6 +182,36 @@ class TopicViewModel extends GetxController {
   }
 
   Future<void> joinConversationRoom(String sessionId) async {
+
     await _authRepository.joinConversationRoom(sessionId);
   }
+
+  Future<void> sendVoiceMessageBase64SignalR({
+    required String sessionId,
+    required String base64Audio,
+    required String mimeType,
+    required int audioDuration,
+  }) => _authRepository.sendVoiceMessageBase64SignalR(
+    sessionId: sessionId,
+    base64Audio: base64Audio,
+    mimeType: mimeType,
+    audioDuration: audioDuration,
+  );
+
+  Future<void> fetchConversationUsage() async {
+    try {
+      isLoadingConversationUsage.value = true;
+      final usage = await _authRepository.fetchConversationUsage();
+      conversationUsage.value = usage;
+      print('fetchConversationUsage: $usage');
+    } catch (e) {
+      print('fetchConversationUsage error: $e');
+      conversationUsage.value = null;
+    } finally {
+      isLoadingConversationUsage.value = false;
+    }
+  }
+
+  int get remainingToday => conversationUsage.value?['remainingToday'] ?? 0;
+  int get dailyLimit => conversationUsage.value?['dailyLimit'] ?? 0;
 }

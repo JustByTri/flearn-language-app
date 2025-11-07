@@ -29,7 +29,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> with 
   void initState() {
     super.initState();
     _fetchSubscriptionPlans();
-    WidgetsBinding.instance.addObserver(this); // lắng nghe app resume
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
@@ -125,14 +125,24 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> with 
             ));
 
             if (paid == true) {
+
+              await handlePaymentCallback(
+                transactionId: transactionId,
+                code: "00",
+                amount: amount,
+                signature: "",
+                plan: planName,
+              );
+              Navigator.of(context).pop(true);
+              return;
+            } else if (paid == false) {
               Get.snackbar(
-                "Thanh toán thành công",
-                "Bạn đã mua gói $planName thành công!",
+                "Thanh toán thất bại",
+                "Bạn đã hủy giao dịch hoặc thanh toán không thành công.",
                 snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: Colors.green,
+                backgroundColor: Colors.red,
                 colorText: Colors.white,
               );
-              await _fetchSubscriptionPlans();
             }
             return;
           }

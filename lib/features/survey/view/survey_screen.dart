@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import '../../../core/constants/colors.dart';
-import '../../../shared/widgets/fadeSlideAnimation.dart';
 import '../viewmodel/survey_viewmodel.dart';
 import '../model/goal.dart';
 import '../model/program.dart';
@@ -24,14 +23,11 @@ class _SurveyScreenState extends State<SurveyScreen> {
   final surveyViewModel = Get.find<SurveyViewModel>();
   String? selectedProgramId;
   bool _isLoadingAssessment = false;
-  int? _dailyLimit;
-  int? _remainingToday;
-  bool _isCheckingUsage = true;
+
 
   @override
   void initState() {
     super.initState();
-    _fetchConversationUsage();
     final box = GetStorage();
     final languageId = box.read('selectedLanguageId') as String?;
     if (languageId != null) {
@@ -39,85 +35,49 @@ class _SurveyScreenState extends State<SurveyScreen> {
     }
   }
 
-  Future<void> _fetchConversationUsage() async {
-    setState(() => _isCheckingUsage = true);
-    final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('https://f-learn.app/api/conversation/usage');
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $accessToken",
-        },
-      );
-      if (response.statusCode == 200) {
-        final jsonBody = jsonDecode(response.body);
-        if (jsonBody['success'] == true && jsonBody['data'] != null) {
-          setState(() {
-            _dailyLimit = jsonBody['data']['dailyLimit'];
-            _remainingToday = jsonBody['data']['remainingToday'];
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Lỗi lấy usage: $e');
-    } finally {
-      setState(() => _isCheckingUsage = false);
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          children: [
-            // ...phần ảnh và tiêu đề nếu có...
-            // ======= HIỂN THỊ DAILY LIMIT Ở ĐẦU VÙNG TRẮNG =======
-            if (_dailyLimit != null && _remainingToday != null)
+        child: Obx(() {
+          if (surveyViewModel.isLoadingPrograms.value) {
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          }
+          return Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 8),
-                child: Text(
-                  'Lượt luyện tập còn lại hôm nay: $_remainingToday / $_dailyLimit',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Chọn chương trình',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            // ======= PHẦN CHỌN TRÌNH ĐỘ =======
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Chọn trình độ',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                  ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  itemCount: surveyViewModel.programs.length,
+                  itemBuilder: (context, index) {
+                    return _buildProgramCard(surveyViewModel.programs[index]);
+                  },
                 ),
               ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                itemCount: surveyViewModel.programs.length,
-                itemBuilder: (context, index) {
-                  return _buildProgramCard(surveyViewModel.programs[index]);
-                },
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: _buildStartButton(),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: _buildStartButton(),
-            ),
-          ],
-        ),
+            ],
+          );
+        }),
       ),
     );
   }
@@ -182,7 +142,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
   }
 
   Widget _buildStartButton() {
-    final bool isEnabled = selectedProgramId != null && !_isLoadingAssessment && (_remainingToday ?? 0) > 0;
+    final bool isEnabled = selectedProgramId != null && !_isLoadingAssessment;
     return SizedBox(
       width: double.infinity,
       height: 52,

@@ -45,35 +45,48 @@ class service implements IRepository {
           .withAutomaticReconnect()
           .build();
 
-      _hubConnection?.on("AIMessageReceived", (args) {
-        print("🔹 AIMessageReceived: $args");
-        if (args != null &&
-            args.isNotEmpty &&
-            onAiMessageReceived != null) {
-          try {
-            final data = args[0];
-            if (data is Map<String, dynamic>) {
-              onAiMessageReceived!(data);
-            } else if (data is String) {
-              final parsed = jsonDecode(data);
-              onAiMessageReceived!(parsed);
-            }
-          } catch (e) {
-            print("⚠️ Error parsing AIMessageReceived: $e");
+      _hubConnection?.on('AIMessageReceived', (args) {
+        print('🔹 AIMessageReceived: $args');
+        try {
+          final dynamic raw = (args != null && args.isNotEmpty) ? args[0] : null;
+          Map<String, dynamic> payload;
+          if (raw is Map) {
+            payload = raw.map((k, v) => MapEntry(k.toString(), v));
+          } else if (raw is String) {
+            payload = jsonDecode(raw) as Map<String, dynamic>;
+          } else {
+            print('[service] Unsupported payload: ${raw.runtimeType}');
+            return;
           }
+          onAiMessageReceived?.call(payload);
+        } catch (e) {
+          print('[service] on AIMessageReceived error: $e');
         }
       });
 
-      _hubConnection?.on("MessageProcessed", (args) {
-        print("MessageProcessed: $args");
+      // NEW: nhận voice (user vừa gửi) để UI hiển thị bong bóng voice
+      _hubConnection?.on('VoiceMessageReceived', (args) {
+        print('🔹 VoiceMessageReceived: $args');
+        try {
+          final dynamic raw = (args != null && args.isNotEmpty) ? args[0] : null;
+          Map<String, dynamic> payload;
+          if (raw is Map) {
+            payload = raw.map((k, v) => MapEntry(k.toString(), v));
+          } else if (raw is String) {
+            payload = jsonDecode(raw) as Map<String, dynamic>;
+          } else {
+            print('[service] Unsupported payload: ${raw.runtimeType}');
+            return;
+          }
+          onAiMessageReceived?.call(payload);
+        } catch (e) {
+          print('[service] on VoiceMessageReceived error: $e');
+        }
       });
 
-      _hubConnection?.on("AIStartedTyping", (args) {
-        print("AIStartedTyping: $args");
-      });
-
-      _hubConnection?.on("AIStoppedTyping", (args) {
-        print("AIStoppedTyping: $args");
+      // NEW: nhận lỗi từ hub
+      _hubConnection?.on('Error', (args) {
+        print('🔹 Hub Error: $args');
       });
 
       await _hubConnection?.start();
@@ -84,7 +97,8 @@ class service implements IRepository {
   }
 
   Future<void> disposeSignalR() async {
-    await _hubConnection?.stop();
+    // chỉ dừng hub, không liên quan stream của VM
+    try { await _hubConnection?.stop(); } catch (_) {}
     _hubConnection = null;
   }
 
@@ -233,8 +247,9 @@ class service implements IRepository {
     request.fields['sessionId'] = sessionId;
     request.fields['audioDuration'] = audioDuration
         .toString();
-    if (transcript != null)
+    if (transcript != null && transcript.trim().isNotEmpty && transcript != "string") {
       request.fields['transcript'] = transcript;
+    }
 
     request.files.add(
       await http.MultipartFile.fromPath(
@@ -260,6 +275,7 @@ class service implements IRepository {
     }
   }
 
+  @override
   Future<Map<String, dynamic>?>
   getConversationHistory() async {
     final storage = GetStorage();
@@ -317,51 +333,85 @@ class service implements IRepository {
     }
   }
 
+  @override
   Future<void> joinConversationRoom(
       String sessionId,
       ) async {
+    print('[SignalR] joinConversationRoom: sessionId=$sessionId');
     await _hubConnection?.invoke(
       "JoinConversationRoom",
       args: [sessionId],
     );
-    print('Joined SignalR room: $sessionId');
+    print('[SignalR] Joined room: $sessionId');
   }
 
+  @override
   Future<void> sendConversationMessageSignalR({
     required String sessionId,
     required String messageContent,
-    required int messageType,
-    String? audioUrl,
-    int? audioDuration,
-    String? transcript,
+    required String messageType,
   }) async {
+    print('[SignalR] sendConversationMessageSignalR: sessionId=$sessionId, messageContent=$messageContent, messageType=$messageType');
     await _hubConnection?.invoke(
-      "SendMessage",
-      args: [
-        sessionId,
-        messageContent,
-        messageType,
-        audioUrl ?? "",
-        audioDuration ?? 0,
-        transcript ?? "",
-      ],
+      "SendMessageToConversation",
+      args: [sessionId, messageContent, messageType],
     );
+    print('[SignalR] Message sent via SignalR');
   }
 
+  @override
   Future<void> sendVoiceMessageSignalR({
     required String sessionId,
     required String audioUrl,
     required int audioDuration,
-    String? transcript,
   }) async {
+    print('[SignalR] sendVoiceMessageSignalR: sessionId=$sessionId, audioUrl=$audioUrl, audioDuration=$audioDuration');
     await _hubConnection?.invoke(
-      "SendVoice",
-      args: [
-        sessionId,
-        audioUrl,
-        audioDuration,
-        transcript ?? "",
-      ],
+      "SendVoiceMessage",
+      args: [sessionId, audioUrl, audioDuration],
     );
+    print('[SignalR] Voice message sent via SignalR');
+  }
+
+  // NEW: gửi voice base64 trực tiếp lên hub
+  @override
+  Future<void> sendVoiceMessageBase64SignalR({
+    required String sessionId,
+    required String base64Audio,
+    required String mimeType,
+    required int audioDuration,
+  }) async {
+    print('[SignalR] sendVoiceMessageBase64SignalR: sessionId=$sessionId, mimeType=$mimeType, duration=$audioDuration, base64Len=${base64Audio.length}');
+    await _hubConnection?.invoke(
+      "SendVoiceMessageToConversation",
+      args: [sessionId, base64Audio, mimeType, audioDuration],
+    );
+    print('[SignalR] Voice(base64) sent via SignalR');
+  }
+
+  @override
+  Future<Map<String, dynamic>?> fetchConversationUsage() async {
+    final storage = GetStorage();
+    final accessToken = storage.read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/conversation/usage');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $accessToken",
+        },
+      );
+      if (response.statusCode == 200) {
+        final jsonBody = jsonDecode(response.body);
+        if (jsonBody['success'] == true && jsonBody['data'] != null) {
+          return jsonBody['data'];
+        }
+      }
+      return null;
+    } catch (e) {
+      print('fetchConversationUsage error: $e');
+      return null;
+    }
   }
 }

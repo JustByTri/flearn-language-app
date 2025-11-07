@@ -130,7 +130,6 @@ class serviceSurvey implements ISurveyRepository {
     final response = await http.get(
       url,
       headers: {
-        "Content-Type": "application/json",
         "Authorization": "Bearer $accessToken",
       },
     );
@@ -301,5 +300,7 @@ class serviceSurvey implements ISurveyRepository {
       return false;
     }
   }
+
+
 
 }

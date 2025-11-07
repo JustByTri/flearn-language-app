@@ -39,10 +39,20 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
             final uri = Uri.parse(req.url);
             final status = uri.queryParameters['status'];
             final code = uri.queryParameters['code'];
-            if (status == 'PAID' || code == '00') {
+            final cancel = uri.queryParameters['cancel'];
+
+            if (status == 'PAID' && code == '00') {
               if (!_done) {
                 _done = true;
-                Get.back(result: true); // Trả về thành công
+                Get.back(result: true);
+              }
+              return NavigationDecision.prevent;
+            }
+
+            if (status == 'CANCELLED' || cancel == 'true' || code == '01') {
+              if (!_done) {
+                _done = true;
+                Get.back(result: false);
               }
               return NavigationDecision.prevent;
             }

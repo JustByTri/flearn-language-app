@@ -16,8 +16,6 @@ class SurveyViewModel extends GetxController {
   var languages = <String, String>{}.obs;
   String? selectedLanguageId;
 
-  var goals = <Goal>[].obs;
-  var isLoadingGoals = false.obs;
 
   var programs = <Program>[].obs;
   var isLoadingPrograms = false.obs;
@@ -26,6 +24,7 @@ class SurveyViewModel extends GetxController {
 
   var currentQuestion = Rxn<AssessmentQuestion>();
   var isLoadingCurrentQuestion = false.obs;
+
 
   var errorMessage = RxnString();
 
@@ -60,19 +59,6 @@ class SurveyViewModel extends GetxController {
     }
   }
 
-  Future<void> fetchGoals() async {
-    try {
-      isLoadingGoals.value = true;
-      final list = await _repository.getGoals();
-      if (list.isNotEmpty) {
-        goals.assignAll(list);
-      }
-    } catch (e) {
-      print('fetchGoals error: $e');
-    } finally {
-      isLoadingGoals.value = false;
-    }
-  }
 
   Future<void> startAssessment(String languageId, String programId) async {
     try {
@@ -148,7 +134,7 @@ class SurveyViewModel extends GetxController {
     }
   }
 
-  // --- FIXED: Changed parameter and added function ---
+
   Future<bool> acceptVoiceAssessment(String learnerLanguageId) async {
     try {
       isLoading.value = true;
@@ -179,4 +165,5 @@ class SurveyViewModel extends GetxController {
       isLoading.value = false;
     }
   }
+
 }
