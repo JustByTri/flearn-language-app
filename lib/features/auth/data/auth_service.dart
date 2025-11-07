@@ -260,4 +260,28 @@ class AuthService implements IAuthRepository {
     }
   }
 
+  @override
+  Future<Map<String, dynamic>?> purchaseSubscription(String planName) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/subscriptions/purchase');
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $accessToken",
+        },
+        body: jsonEncode({"plan": planName}),
+      );
+      if (response.statusCode == 200) {
+        final jsonBody = jsonDecode(response.body);
+        return jsonBody;
+      }
+      return null;
+    } catch (e) {
+      print('purchaseSubscription error: $e');
+      return null;
+    }
+  }
+
 }

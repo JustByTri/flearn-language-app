@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../../core/constants/colors.dart';
+import '../../auth/view/subcription_plans.dart';
 import '../model/conversationLanguage.dart';
 import '../model/topic.dart';
 import '../viewmodel/topic_viewmodel.dart';
@@ -19,6 +20,9 @@ class ConfirmContextScreen extends StatefulWidget {
 class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
   String? _selectedLevel;
   bool _isLoading = false;
+  int? _dailyLimit;
+  int? _remainingToday;
+  bool _isCheckingUsage = true;
 
   List<LanguageLevel> _getAvailableLevels() {
     final topicViewModel = Get.find<TopicViewModel>();
@@ -39,6 +43,23 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
           });
         }
       });
+    }
+    _fetchConversationUsage();
+  }
+
+  Future<void> _fetchConversationUsage() async {
+    setState(() => _isCheckingUsage = true);
+    try {
+      final topicViewModel = Get.find<TopicViewModel>();
+      await topicViewModel.fetchConversationUsage();
+      final usage = topicViewModel.conversationUsage.value;
+      setState(() {
+        _dailyLimit = usage?['dailyLimit'];
+        _remainingToday = usage?['remainingToday'];
+        _isCheckingUsage = false;
+      });
+    } catch (e) {
+      setState(() => _isCheckingUsage = false);
     }
   }
 
@@ -101,12 +122,12 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: Colors.white, // <--- SỬA MÀU NỀN
+        backgroundColor: Colors.white,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset('assets/images/animationAI.gif', width: 180),
+              Image.asset('assets/images/animationAI2.gif', width: 180),
               const SizedBox(height: 30),
               Text(
                 'Đợi chút nhé, tớ đang suy nghĩ...\nKịch bản sắp được tạo cho bạn trong giây lát.',
@@ -146,6 +167,21 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+
+                if (_isCheckingUsage)
+                  const Center(child: CupertinoActivityIndicator())
+                else if (_dailyLimit != null && _remainingToday != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'Lượt luyện tập còn lại hôm nay: $_remainingToday / $_dailyLimit',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 const Text(
                   "Chọn trình độ",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
@@ -305,10 +341,61 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
   }
 
   Widget _buildStartButton() {
+
+    if (_isLoading) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          ),
+          child: const CupertinoActivityIndicator(color: Colors.white),
+        ),
+      );
+    }
+
+
+    if ((_remainingToday ?? 0) <= 0) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: () async {
+            final result = await Navigator.of(context).push<bool>(
+              MaterialPageRoute(builder: (_) => const SubscriptionPlansScreen()),
+            );
+            if (result == true) {
+              await _fetchConversationUsage();
+              Get.snackbar(
+                "Thành công",
+                "Bạn đã mua lượt luyện tập thành công!",
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: Colors.green,
+                colorText: Colors.white,
+              );
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            elevation: 5,
+          ),
+          child: const Text(
+            "Mua lượt luyện tập",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+        ),
+      );
+    }
+
+
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _startConversation,
+        onPressed: _startConversation,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           padding: const EdgeInsets.symmetric(vertical: 16),

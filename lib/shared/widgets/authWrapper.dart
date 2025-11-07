@@ -10,12 +10,12 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Kiểm tra token hợp lệ
+
 
     setupDI();
     final isLoggedIn = isAccessTokenValid();
 
-    // Nếu token hợp lệ, chuyển đến NavigationMenu; nếu không, đến LoginScreen
+
     return isLoggedIn ? const NavigationMenu() : const LoginScreen();
   }
 }

@@ -25,6 +25,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
 
   Future<void> _onAcceptPressed() async {
     if (widget.result.determinedLevel == 'Unassessed') {
+      setupDI();
       Get.offAll(() => const NavigationMenu());
       return;
     }
@@ -39,7 +40,7 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
       if (success) {
 
         setupDI();
-        Get.offAll(() => HomeScreen());
+        Get.offAll(() => const NavigationMenu());
       } else {
         setState(() {
           _isAccepting = false;

@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flearn_app/core/constants/colors.dart';
+import '../../../shared/widgets/mainBottomNavbar.dart';
 import 'topic_screen.dart';
 
 class ConversationResultScreen extends StatelessWidget {
@@ -62,7 +63,7 @@ class ConversationResultScreen extends StatelessWidget {
             const SizedBox(height: 30),
             Center(
               child: TextButton(
-                onPressed: ()=> Get.offAll(()=> const HomeScreen()),
+                onPressed: ()=> Get.offAll(() => const NavigationMenu()),
                 child: const Text(
                   "Về trang chủ",
                   style: TextStyle(

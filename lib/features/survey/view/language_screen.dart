@@ -95,7 +95,11 @@ class _LanguageScreenState extends State<LanguageScreen> {
     final flagEmoji = flagEmojis[languageName] ?? '🏳️';
     return InkWell(
       onTap: () {
-        GetStorage().write('selectedLanguageId', languageId);
+        final box = GetStorage();
+        final user = box.read('user') ?? {};
+        user['languageId'] = languageId;
+        box.write('user', user);
+        box.write('selectedLanguageId', languageId);
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const SurveyScreen()),

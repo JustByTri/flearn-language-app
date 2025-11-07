@@ -273,7 +273,6 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
             return const Center(child: CupertinoActivityIndicator());
           }
 
-
           if (_isCompleting || question == null) {
             return const Center(child: CupertinoActivityIndicator());
           }
@@ -281,11 +280,12 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
           double progress = ((question.questionNumber - 1) / assessment.totalQuestions).toDouble();
           if (progress < 0) progress = 0;
 
-          return FadeSlideAnimation(
-            child: Column(
-              children: [
-                AnimatedProgressBar(progress: progress),
-                Expanded(
+
+          return Column(
+            children: [
+              AnimatedProgressBar(progress: progress),
+              FadeSlideAnimation(
+                child: Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24.0),
                     child: Column(
@@ -298,10 +298,10 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
                     ),
                   ),
                 ),
-                _buildRecordingControls(),
-                _buildBottomNavBar(),
-              ],
-            ),
+              ),
+              _buildRecordingControls(),
+              _buildBottomNavBar(),
+            ],
           );
         }),
       ),
