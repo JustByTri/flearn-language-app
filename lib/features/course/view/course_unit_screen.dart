@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/colors.dart';
-
-import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/fadeSlideAnimation.dart';
 import '../model/course_unit.dart';
 import '../viewmodel/course_viewmodel.dart';
@@ -19,6 +17,7 @@ class CourseUnitScreen extends StatefulWidget {
 
 class _CourseUnitScreenState extends State<CourseUnitScreen> {
   late final CourseViewModel courseViewModel;
+  final Set<String> _expandedUnits = {};
 
   @override
   void initState() {
@@ -27,245 +26,217 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
     courseViewModel.fetchCourseUnits(widget.courseId);
   }
 
+  void _toggleUnit(String unitId) {
+    setState(() {
+      if (_expandedUnits.contains(unitId)) {
+        _expandedUnits.remove(unitId);
+      } else {
+        _expandedUnits.add(unitId);
+        // Fetch lessons when expanding
+        courseViewModel.fetchCourseLessons(unitId);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: Colors.white,
+        elevation: 0.5,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.textLight),
-          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Get.back(),
         ),
         title: Text(
           widget.courseTitle,
-          style: TextStyle(
-            color: AppColors.textLight,
-            fontSize: 20,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
         ),
-        elevation: 0,
         centerTitle: true,
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primary.withOpacity(0.05),
-              Colors.white,
-            ],
+      body: Obx(() {
+        if (courseViewModel.isLoadingUnit.value) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+        }
+        final units = courseViewModel.units;
+        if (units.isEmpty) {
+          return _buildEmptyState();
+        }
+        return FadeSlideAnimation(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: units.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final unit = units[index];
+              final isExpanded = _expandedUnits.contains(unit.courseUnitID);
+              return _buildUnitCard(unit, index, isExpanded);
+            },
           ),
-        ),
-        child: Obx(() {
-          if (courseViewModel.isLoadingUnit.value) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
-          }
-          final units = courseViewModel.units;
-          if (units.isEmpty) {
-            return _buildEmptyState();
-          }
-          return _buildUnitsList(units);
-        }),
-      ),
+        );
+      }),
     );
   }
 
   Widget _buildEmptyState() {
-    return FadeSlideAnimation(
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(60),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.school_outlined,
-                size: 60,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Chưa có chương nào',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Khóa học này hiện chưa có nội dung',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.school_outlined, size: 80, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          const Text('Chưa có chương nào', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text('Khóa học này hiện chưa có nội dung', style: TextStyle(color: Colors.grey.shade600)),
+        ],
       ),
     );
   }
 
-  Widget _buildUnitsList(List<CourseUnit> units) {
-    return FadeSlideAnimation(
-      child: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: units.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 16),
-        itemBuilder: (context, index) {
-          final unit = units[index];
-          return _buildUnitCard(unit, index);
-        },
-      ),
-    );
-  }
-
-  Widget _buildUnitCard(CourseUnit unit, int index) {
+  Widget _buildUnitCard(CourseUnit unit, int index, bool isExpanded) {
     return Card(
-      elevation: 6,
-      shadowColor: AppColors.primary.withOpacity(0.15),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CourseLessonScreen(
-                  unitId: unit.courseUnitID,
-                  unitTitle: unit.title
-              ),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              colors: [
-                Colors.white,
-                AppColors.primary.withOpacity(0.02),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => _toggleUnit(unit.courseUnitID),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
                 children: [
-                  Hero(
-                    tag: 'unit_${unit.courseUnitID}',
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${unit.position}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${unit.position}',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           unit.title,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
-                        if (unit.totalLessons > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.accent.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.accent.withOpacity(0.3)),
-                            ),
-                            child: Text(
-                              '${unit.totalLessons} bài học',
-                              style: TextStyle(
-                                color: AppColors.accent,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
+                        Text(
+                          '${unit.totalLessons} bài học',
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        ),
                       ],
                     ),
                   ),
                   Icon(
-                    Icons.arrow_forward_ios,
+                    isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
                     color: AppColors.primary,
-                    size: 20,
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                unit.description,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                  height: 1.4,
-                ),
+            ),
+          ),
+          if (isExpanded) ...[
+            const Divider(height: 1),
+            Obx(() {
+              if (courseViewModel.isLoadingLesson.value) {
+                return const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                );
+              }
+              final lessons = courseViewModel.lessons;
+              if (lessons.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text('Chưa có bài học nào', style: TextStyle(color: Colors.grey.shade600)),
+                );
+              }
+              return Column(
+                children: lessons.map((lesson) => _buildLessonTile(lesson)).toList(),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLessonTile(dynamic lesson) {
+    return InkWell(
+      onTap: () async {
+        final courseViewModel = Get.find<CourseViewModel>();
+        final lessonDetail = await courseViewModel.fetchLessonById(lesson.lessonID);
+        if (lessonDetail != null) {
+          Get.to(() => CourseLessonScreen(
+            lesson: lessonDetail,
+          ));
+        } else {
+          Get.snackbar('Lỗi', 'Không thể tải bài học');
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: Colors.grey.shade100)),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.play_circle_outline, color: AppColors.primary, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                lesson.title,
+                style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-            ],
-          ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Bắt đầu',
+                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
         ),
       ),
     );

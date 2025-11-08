@@ -31,10 +31,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.textPrimary),
-          onPressed: () => Get.offAll(() => const NavigationMenu()), // Quay về trang chủ
-        ),
+        automaticallyImplyLeading: false,
         title: const Text(
           'Khảo sát đầu vào',
           style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),

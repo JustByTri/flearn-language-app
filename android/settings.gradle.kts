@@ -18,9 +18,24 @@ pluginManagement {
 }
 
 plugins {
-    id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.9.1" apply false
     id("org.jetbrains.kotlin.android") version "2.1.0" apply false
 }
 
 include(":app")
+
+val flutterProjectRoot = rootProject.projectDir.parentFile
+val pluginsFile = File(flutterProjectRoot, ".flutter-plugins")
+if (pluginsFile.exists()) {
+    val properties = java.util.Properties()
+    pluginsFile.inputStream().use { reader ->
+        properties.load(reader)
+    }
+    properties.forEach { key, value ->
+        val pluginName = key as String
+        val pluginPath = value as String
+        val pluginDirectory = File(pluginPath)
+        include(":$pluginName")
+        project(":$pluginName").projectDir = File(pluginDirectory, "android")
+    }
+}

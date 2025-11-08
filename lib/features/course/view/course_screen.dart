@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../model/course.dart';
 import '../viewmodel/course_viewmodel.dart';
+import 'course_detail_screen.dart';
 import 'course_unit_screen.dart';
 
 class CourseScreen extends StatefulWidget {
@@ -66,6 +67,23 @@ class _CourseScreenState extends State<CourseScreen> {
     }
   }
 
+  String _formatPrice(int price) {
+    if (price >= 1000000) {
+      double millions = price / 1000000;
+      if (millions % 1 == 0) {
+        return '${millions.toInt()}tr';
+      }
+      return '${millions.toStringAsFixed(1)}tr';
+    } else if (price >= 1000) {
+      double thousands = price / 1000;
+      if (thousands % 1 == 0) {
+        return '${thousands.toInt()}k';
+      }
+      return '${thousands.toStringAsFixed(1)}k';
+    }
+    return '${price}đ';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -89,7 +107,7 @@ class _CourseScreenState extends State<CourseScreen> {
       ),
       body: Column(
         children: [
-          // Search bar only
+          // Search bar
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -120,7 +138,7 @@ class _CourseScreenState extends State<CourseScreen> {
               }
 
               final List<Course> filteredCourses = (widget.topic != null && widget.topic!.isNotEmpty)
-                  ? courseViewModel.courses.where((c) => c.topics.contains(widget.topic)).toList()
+                  ? courseViewModel.courses.where((c) => c.topics.any((t) => t.topicName.contains(widget.topic!))).toList()
                   : courseViewModel.courses.toList();
 
               if (filteredCourses.isEmpty) {
@@ -164,97 +182,142 @@ class _CourseScreenState extends State<CourseScreen> {
   }
 
   Widget _buildCourseCard(Course course) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final imageSize = screenWidth * 0.25;
-
     return GestureDetector(
-      onTap: () {
-        Get.to(
-              () => CourseUnitScreen(courseId: course.courseID, courseTitle: course.title),
-          transition: Transition.cupertino,
-        );
+      onTap: () async {
+        final vm = Get.find<CourseViewModel>();
+        await vm.fetchCourseDetail(course.courseID);
+        Get.to(() => CourseDetailScreen(courseId: course.courseID));
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        elevation: 0,
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Thumbnail
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: _buildCourseImage(course),
+                ),
+              ),
+              const SizedBox(width: 12),
 
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: _buildCourseImageSmall(course, imageSize),
-            ),
-            const SizedBox(width: 14),
-            // Nội dung
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      course.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1A1A),
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Teacher + rating
+                    Row(
+                      children: [
+                        if (course.teacher != null) ...[
+                          Flexible(
+                            child: Text(
+                              course.teacher!.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        const Icon(Icons.star, size: 14, color: Color(0xFFFFB800)),
+                        const SizedBox(width: 3),
+                        Text(
+                          course.averageRating.toStringAsFixed(1),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 8),
+                        Text('${course.learnerCount}+', style: const TextStyle(fontSize: 12, color: Color(0xFF888888))),
+                      ],
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    // Small chips: level / lessons / days
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (course.program?.level?.name != null && course.program!.level!.name.isNotEmpty)
+                          _buildTag(course.program!.level!.name),
+                        _buildTag('${course.numLessons} lessons'),
+                        _buildTag('${course.durationDays} days'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              // Price
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Tiêu đề
                   Text(
-                    course.title,
+                    _formatPrice(course.discountPrice ?? course.price),
                     style: const TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1A1A),
-                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 8),
-                  // Info rows
-                  _buildInfoRow(CupertinoIcons.play_circle, '${course.numLessons}+ Lessons'),
-                  const SizedBox(height: 4),
-                  _buildInfoRow(CupertinoIcons.time, '115+ Hours'),
-                  const SizedBox(height: 10),
-                  // Avatar + See Details
-                  Row(
-                    children: [
-                      _buildAvatarStack(),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () {
-                          Get.to(
-                                () => CourseUnitScreen(
-                              courseId: course.courseID,
-                              courseTitle: course.title,
-                            ),
-                            transition: Transition.cupertino,
-                          );
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text(
-                          'See Details',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
+                  if (course.discountPrice != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatPrice(course.price),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFFAAAAAA),
+                        decoration: TextDecoration.lineThrough,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTag(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11,
+          color: Color(0xFF666666),
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -277,7 +340,7 @@ class _CourseScreenState extends State<CourseScreen> {
         ),
         const SizedBox(width: 6),
         const Text(
-          '69k+ Joined',
+          '1k+ Enrolled',
           style: TextStyle(fontSize: 11, color: Color(0xFF999999)),
         ),
       ],
@@ -299,60 +362,44 @@ class _CourseScreenState extends State<CourseScreen> {
     );
   }
 
-  Widget _buildCourseImageSmall(Course course, double size) {
+  Widget _buildCourseImage(Course course) {
     if (course.imageUrl.isEmpty) {
       return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF5F5F5),
-          borderRadius: BorderRadius.circular(8),
+        width: double.infinity,
+        height: 180,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF5F5F5),
         ),
-        child: Icon(Icons.image, color: Colors.grey.shade400, size: size * 0.4),
+        child: Icon(Icons.image, color: Colors.grey.shade400, size: 60),
       );
     }
 
     return Image.network(
       course.imageUrl,
-      width: size,
-      height: size,
+      width: double.infinity,
+      height: 180,
       fit: BoxFit.cover,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;
         return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF5F5F5),
-            borderRadius: BorderRadius.circular(8),
+          width: double.infinity,
+          height: 180,
+          decoration: const BoxDecoration(
+            color: Color(0xFFF5F5F5),
           ),
-          child: const Center(child: CupertinoActivityIndicator(radius: 10)),
+          child: const Center(child: CupertinoActivityIndicator(radius: 15)),
         );
       },
       errorBuilder: (context, error, stackTrace) {
         return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF5F5F5),
-            borderRadius: BorderRadius.circular(8),
+          width: double.infinity,
+          height: 180,
+          decoration: const BoxDecoration(
+            color: Color(0xFFF5F5F5),
           ),
-          child: Icon(Icons.broken_image, color: Colors.grey.shade400, size: size * 0.4),
+          child: Icon(Icons.broken_image, color: Colors.grey.shade400, size: 60),
         );
       },
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: const Color(0xFF999999)),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF666666)),
-        ),
-      ],
     );
   }
 

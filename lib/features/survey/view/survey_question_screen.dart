@@ -246,10 +246,7 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.textPrimary),
-          onPressed: () => Get.offAll(() => const NavigationMenu()),
-        ),
+        automaticallyImplyLeading: false, // remove close/back icon
         title: const Text('Đánh giá năng lực', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
@@ -280,22 +277,15 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
           double progress = ((question.questionNumber - 1) / assessment.totalQuestions).toDouble();
           if (progress < 0) progress = 0;
 
-
+          // FIX: Column with proper Expanded outside animation; no Expanded inside FadeSlideAnimation
           return Column(
             children: [
               AnimatedProgressBar(progress: progress),
-              FadeSlideAnimation(
-                child: Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Spacer(flex: 2),
-                        _buildQuestionContent(question),
-                        const Spacer(flex: 3),
-                      ],
-                    ),
+              Expanded(
+                child: FadeSlideAnimation(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32),
+                    child: _buildQuestionContent(question),
                   ),
                 ),
               ),
@@ -308,18 +298,18 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
     );
   }
 
-  // --- FIXED: Translation logic is now more robust ---
+
   Widget _buildQuestionContent(dynamic question) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        if (question.question != null)
+        if (question.question != null && (question.question as String).isNotEmpty)
           Text(
             question.question,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: AppColors.textSecondary, height: 1.5),
           ),
-
-        if (question.promptText != null)
+        if (question.promptText != null && (question.promptText as String).isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24.0),
             child: Text(
@@ -328,7 +318,6 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
               style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
           ),
-
         if (_isTranslating)
           const Padding(
             padding: EdgeInsets.only(bottom: 24.0),
@@ -343,49 +332,34 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
               style: const TextStyle(fontSize: 18, fontStyle: FontStyle.italic, color: AppColors.primary, height: 1.4),
             ),
           ),
-
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (question.promptText != null)
+            if (question.promptText != null && (question.promptText as String).isNotEmpty)
               TextButton.icon(
                 onPressed: () async {
                   if (_translatedText != null) {
-                    setState(() {
-                      _translatedText = null;
-                    });
+                    setState(() => _translatedText = null);
                     return;
                   }
-
-                  if (question.vietnameseTranslation != null && question.vietnameseTranslation.isNotEmpty) {
-                    setState(() {
-                      _translatedText = question.vietnameseTranslation;
-                    });
+                  if (question.vietnameseTranslation != null && (question.vietnameseTranslation as String).isNotEmpty) {
+                    setState(() => _translatedText = question.vietnameseTranslation);
                   } else {
-                    setState(() {
-                      _isTranslating = true;
-                    });
+                    setState(() => _isTranslating = true);
                     try {
                       final translation = await _translator.translate(question.promptText, to: 'vi');
-                      setState(() {
-                        _translatedText = translation.text;
-                      });
-                    } catch (e) {
+                      setState(() => _translatedText = translation.text);
+                    } catch (_) {
                       _showErrorSnackBar('Dịch thất bại');
                     } finally {
-                      setState(() {
-                        _isTranslating = false;
-                      });
+                      setState(() => _isTranslating = false);
                     }
                   }
                 },
                 icon: const Icon(Icons.translate, color: AppColors.primary, size: 20),
                 label: Text(_translatedText == null ? 'Dịch' : 'Ẩn dịch', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
               ),
-
-            if (question.promptText != null && question.wordGuides?.isNotEmpty == true)
-              const SizedBox(width: 16),
-
+            if (question.wordGuides?.isNotEmpty == true) const SizedBox(width: 16),
             if (question.wordGuides?.isNotEmpty == true)
               TextButton.icon(
                 onPressed: () => _showWordGuidesBottomSheet(question.wordGuides),
