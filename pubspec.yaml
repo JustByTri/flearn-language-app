@@ -58,7 +58,7 @@ dependencies:
 
   intl: ^0.18.1
   google_fonts: ^6.1.0
-  translator: ^1.0.0 # <--- ADDED TRANSLATOR
+  translator: ^1.0.0
 
   signalr_netcore: ^1.4.4
 

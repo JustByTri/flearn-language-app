@@ -25,6 +25,9 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
 
   Future<void> _onAcceptPressed() async {
     if (widget.result.determinedLevel == 'Unassessed') {
+      if (!Get.isRegistered<LoginViewModel>()) {
+        Get.put(LoginViewModel(Get.find()));
+      }
       setupDI();
       Get.offAll(() => const NavigationMenu());
       return;
@@ -38,7 +41,9 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
 
     if (mounted) {
       if (success) {
-
+        if (!Get.isRegistered<LoginViewModel>()) {
+          Get.put(LoginViewModel(Get.find()));
+        }
         setupDI();
         Get.offAll(() => const NavigationMenu());
       } else {
