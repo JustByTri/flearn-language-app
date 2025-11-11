@@ -42,4 +42,5 @@ abstract class IAuthRepository {
   Future<RoadmapDetailsResponse> fetchRoadmapDetails(String learnerLanguageId);
 
   Future<Map<String, dynamic>?> purchaseSubscription(String planName);
+
 }

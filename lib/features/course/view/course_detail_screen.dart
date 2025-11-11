@@ -20,6 +20,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   String? _purchaseId;
   bool _isEnrolled = false;
   int _selectedTab = 0; // 0: Tổng quan, 1: Nội dung
+  String? _enrollmentId;
 
   @override
   void initState() {
@@ -77,9 +78,11 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
         amount: course.discountPrice ?? course.price,
       ));
       if (paid == true) {
-        final enrolled = await vm.enrollCourse(widget.courseId);
+        final enrollData = await vm.enrollCourse(widget.courseId); // nhận full data
+        final enrolled = enrollData != null;
         setState(() {
           _isEnrolled = enrolled;
+          _enrollmentId = enrollData?['enrollmentId'];
         });
         if (enrolled) {
           Get.snackbar('Thành công', 'Bạn đã đăng ký khóa học thành công!', backgroundColor: Colors.green, colorText: Colors.white);
@@ -678,7 +681,6 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-
             if (access == null || !access.hasAccess) ...[
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
@@ -693,52 +695,82 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                   ],
                 ),
               ),
-            ],
-            Row(
-              children: [
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _formatPrice(course.discountPrice ?? course.price),
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isEnrolled
-                        ? () {
-                      Get.to(() => CourseUnitScreen(
-                        courseId: course.courseId,
-                        courseTitle: course.title,
-                      ));
-                    }
-                        : () => _handleEnrollNow(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _isEnrolled ? 'Bắt đầu học' : 'Đăng ký ngay',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(_isEnrolled ? Icons.play_arrow : Icons.arrow_forward, size: 20),
-                      ],
+              Row(
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _formatPrice(course.discountPrice ?? course.price),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isEnrolled
+                          ? () {
+                        Get.to(() => CourseUnitScreen(
+                          courseId: course.courseId,
+                          courseTitle: course.title,
+                          enrollmentId: _enrollmentId, // NEW
+                        ));
+                      }
+                          : () => _handleEnrollNow(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _isEnrolled ? 'Bắt đầu học' : 'Đăng ký ngay',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(_isEnrolled ? Icons.play_arrow : Icons.arrow_forward, size: 20),
+                        ],
+                      ),
                     ),
                   ),
+                ],
+              ),
+            ] else ...[
+              // Đã mua: chỉ hiện nút "Bắt đầu học", không hiện giá
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Get.to(() => CourseUnitScreen(
+                      courseId: course.courseId,
+                      courseTitle: course.title,
+                      enrollmentId: _enrollmentId,
+                    ));
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Bắt đầu học', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.play_arrow, size: 20),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ],
         ),
       ),

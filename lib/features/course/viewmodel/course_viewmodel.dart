@@ -1,10 +1,14 @@
 import 'package:flearn_app/features/course/data/course_repository.dart';
 import 'package:flearn_app/features/course/model/course.dart';
 import 'package:get/get.dart';
+import '../../auth/model/course_popular.dart';
 import '../model/course_access.dart';
 import '../model/course_detail.dart';
+import '../model/course_exercise.dart';
 import '../model/course_lesson.dart';
 import '../model/course_unit.dart';
+import '../model/curriculum.dart';
+import '../model/lesson_tracking.dart';
 
 class CourseViewModel extends GetxController {
   final ICourseRepository _courseRepository;
@@ -144,12 +148,12 @@ class CourseViewModel extends GetxController {
     }
   }
 
-  Future<bool> enrollCourse(String courseId) async {
+  Future<Map<String, dynamic>?> enrollCourse(String courseId) async {
     try {
       return await _courseRepository.enrollCourse(courseId);
     } catch (e) {
-      print('CourseViewModel: enrollCourse error: $e');
-      return false;
+      print('enrollCourse error: $e');
+      return null;
     }
   }
 
@@ -171,6 +175,88 @@ class CourseViewModel extends GetxController {
     } catch (e) {
       print('fetchLessonById error: $e');
       return null;
+    }
+  }
+
+
+  var exercises = <Exercise>[].obs;
+  var isLoadingExercises = false.obs;
+
+  Future<void> fetchLessonExercises(String lessonId, {int page = 1, int pageSize = 10}) async {
+    isLoadingExercises.value = true;
+    try {
+      final result = await _courseRepository.getLessonExercises(lessonId, page: page, pageSize: pageSize);
+      exercises.assignAll(result);
+    } catch (e) {
+      exercises.clear();
+    } finally {
+      isLoadingExercises.value = false;
+    }
+  }
+
+  Future<void> trackLessonActivity({
+    required String lessonId,
+    required int logType,
+    required int durationMinutes,
+    required String metadata,
+  }) async {
+    try {
+      await _courseRepository.trackLessonActivity(
+        lessonId: lessonId,
+        logType: logType,
+        durationMinutes: durationMinutes,
+        metadata: metadata,
+      );
+    } catch (e) {
+      print('trackLessonActivity error: $e');
+    }
+  }
+
+  var isLoadingCurriculum = false.obs;
+  var curriculum = Rxn<Curriculum>();
+
+  Future<void> fetchCurriculum(String enrollmentId) async {
+    try {
+      isLoadingCurriculum.value = true;
+      final data = await _courseRepository.getEnrollmentCurriculum(enrollmentId);
+      curriculum.value = data;
+    } catch (e) {
+      print('fetchCurriculum error: $e');
+      curriculum.value = null;
+    } finally {
+      isLoadingCurriculum.value = false;
+    }
+  }
+
+  var currentLessonProgress = Rxn<LessonProgress>();
+
+  Future<LessonProgress?> startLesson({
+    required String unitId,
+    required String lessonId,
+  }) async {
+    try {
+      final p = await _courseRepository.startLesson(unitId: unitId, lessonId: lessonId);
+      currentLessonProgress.value = p;
+      return p;
+    } catch (e) {
+      print('startLesson error: $e');
+      return null;
+    }
+  }
+
+  var popularCourses = <CoursePopular>[].obs;
+  var isLoadingPopularCourses = false.obs;
+
+  Future<void> fetchPopularCourses({int count = 10}) async {
+    try {
+      isLoadingPopularCourses.value = true;
+      final list = await _courseRepository.getCoursePopular(count: count);
+      popularCourses.assignAll(list);
+    } catch (e) {
+      popularCourses.clear();
+      print('fetchPopularCourses error: $e');
+    } finally {
+      isLoadingPopularCourses.value = false;
     }
   }
 }

@@ -216,8 +216,18 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
       _isCompleting = true;
     });
 
-    final assessmentId = surveyViewModel.assessment.value?.assessmentId;
-    if (assessmentId == null) return;
+    // CHANGED: fallback sang widget.assessmentId nếu VM chưa có assessment
+    final assessmentId =
+        surveyViewModel.assessment.value?.assessmentId ?? widget.assessmentId;
+
+    if (assessmentId.isEmpty) {
+      // không thể complete nếu thiếu id
+      setState(() {
+        _isCompleting = false;
+      });
+      _showErrorSnackBar('Không thể lấy assessmentId để hoàn thành.');
+      return;
+    }
 
     final result = await surveyViewModel.completeAssessment(assessmentId);
     if (result != null && mounted) {
@@ -254,12 +264,15 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
         child: Obx(() {
           final assessment = surveyViewModel.assessment.value;
 
-          if (surveyViewModel.errorMessage.value == 'ASSESSMENT_COMPLETED') {
+
+          final err = surveyViewModel.errorMessage.value;
+          if (err == 'ASSESSMENT_COMPLETED' ||
+              (err != null && err.toLowerCase().contains('hoàn thành'))) {
             WidgetsBinding.instance.addPostFrameCallback((_) => _handleAssessmentCompletion());
             return const Center(child: CupertinoActivityIndicator());
           }
 
-          if (surveyViewModel.isLoadingCurrentQuestion.value || assessment == null) {
+          if (surveyViewModel.isLoadingCurrentQuestion.value) {
             return const Center(child: CircularProgressIndicator(color: AppColors.primary));
           }
 
@@ -274,10 +287,12 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
             return const Center(child: CupertinoActivityIndicator());
           }
 
-          double progress = ((question.questionNumber - 1) / assessment.totalQuestions).toDouble();
-          if (progress < 0) progress = 0;
+          double progress = 0;
+          final total = assessment?.totalQuestions;
+          if (total != null && total > 0) {
+            progress = ((question.questionNumber - 1) / total).clamp(0.0, 1.0);
+          }
 
-          // FIX: Column with proper Expanded outside animation; no Expanded inside FadeSlideAnimation
           return Column(
             children: [
               AnimatedProgressBar(progress: progress),

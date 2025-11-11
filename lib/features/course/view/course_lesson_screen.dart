@@ -4,7 +4,8 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/colors.dart';
 import '../model/course_lesson.dart';
-import '../../../shared/widgets/app_scaffold.dart';
+import '../viewmodel/course_viewmodel.dart';
+import 'course_exercise_screen.dart';
 
 class CourseLessonScreen extends StatefulWidget {
   final Lesson lesson;
@@ -15,31 +16,36 @@ class CourseLessonScreen extends StatefulWidget {
 }
 
 class _CourseLessonScreenState extends State<CourseLessonScreen> {
-  int _currentStep = 0; // 0: Content (HTML), 1: Video, 2: PDF
+  int _currentStep = 0;
+  final CourseViewModel courseViewModel = Get.find<CourseViewModel>();
+
+
+  final List<bool> _stepChecked = [false, false, false];
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor: Colors.white,
+        elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textLight),
-          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Get.back(),
         ),
         title: Text(
           widget.lesson.unitTitle,
           style: const TextStyle(
-            color: AppColors.textLight,
-            fontSize: 20,
+            color: AppColors.textPrimary,
+            fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
         ),
-        elevation: 0,
         centerTitle: true,
       ),
       body: Column(
         children: [
-          // Progress indicator
+
           _buildProgressIndicator(),
 
           // Content body
@@ -233,6 +239,19 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        Row(
+          children: [
+            Checkbox(
+              value: _stepChecked[0],
+              onChanged: (val) {
+                setState(() {
+                  _stepChecked[0] = val ?? false;
+                });
+              },
+            ),
+            const Text('Đã đọc nội dung bài học'),
+          ],
+        ),
       ],
     );
   }
@@ -283,6 +302,19 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
               ),
             ],
           ),
+        ),
+        Row(
+          children: [
+            Checkbox(
+              value: _stepChecked[1],
+              onChanged: (val) {
+                setState(() {
+                  _stepChecked[1] = val ?? false;
+                });
+              },
+            ),
+            const Text('Đã xem video bài học'),
+          ],
         ),
       ],
     );
@@ -379,6 +411,19 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
             ],
           ),
         ),
+        Row(
+          children: [
+            Checkbox(
+              value: _stepChecked[2],
+              onChanged: (val) {
+                setState(() {
+                  _stepChecked[2] = val ?? false;
+                });
+              },
+            ),
+            const Text('Đã xem tài liệu bài học'),
+          ],
+        ),
       ],
     );
   }
@@ -449,23 +494,55 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
               ),
             if (_currentStep > 0) const SizedBox(width: 12),
             Expanded(
-              flex: _currentStep == 0 ? 1 : 1,
+              flex: 1,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (_currentStep < 2) {
                     setState(() {
                       _currentStep++;
                     });
                   } else {
-                    // Hoàn thành bài học
+                    // Kiểm tra tất cả checkbox đã được check
+                    if (_stepChecked.any((checked) => !checked)) {
+                      Get.snackbar(
+                        'Thông báo',
+                        'Bạn cần hoàn thành tất cả các mục trước khi hoàn thành bài học!',
+                        snackPosition: SnackPosition.BOTTOM,
+                        backgroundColor: Colors.red,
+                        colorText: Colors.white,
+                      );
+                      return;
+                    }
+
+
+                    Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+                    for (int i = 0; i < 3; i++) {
+                      await courseViewModel.trackLessonActivity(
+                        lessonId: widget.lesson.lessonID,
+                        logType: i + 1,
+                        durationMinutes: 0,
+                        metadata: '',
+                      );
+                    }
                     Get.back();
-                    Get.snackbar(
-                      'Hoàn thành',
-                      'Bạn đã hoàn thành bài học ${widget.lesson.title}!',
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.green,
-                      colorText: Colors.white,
-                    );
+
+                    await courseViewModel.fetchLessonExercises(widget.lesson.lessonID);
+
+                    if (courseViewModel.exercises.isNotEmpty) {
+                      Get.to(() => LessonExerciseScreen(
+                        lessonId: widget.lesson.lessonID,
+                        lessonTitle: widget.lesson.title,
+                      ));
+                    } else {
+                      Get.back();
+                      Get.snackbar(
+                        'Hoàn thành',
+                        'Bạn đã hoàn thành bài học ${widget.lesson.title}!',
+                        snackPosition: SnackPosition.BOTTOM,
+                        backgroundColor: Colors.green,
+                        colorText: Colors.white,
+                      );
+                    }
                   }
                 },
                 style: ElevatedButton.styleFrom(

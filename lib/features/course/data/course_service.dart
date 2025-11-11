@@ -1,11 +1,16 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import '../../../config/api_config.dart';
+import '../../auth/model/course_popular.dart';
 import '../model/course.dart';
 import '../model/course_access.dart';
 import '../model/course_detail.dart';
+import '../model/course_exercise.dart';
 import '../model/course_unit.dart';
 import '../model/course_lesson.dart';
+import '../model/curriculum.dart';
+import '../model/lesson_tracking.dart';
 import 'course_repository.dart';
 import 'package:get_storage/get_storage.dart';
 
@@ -136,22 +141,66 @@ class CourseService implements ICourseRepository {
     final jsonBody = jsonDecode(res.body);
     return CourseDetail.fromJson(jsonBody['data']);
   }
-
-  Future<bool> enrollCourse(String courseId) async {
+  @override
+  Future<Map<String, dynamic>?> enrollCourse(String courseId) async {
     final url = Uri.parse('${ApiConfig.baseUrl}/enrollments');
     final accessToken = GetStorage().read('accessToken');
-    final headers = {
+    final res = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null && accessToken.toString().isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      },
+      body: jsonEncode({"courseId": courseId}),
+    );
+    if (res.statusCode == 200) {
+      final body = jsonDecode(res.body);
+      return body['data'] as Map<String, dynamic>?;
+    }
+    return null;
+  }
+
+  @override
+  Future<Curriculum> getEnrollmentCurriculum(String enrollmentId) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/enrollments/$enrollmentId/curriculums');
+    final res = await http.get(url, headers: {
       'Content-Type': 'application/json',
       if (accessToken != null && accessToken.toString().isNotEmpty)
         'Authorization': 'Bearer $accessToken',
-    };
-    final body = jsonEncode({"courseId": courseId});
-    final res = await http.post(url, headers: headers, body: body);
-    if (res.statusCode == 200) {
-      final jsonBody = jsonDecode(res.body);
-      return jsonBody['success'] == true;
+    });
+    if (res.statusCode != 200) {
+      throw Exception('getEnrollmentCurriculum failed ${res.statusCode}: ${res.body}');
     }
-    return false;
+    final jsonBody = jsonDecode(res.body);
+    return Curriculum.fromJson(jsonBody['data']);
+  }
+
+  @override
+  Future<LessonProgress> startLesson({
+    required String unitId,
+    required String lessonId,
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/progress-tracking/start-lesson');
+    final res = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null && accessToken.toString().isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      },
+      body: jsonEncode({
+        "unitId": unitId,
+        "lessonId": lessonId,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('startLesson failed ${res.statusCode}: ${res.body}');
+    }
+    final body = jsonDecode(res.body);
+    return LessonProgress.fromJson(body['data']);
   }
 
   Future<CourseAccess> getCourseAccess(String courseId) async {
@@ -178,6 +227,68 @@ class CourseService implements ICourseRepository {
       return Lesson.fromJson(jsonBody['data']);
     } else {
       throw Exception('getLessonById failed: ${response.body}');
+    }
+  }
+
+  @override
+  Future<List<Exercise>> getLessonExercises(String lessonId, {int page = 1, int pageSize = 10}) async {
+    final url = Uri.parse('https://f-learn.app/api/lessons/$lessonId/exercises?Page=$page&PageSize=$pageSize');
+    final response = await http.get(url, headers: {"Content-Type": "application/json"});
+    if (response.statusCode == 200) {
+      final jsonBody = jsonDecode(response.body);
+      final data = jsonBody['data'] as List<dynamic>? ?? [];
+      return data.map((item) => Exercise.fromJson(item)).toList();
+    } else {
+      return [];
+    }
+  }
+
+  @override
+  Future<void> trackLessonActivity({
+    required String lessonId,
+    required int logType,
+    required int durationMinutes,
+    required String metadata,
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final dio = Dio();
+    final response = await dio.post(
+      'https://f-learn.app/api/progress-tracking/track-activity',
+      data: {
+        "lessonId": lessonId,
+        "logType": logType,
+        "durationMinutes": durationMinutes,
+        "metadata": metadata,
+      },
+      options: Options(
+        headers: {
+          "Authorization": "Bearer $accessToken",
+          "Content-Type": "application/json",
+        },
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Track activity failed: ${response.data}');
+    }
+  }
+
+  @override
+  Future<List<CoursePopular>> getCoursePopular({int count = 10}) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/courses/popular?count=$count');
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $accessToken",
+      },
+    );
+    if (response.statusCode == 200) {
+      final jsonBody = jsonDecode(response.body);
+      final data = jsonBody['data'] as List<dynamic>? ?? [];
+      return data.map((item) => CoursePopular.fromJson(item)).toList();
+    } else {
+      throw Exception('getCoursePopular failed: ${response.body}');
     }
   }
 

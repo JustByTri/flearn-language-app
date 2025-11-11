@@ -56,6 +56,7 @@ dependencies:
   country_flags: ^2.1.0
   webview_flutter: ^4.2.2
 
+
   intl: ^0.18.1
   google_fonts: ^6.1.0
   translator: ^1.0.0

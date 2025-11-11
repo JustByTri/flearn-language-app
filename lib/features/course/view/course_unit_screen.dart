@@ -3,13 +3,15 @@ import 'package:get/get.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/fadeSlideAnimation.dart';
 import '../model/course_unit.dart';
+import '../model/curriculum.dart';
 import '../viewmodel/course_viewmodel.dart';
 import 'course_lesson_screen.dart';
 
 class CourseUnitScreen extends StatefulWidget {
   final String courseId;
   final String courseTitle;
-  const CourseUnitScreen({super.key, required this.courseId, required this.courseTitle});
+  final String? enrollmentId; // NEW
+  const CourseUnitScreen({super.key, required this.courseId, required this.courseTitle, this.enrollmentId});
 
   @override
   State<CourseUnitScreen> createState() => _CourseUnitScreenState();
@@ -18,12 +20,29 @@ class CourseUnitScreen extends StatefulWidget {
 class _CourseUnitScreenState extends State<CourseUnitScreen> {
   late final CourseViewModel courseViewModel;
   final Set<String> _expandedUnits = {};
+  final Map<String, List<dynamic>> _unitLessons = {};
+  final Map<String, bool> _unitLoading = {};
 
   @override
   void initState() {
     super.initState();
     courseViewModel = Get.find<CourseViewModel>();
-    courseViewModel.fetchCourseUnits(widget.courseId);
+    if (widget.enrollmentId != null && widget.enrollmentId!.isNotEmpty) {
+      courseViewModel.fetchCurriculum(widget.enrollmentId!);
+    } else {
+      courseViewModel.fetchCourseUnits(widget.courseId);
+    }
+  }
+
+  Future<void> _fetchLessonsForUnit(String unitId) async {
+    setState(() {
+      _unitLoading[unitId] = true;
+    });
+    await courseViewModel.fetchCourseLessons(unitId);
+    setState(() {
+      _unitLessons[unitId] = courseViewModel.lessons.toList();
+      _unitLoading[unitId] = false;
+    });
   }
 
   void _toggleUnit(String unitId) {
@@ -32,8 +51,9 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
         _expandedUnits.remove(unitId);
       } else {
         _expandedUnits.add(unitId);
-        // Fetch lessons when expanding
-        courseViewModel.fetchCourseLessons(unitId);
+        if (!_unitLessons.containsKey(unitId)) {
+          _fetchLessonsForUnit(unitId);
+        }
       }
     });
   }
@@ -60,22 +80,43 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
         centerTitle: true,
       ),
       body: Obx(() {
+        final useCurriculum = widget.enrollmentId != null && widget.enrollmentId!.isNotEmpty;
+        if (useCurriculum) {
+          if (courseViewModel.isLoadingCurriculum.value) {
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          }
+          final data = courseViewModel.curriculum.value;
+          if (data == null) return _buildEmptyState();
+          final units = data.units;
+          if (units.isEmpty) return _buildEmptyState();
+          return FadeSlideAnimation(
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: units.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, i) {
+                final u = units[i];
+                final expanded = _expandedUnits.contains(u.unitId);
+                return _buildCurriculumUnitCard(u, expanded);
+              },
+            ),
+          );
+        }
+        // fallback cũ
         if (courseViewModel.isLoadingUnit.value) {
           return const Center(child: CircularProgressIndicator(color: AppColors.primary));
         }
         final units = courseViewModel.units;
-        if (units.isEmpty) {
-          return _buildEmptyState();
-        }
+        if (units.isEmpty) return _buildEmptyState();
         return FadeSlideAnimation(
           child: ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: units.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final unit = units[index];
-              final isExpanded = _expandedUnits.contains(unit.courseUnitID);
-              return _buildUnitCard(unit, index, isExpanded);
+            itemBuilder: (context, i) {
+              final unit = units[i];
+              final expanded = _expandedUnits.contains(unit.courseUnitID);
+              return _buildUnitCard(unit, i, expanded);
             },
           ),
         );
@@ -162,24 +203,27 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
           ),
           if (isExpanded) ...[
             const Divider(height: 1),
-            Obx(() {
-              if (courseViewModel.isLoadingLesson.value) {
-                return const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+            Builder(
+              builder: (context) {
+                final loading = _unitLoading[unit.courseUnitID] ?? false;
+                final lessons = _unitLessons[unit.courseUnitID] ?? [];
+                if (loading) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                  );
+                }
+                if (lessons.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text('Chưa có bài học nào', style: TextStyle(color: Colors.grey.shade600)),
+                  );
+                }
+                return Column(
+                  children: lessons.map((lesson) => _buildLessonTile(lesson)).toList(),
                 );
-              }
-              final lessons = courseViewModel.lessons;
-              if (lessons.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text('Chưa có bài học nào', style: TextStyle(color: Colors.grey.shade600)),
-                );
-              }
-              return Column(
-                children: lessons.map((lesson) => _buildLessonTile(lesson)).toList(),
-              );
-            }),
+              },
+            ),
           ],
         ],
       ),
@@ -234,6 +278,201 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
               child: const Text(
                 'Bắt đầu',
                 style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'completed': return Colors.green;
+      case 'inprogress':
+      case 'in_progress': return AppColors.primary;
+      default: return Colors.grey;
+    }
+  }
+
+  Widget _buildCurriculumUnitCard(CurriculumUnit unit, bool isExpanded) {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                isExpanded
+                    ? _expandedUnits.remove(unit.unitId)
+                    : _expandedUnits.add(unit.unitId);
+              });
+            },
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text('${unit.order}',
+                          style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(unit.title,
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary)),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: (unit.progressPercent.clamp(0, 100)) / 100,
+                            minHeight: 8,
+                            backgroundColor: Colors.grey.shade200,
+                            valueColor: AlwaysStoppedAnimation(
+                              unit.progressPercent >= 100
+                                  ? Colors.green
+                                  : AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _statusColor(unit.status).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                unit.status,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _statusColor(unit.status),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text('${unit.progressPercent}%',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded) ...[
+            const Divider(height: 1),
+            Column(
+              children: unit.lessons
+                  .map((l) => _buildCurriculumLessonTile(l))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCurriculumLessonTile(CurriculumLesson lesson) {
+    return InkWell(
+      onTap: () async {
+        final vm = Get.find<CourseViewModel>();
+        final detail = await vm.fetchLessonById(lesson.lessonId);
+        if (detail != null) {
+          Get.to(() => CourseLessonScreen(lesson: detail));
+        } else {
+          Get.snackbar('Lỗi', 'Không thể tải bài học');
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: Colors.grey.shade100)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.play_circle_outline, color: AppColors.primary, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(lesson.title,
+                      style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: (lesson.progressPercent.clamp(0, 100)) / 100,
+                      minHeight: 6,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation(
+                        lesson.progressPercent >= 100
+                            ? Colors.green
+                            : AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _statusColor(lesson.status).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                lesson.status,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _statusColor(lesson.status),
+                ),
               ),
             ),
           ],
