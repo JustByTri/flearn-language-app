@@ -60,6 +60,7 @@ dependencies:
   intl: ^0.18.1
   google_fonts: ^6.1.0
   translator: ^1.0.0
+  flutter_tts: ^4.2.0
 
   signalr_netcore: ^1.4.4
 

@@ -7,7 +7,13 @@
         <option name="testRunner" value="CHOOSE_PER_TEST" />
         <option name="externalProjectPath" value="$PROJECT_DIR$/android" />
         <option name="gradleJvm" value="jbr-21" />
-        <option name="resolveExternalAnnotations" value="false" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/android" />
+            <option value="$PROJECT_DIR$/android/app" />
+            <option value="E:/Development/flutter/packages/flutter_tools/gradle" />
+          </set>
+        </option>
       </GradleProjectSettings>
     </option>
   </component>
