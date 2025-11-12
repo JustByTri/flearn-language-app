@@ -17,11 +17,11 @@ class ConfirmContextScreen extends StatefulWidget {
   State<ConfirmContextScreen> createState() => _ConfirmContextScreenState();
 }
 
-class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
+class _ConfirmContextScreenState extends State<ConfirmContextScreen> with WidgetsBindingObserver {
   String? _selectedLevel;
   bool _isLoading = false;
   int? _dailyLimit;
-  int? _remainingToday;
+  int? _conversationsUsedToday; // Thêm biến này
   bool _isCheckingUsage = true;
 
   List<LanguageLevel> _getAvailableLevels() {
@@ -32,6 +32,7 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // Thêm dòng này
     final topicViewModel = Get.find<TopicViewModel>();
     final langId = GetStorage().read('user')?['languageId'];
     if (langId != null) {
@@ -47,6 +48,25 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
     _fetchConversationUsage();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _fetchConversationUsage();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _fetchConversationUsage();
+  }
+
   Future<void> _fetchConversationUsage() async {
     setState(() => _isCheckingUsage = true);
     try {
@@ -55,7 +75,7 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
       final usage = topicViewModel.conversationUsage.value;
       setState(() {
         _dailyLimit = usage?['dailyLimit'];
-        _remainingToday = usage?['remainingToday'];
+        _conversationsUsedToday = usage?['conversationsUsedToday'];
         _isCheckingUsage = false;
       });
     } catch (e) {
@@ -64,6 +84,14 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
   }
 
   Future<void> _startConversation() async {
+    Get.snackbar(
+      "Thông báo",
+      "Bạn đã dùng 1 lượt luyện tập.",
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: Colors.blue,
+      colorText: Colors.white,
+    );
+
     final levels = _getAvailableLevels();
     if (_selectedLevel == null && levels.isNotEmpty) {
       _selectedLevel = levels.first.levelName;
@@ -92,6 +120,8 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
         topicId: widget.topic.topicId,
         difficultyLevel: _selectedLevel!,
       );
+
+      await _fetchConversationUsage();
 
       if (!mounted) return;
 
@@ -170,11 +200,11 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
 
                 if (_isCheckingUsage)
                   const Center(child: CupertinoActivityIndicator())
-                else if (_dailyLimit != null && _remainingToday != null)
+                else if (_dailyLimit != null && _conversationsUsedToday != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
-                      'Lượt luyện tập còn lại hôm nay: $_remainingToday / $_dailyLimit',
+                      'Lượt luyện tập hôm nay: ${_dailyLimit! - _conversationsUsedToday!} / ${_dailyLimit}',
                       style: const TextStyle(
                         fontSize: 16,
                         color: AppColors.primary,
@@ -341,6 +371,9 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
   }
 
   Widget _buildStartButton() {
+    final isQuotaExceeded = (_dailyLimit != null && _conversationsUsedToday != null)
+        ? _conversationsUsedToday! >= _dailyLimit!
+        : false;
 
     if (_isLoading) {
       return SizedBox(
@@ -357,8 +390,7 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
       );
     }
 
-
-    if ((_remainingToday ?? 0) <= 0) {
+    if (isQuotaExceeded) {
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton(
@@ -391,11 +423,17 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
       );
     }
 
-
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _startConversation,
+        onPressed: _isLoading
+            ? null
+            : () async {
+          setState(() => _isLoading = true); // Bắt đầu loading
+          await _startConversation();
+          // Không cần hiện snackbar ở đây vì đã hiện trong _startConversation
+          // Loading sẽ tự tắt khi chuyển trang hoặc khi có lỗi
+        },
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -403,7 +441,9 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> {
           elevation: 5,
           shadowColor: AppColors.primary.withOpacity(0.4),
         ),
-        child: const Text(
+        child: _isLoading
+            ? const CupertinoActivityIndicator(color: Colors.white)
+            : const Text(
           "Bắt đầu luyện tập",
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
         ),
