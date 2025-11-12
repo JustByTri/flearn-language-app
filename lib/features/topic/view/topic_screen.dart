@@ -14,7 +14,7 @@ class TopicScreen extends StatefulWidget {
   State<TopicScreen> createState() => _TopicScreenState();
 }
 
-class _TopicScreenState extends State<TopicScreen> {
+class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
   final topicViewModel = Get.put(TopicViewModel(Get.find()));
 
   @override
@@ -23,6 +23,22 @@ class _TopicScreenState extends State<TopicScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       topicViewModel.fetchTopics();
     });
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Gọi lại API để cập nhật số lượt luyện tập
+      final topicViewModel = Get.find<TopicViewModel>();
+      topicViewModel.fetchConversationUsage();
+    }
   }
 
   // Scale responsive
@@ -104,11 +120,13 @@ class _TopicScreenState extends State<TopicScreen> {
 
   Widget _buildTopicCard(TopicModel topic, int index, Function(double) scale) {
     return GestureDetector(
-      onTap: () {
-        Get.to(
+      onTap: () async {
+        await Get.to(
               () => ConfirmContextScreen(topic: topic),
           transition: Transition.cupertino,
         );
+        // Khi quay lại từ ConfirmContextScreen, cập nhật lại số lượt luyện tập
+        topicViewModel.fetchConversationUsage();
       },
       child: Container(
         decoration: BoxDecoration(

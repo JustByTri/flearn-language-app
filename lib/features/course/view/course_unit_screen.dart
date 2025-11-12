@@ -10,7 +10,7 @@ import 'course_lesson_screen.dart';
 class CourseUnitScreen extends StatefulWidget {
   final String courseId;
   final String courseTitle;
-  final String? enrollmentId; // NEW
+  final String? enrollmentId;
   const CourseUnitScreen({super.key, required this.courseId, required this.courseTitle, this.enrollmentId});
 
   @override
@@ -288,10 +288,13 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'completed': return Colors.green;
+      case 'completed':
+        return Colors.green;
       case 'inprogress':
-      case 'in_progress': return AppColors.primary;
-      default: return Colors.grey;
+      case 'in_progress':
+        return AppColors.primary;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -308,9 +311,7 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
           InkWell(
             onTap: () {
               setState(() {
-                isExpanded
-                    ? _expandedUnits.remove(unit.unitId)
-                    : _expandedUnits.add(unit.unitId);
+                isExpanded ? _expandedUnits.remove(unit.unitId) : _expandedUnits.add(unit.unitId);
               });
             },
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
@@ -326,11 +327,14 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Center(
-                      child: Text('${unit.order}',
-                          style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16)),
+                      child: Text(
+                        '${unit.order}',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -338,11 +342,10 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(unit.title,
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary)),
+                        Text(
+                          unit.title,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                        ),
                         const SizedBox(height: 8),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
@@ -351,9 +354,7 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
                             minHeight: 8,
                             backgroundColor: Colors.grey.shade200,
                             valueColor: AlwaysStoppedAnimation(
-                              unit.progressPercent >= 100
-                                  ? Colors.green
-                                  : AppColors.primary,
+                              unit.progressPercent >= 100 ? Colors.green : AppColors.primary,
                             ),
                           ),
                         ),
@@ -376,10 +377,10 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text('${unit.progressPercent}%',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade600)),
+                            Text(
+                              '${unit.progressPercent.toInt()}%',
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                            ),
                           ],
                         ),
                       ],
@@ -396,9 +397,7 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
           if (isExpanded) ...[
             const Divider(height: 1),
             Column(
-              children: unit.lessons
-                  .map((l) => _buildCurriculumLessonTile(l))
-                  .toList(),
+              children: unit.lessons.map((l) => _buildCurriculumLessonTile(l)).toList(),
             ),
           ],
         ],
@@ -438,10 +437,12 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(lesson.title,
-                      style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    lesson.title,
+                    style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
@@ -450,9 +451,7 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
                       minHeight: 6,
                       backgroundColor: Colors.grey.shade200,
                       valueColor: AlwaysStoppedAnimation(
-                        lesson.progressPercent >= 100
-                            ? Colors.green
-                            : AppColors.primary,
+                        lesson.progressPercent >= 100 ? Colors.green : AppColors.primary,
                       ),
                     ),
                   ),

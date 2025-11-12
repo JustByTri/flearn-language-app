@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:get/get.dart';
 
-import '../model/course.dart';
-import '../viewmodel/course_viewmodel.dart';
-import 'course_detail_screen.dart';
+import '../../course_progress/viewmodel/course_progress_viewmodel.dart';
+import '../../course_progress/model/course_progress.dart';
 import 'course_unit_screen.dart';
 
 class CourseScreen extends StatefulWidget {
@@ -17,71 +16,14 @@ class CourseScreen extends StatefulWidget {
 }
 
 class _CourseScreenState extends State<CourseScreen> {
-  final CourseViewModel courseViewModel = Get.find<CourseViewModel>();
-  late final ScrollController _scrollController;
-  bool _localLoading = false;
+  final CourseProgressViewModel courseProgressViewModel = Get.find<CourseProgressViewModel>();
 
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController()..addListener(_scrollListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      courseViewModel.fetchMoreCourses(isRefresh: true);
+      courseProgressViewModel.fetchMyCourses();
     });
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_scrollListener);
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _scrollListener() {
-    if (!mounted) return;
-    final maxScroll = _scrollController.position.maxScrollExtent;
-    final currentScroll = _scrollController.position.pixels;
-    final threshold = MediaQuery.of(context).size.height * 0.2;
-
-    if (currentScroll > maxScroll - threshold) {
-      if (courseViewModel.hasMoreCourses.value &&
-          !courseViewModel.isLoadingCourse.value &&
-          !_localLoading) {
-        _startFetchMore();
-      }
-    }
-  }
-
-  Future<void> _startFetchMore() async {
-    if (!mounted || _localLoading || courseViewModel.isLoadingCourse.value) return;
-    setState(() => _localLoading = true);
-    await Future.delayed(const Duration(milliseconds: 500));
-    try {
-      await courseViewModel.fetchMoreCourses();
-    } catch (e) {
-      debugPrint('Error: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _localLoading = false);
-      }
-    }
-  }
-
-  String _formatPrice(int price) {
-    if (price >= 1000000) {
-      double millions = price / 1000000;
-      if (millions % 1 == 0) {
-        return '${millions.toInt()}tr';
-      }
-      return '${millions.toStringAsFixed(1)}tr';
-    } else if (price >= 1000) {
-      double thousands = price / 1000;
-      if (thousands % 1 == 0) {
-        return '${thousands.toInt()}k';
-      }
-      return '${thousands.toStringAsFixed(1)}k';
-    }
-    return '${price}đ';
   }
 
   @override
@@ -97,7 +39,7 @@ class _CourseScreenState extends State<CourseScreen> {
           onPressed: () => Get.back(),
         ),
         title: const Text(
-          'Các khóa học',
+          'Khóa học của tôi',
           style: TextStyle(
             color: Color(0xFF1A1A1A),
             fontWeight: FontWeight.w600,
@@ -105,88 +47,44 @@ class _CourseScreenState extends State<CourseScreen> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          // Search bar
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: widget.topic ?? 'Programming',
-                  hintStyle: const TextStyle(color: Color(0xFFBBBBBB), fontSize: 15),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFFBBBBBB), size: 20),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-              ),
-            ),
+      body: Obx(() {
+        if (courseProgressViewModel.isLoading.value) {
+          return const Center(
+            child: CupertinoActivityIndicator(radius: 15, color: AppColors.primary),
+          );
+        }
+
+        if (courseProgressViewModel.courses.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            await courseProgressViewModel.fetchMyCourses();
+          },
+          color: AppColors.primary,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: courseProgressViewModel.courses.length,
+            itemBuilder: (context, index) {
+              final course = courseProgressViewModel.courses[index];
+              return _buildCourseCard(course);
+            },
           ),
-          // Course list
-          Expanded(
-            child: Obx(() {
-              if (courseViewModel.isLoadingCourse.value && courseViewModel.courses.isEmpty) {
-                return const Center(
-                  child: CupertinoActivityIndicator(radius: 15, color: AppColors.primary),
-                );
-              }
-
-              final List<Course> filteredCourses = (widget.topic != null && widget.topic!.isNotEmpty)
-                  ? courseViewModel.courses.where((c) => c.topics.any((t) => t.topicName.contains(widget.topic!))).toList()
-                  : courseViewModel.courses.toList();
-
-              if (filteredCourses.isEmpty) {
-                return _buildEmptyState();
-              }
-
-              return RefreshIndicator(
-                onRefresh: () async {
-                  _localLoading = false;
-                  await courseViewModel.fetchMoreCourses(isRefresh: true);
-                },
-                color: AppColors.primary,
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: filteredCourses.length +
-                      (courseViewModel.isLoadingCourse.value || _localLoading ? 1 : 0) +
-                      (!courseViewModel.isLoadingCourse.value && !courseViewModel.hasMoreCourses.value ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index >= filteredCourses.length) {
-                      if (courseViewModel.isLoadingCourse.value || _localLoading) {
-                        return _buildInlineLoading();
-                      }
-                      if (!courseViewModel.hasMoreCourses.value) {
-                        return _buildEndOfList();
-                      }
-                      return const SizedBox.shrink();
-                    }
-
-                    final course = filteredCourses[index];
-                    return _buildCourseCard(course);
-                  },
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
+        );
+      }),
     );
   }
 
-  Widget _buildCourseCard(Course course) {
+  Widget _buildCourseCard(CourseProgress course) {
     return GestureDetector(
-      onTap: () async {
-        final vm = Get.find<CourseViewModel>();
-        await vm.fetchCourseDetail(course.courseID);
-        Get.to(() => CourseDetailScreen(courseId: course.courseID));
+      onTap: () {
+        Get.to(() => CourseUnitScreen(
+          courseId: course.courseId,
+          courseTitle: course.courseTitle,
+          enrollmentId: course.enrollmentId,
+        ));
       },
       child: Card(
         margin: const EdgeInsets.only(bottom: 12),
@@ -216,7 +114,7 @@ class _CourseScreenState extends State<CourseScreen> {
                   children: [
                     // Title
                     Text(
-                      course.title,
+                      course.courseTitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -228,42 +126,38 @@ class _CourseScreenState extends State<CourseScreen> {
                     ),
                     const SizedBox(height: 6),
 
-                    // Teacher + rating
-                    Row(
-                      children: [
-                        if (course.teacher != null) ...[
-                          Flexible(
-                            child: Text(
-                              course.teacher!.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                        ],
-                        const Icon(Icons.star, size: 14, color: Color(0xFFFFB800)),
-                        const SizedBox(width: 3),
-                        Text(
-                          course.averageRating.toStringAsFixed(1),
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(width: 8),
-                        Text('${course.learnerCount}+', style: const TextStyle(fontSize: 12, color: Color(0xFF888888))),
-                      ],
+                    // Teacher
+                    Text(
+                      course.teacherName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
                     ),
 
                     const SizedBox(height: 6),
 
-                    // Small chips: level / lessons / days
+                    // Progress bar
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: course.progressPercent / 100,
+                        minHeight: 6,
+                        backgroundColor: Colors.grey.shade200,
+                        valueColor: AlwaysStoppedAnimation(
+                          course.progressPercent >= 100 ? Colors.green : AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+
+
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
                       children: [
-                        if (course.program?.level?.name != null && course.program!.level!.name.isNotEmpty)
-                          _buildTag(course.program!.level!.name),
-                        _buildTag('${course.numLessons} lessons'),
-                        _buildTag('${course.durationDays} days'),
+                        _buildTag(course.level),
+                        _buildTag('${course.completedLessons}/${course.totalLessons} bài'),
+                        _buildTag(course.status),
                       ],
                     ),
                   ],
@@ -272,29 +166,26 @@ class _CourseScreenState extends State<CourseScreen> {
 
               const SizedBox(width: 8),
 
-              // Price
+              // Progress percent
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    _formatPrice(course.discountPrice ?? course.price),
+                    '${course.progressPercent}%',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: AppColors.primary,
                     ),
                   ),
-                  if (course.discountPrice != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      _formatPrice(course.price),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFFAAAAAA),
-                        decoration: TextDecoration.lineThrough,
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    course.language,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF888888),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ],
@@ -323,116 +214,50 @@ class _CourseScreenState extends State<CourseScreen> {
     );
   }
 
-  Widget _buildAvatarStack() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: 52,
-          height: 24,
-          child: Stack(
-            children: [
-              Positioned(left: 0, child: _buildAvatar(0)),
-              Positioned(left: 18, child: _buildAvatar(1)),
-              Positioned(left: 36, child: _buildAvatar(2)),
-            ],
-          ),
-        ),
-        const SizedBox(width: 6),
-        const Text(
-          '1k+ Enrolled',
-          style: TextStyle(fontSize: 11, color: Color(0xFF999999)),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAvatar(int index) {
-    return Container(
-      width: 24,
-      height: 24,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.grey.shade300,
-        border: Border.all(color: Colors.white, width: 2),
-      ),
-      child: ClipOval(
-        child: Icon(Icons.person, size: 14, color: Colors.grey.shade500),
-      ),
-    );
-  }
-
-  Widget _buildCourseImage(Course course) {
-    if (course.imageUrl.isEmpty) {
+  Widget _buildCourseImage(CourseProgress course) {
+    if (course.courseImage.isEmpty) {
       return Container(
         width: double.infinity,
-        height: 180,
+        height: 80,
         decoration: const BoxDecoration(
           color: Color(0xFFF5F5F5),
         ),
-        child: Icon(Icons.image, color: Colors.grey.shade400, size: 60),
+        child: Icon(Icons.image, color: Colors.grey.shade400, size: 40),
       );
     }
 
     return Image.network(
-      course.imageUrl,
+      course.courseImage,
       width: double.infinity,
-      height: 180,
+      height: 80,
       fit: BoxFit.cover,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;
         return Container(
           width: double.infinity,
-          height: 180,
+          height: 80,
           decoration: const BoxDecoration(
             color: Color(0xFFF5F5F5),
           ),
-          child: const Center(child: CupertinoActivityIndicator(radius: 15)),
+          child: const Center(child: CupertinoActivityIndicator(radius: 12)),
         );
       },
       errorBuilder: (context, error, stackTrace) {
         return Container(
           width: double.infinity,
-          height: 180,
+          height: 80,
           decoration: const BoxDecoration(
             color: Color(0xFFF5F5F5),
           ),
-          child: Icon(Icons.broken_image, color: Colors.grey.shade400, size: 60),
+          child: Icon(Icons.broken_image, color: Colors.grey.shade400, size: 40),
         );
       },
     );
   }
 
-  Widget _buildInlineLoading() {
-    return Padding(
-      padding: EdgeInsets.only(
-        top: 20,
-        bottom: 100 + MediaQuery.of(context).padding.bottom,
-      ),
-      child: const Center(
-        child: CupertinoActivityIndicator(radius: 14),
-      ),
-    );
-  }
-
-  Widget _buildEndOfList() {
-    return Padding(
-      padding: EdgeInsets.only(
-        top: 24,
-        bottom: 100 + MediaQuery.of(context).padding.bottom,
-      ),
-      child: const Center(
-        child: Text(
-          'Bạn đã xem hết tất cả các khóa học',
-          style: TextStyle(color: Color(0xFF999999), fontSize: 14),
-        ),
-      ),
-    );
-  }
-
   Widget _buildEmptyState() {
     return RefreshIndicator(
-      onRefresh: () => courseViewModel.fetchPage(1),
+      onRefresh: () => courseProgressViewModel.fetchMyCourses(),
       child: Center(
         child: ListView(
           shrinkWrap: true,
@@ -442,13 +267,13 @@ class _CourseScreenState extends State<CourseScreen> {
             Icon(CupertinoIcons.book, size: 80, color: Colors.grey.shade300),
             const SizedBox(height: 24),
             const Text(
-              'Không có khóa học nào',
+              'Bạn chưa có khóa học nào',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Chúng tôi sẽ sớm cập nhật thêm các khóa học mới.',
+              'Hãy đăng ký khóa học để bắt đầu học tập.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, color: Color(0xFF666666)),
             ),
