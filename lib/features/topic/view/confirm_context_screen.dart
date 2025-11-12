@@ -23,6 +23,8 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
   int? _dailyLimit;
   int? _conversationsUsedToday; // Thêm biến này
   bool _isCheckingUsage = true;
+  bool _isConfirmDialogOpen = false;
+  bool _isCancelled = false; // Thêm biến này
 
   List<LanguageLevel> _getAvailableLevels() {
     final topicViewModel = Get.find<TopicViewModel>();
@@ -126,13 +128,16 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
       if (!mounted) return;
 
       if (conversationData != null) {
-        Get.off(
-              () => ChatScreen(
-            topic: widget.topic,
-            conversationData: conversationData,
-          ),
-          transition: Transition.cupertino,
-        );
+        // CHỈ chuyển trang nếu popup không mở và chưa cancel
+        if (!_isConfirmDialogOpen && !_isCancelled) {
+          Get.off(
+                () => ChatScreen(
+              topic: widget.topic,
+              conversationData: conversationData,
+            ),
+            transition: Transition.cupertino,
+          );
+        }
       } else {
         throw Exception('Không thể bắt đầu cuộc trò chuyện.');
       }
@@ -151,20 +156,53 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset('assets/images/animationAI2.gif', width: 180),
-              const SizedBox(height: 30),
-              Text(
-                'Đợi chút nhé, tớ đang suy nghĩ...\nKịch bản sắp được tạo cho bạn trong giây lát.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: AppColors.textPrimary, height: 1.5), // <--- SỬA MÀU CHỮ
-              ),
-            ],
+      return WillPopScope(
+        onWillPop: () async {
+          _isConfirmDialogOpen = true;
+          final shouldExit = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Xác nhận'),
+              content: const Text('Bạn có chắc muốn thoát không?'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    _isConfirmDialogOpen = false;
+                    Navigator.of(context).pop(false);
+                  },
+                  child: const Text('Không'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    _isConfirmDialogOpen = false;
+                    _isCancelled = true; // Đánh dấu đã cancel
+                    Navigator.of(context).pop(true);
+                  },
+                  child: const Text('Có'),
+                ),
+              ],
+            ),
+          );
+          if (shouldExit == true) {
+            Get.back();
+          }
+          return false;
+        },
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset('assets/images/animationAI2.gif', width: 180),
+                const SizedBox(height: 30),
+                Text(
+                  'Đợi chút nhé, tớ đang suy nghĩ...\nKịch bản sắp được tạo cho bạn trong giây lát.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: AppColors.textPrimary, height: 1.5),
+                ),
+              ],
+            ),
           ),
         ),
       );
