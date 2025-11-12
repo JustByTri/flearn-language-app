@@ -14,6 +14,7 @@ import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:translator/translator.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 import '../../../core/constants/colors.dart';
 import '../../topic/model/topic.dart';
@@ -43,6 +44,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _audioPlayer = AudioPlayer();
   final _topicViewModel = Get.find<TopicViewModel>();
   final FocusNode _textFocusNode = FocusNode();
+  final FlutterTts _flutterTts = FlutterTts();
 
   bool _isRecording = false;
   bool _isTyping = false;
@@ -80,10 +82,137 @@ class _ChatScreenState extends State<ChatScreen> {
 
   StreamSubscription<Map<String, dynamic>>? _aiSub;
 
+  // Thêm trạng thái hiển thị transcript inline cho từng message voice. Khi nhấn icon, transcript sẽ hiện/ẩn ngay dưới voice bubble, không hiện pop-up.
+  Map<int, bool> _showTranscript = {};
+  Map<int, String?> _translatedVoice = {};
+
+  bool _isSendingVoice = false; // Thêm biến trạng thái gửi voice
+
+  // TTS state
+  int? _speakingMessageIndex;
+  bool _isTtsInitialized = false;
+
+  // Auto speak flags
+  bool _autoSpeakOnStart = true; // bật/tắt tự đọc khi bắt đầu chat
+  bool _hasAutoSpokenInitial = false; // đảm bảo chỉ đọc 1 lần
+
   @override
   void initState() {
     super.initState();
     _initializeChat();
+    _initializeTts();
+  }
+
+  Future<void> _initializeTts() async {
+    try {
+      // Thử khởi tạo TTS với timeout
+      await _flutterTts.setLanguage("en-US").timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          throw Exception('TTS initialization timeout');
+        },
+      );
+
+      await _flutterTts.setSpeechRate(0.5); // Tốc độ đọc (0.0 - 1.0)
+      await _flutterTts.setVolume(1.0); // Âm lượng (0.0 - 1.0)
+      await _flutterTts.setPitch(1.0); // Cao độ giọng nói
+
+      _flutterTts.setCompletionHandler(() {
+        if (mounted) {
+          setState(() {
+            _speakingMessageIndex = null;
+          });
+        }
+      });
+
+      _flutterTts.setErrorHandler((msg) {
+        print('[TTS] Error: $msg');
+        if (mounted) {
+          setState(() {
+            _speakingMessageIndex = null;
+          });
+        }
+      });
+
+      if (mounted) {
+        setState(() {
+          _isTtsInitialized = true;
+        });
+      }
+      print('[TTS] Initialized successfully');
+    } catch (e) {
+      print('[TTS] Initialization error: $e');
+      if (mounted) {
+        setState(() {
+          _isTtsInitialized = false;
+        });
+      }
+      // Không hiển thị snackbar ở đây, sẽ hiển thị khi user thực sự muốn dùng
+    }
+  }
+
+  Future<void> _speakText(String text, int messageIndex) async {
+    // Thử khởi tạo lại nếu chưa sẵn sàng
+    if (!_isTtsInitialized) {
+      print('[TTS] Not initialized, attempting to initialize...');
+      await _initializeTts();
+
+      if (!_isTtsInitialized) {
+        Get.snackbar('Lỗi', 'Không thể khởi tạo Text-to-Speech. Vui lòng thử lại.');
+        return;
+      }
+    }
+
+    // Nếu đang đọc message này, dừng lại
+    if (_speakingMessageIndex == messageIndex) {
+      await _flutterTts.stop();
+      setState(() {
+        _speakingMessageIndex = null;
+      });
+      return;
+    }
+
+    // Nếu đang đọc message khác, dừng trước khi đọc message mới
+    if (_speakingMessageIndex != null) {
+      await _flutterTts.stop();
+    }
+
+    setState(() {
+      _speakingMessageIndex = messageIndex;
+    });
+
+    try {
+      await _flutterTts.speak(text);
+    } catch (e) {
+      print('[TTS] Speak error: $e');
+      Get.snackbar('Lỗi', 'Không thể đọc văn bản');
+      setState(() {
+        _speakingMessageIndex = null;
+      });
+    }
+  }
+
+  Future<bool> _waitForTtsReady({Duration timeout = const Duration(seconds: 5)}) async {
+    if (_isTtsInitialized) return true;
+    await _initializeTts();
+    final start = DateTime.now();
+    while (!_isTtsInitialized && DateTime.now().difference(start) < timeout) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    return _isTtsInitialized;
+  }
+
+  Future<void> _autoSpeakFirstAiText() async {
+    if (_hasAutoSpokenInitial || !_autoSpeakOnStart) return;
+    // tìm tin nhắn AI dạng text đầu tiên
+    final idx = _messages.indexWhere((m) => !m.isUser && !m.isVoice && m.text.trim().isNotEmpty);
+    if (idx < 0) return;
+
+    final ready = await _waitForTtsReady();
+    if (!ready) return;
+
+    _hasAutoSpokenInitial = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _speakText(_messages[idx].text, idx));
   }
 
   Future<void> _initializeChat() async {
@@ -111,15 +240,34 @@ class _ChatScreenState extends State<ChatScreen> {
       final content = aiMsg['content'] ?? aiMsg['messageContent'] ?? '';
       final ts = DateTime.tryParse(aiMsg['timestamp'] ?? aiMsg['sentAt'] ?? '') ?? DateTime.now();
 
-      // Chỉ tạo ChatMessage dạng text cho AI
-      _addMessage(ChatMessage(
-        text: content,
-        isUser: false,
-        timestamp: ts,
-        isVoice: false,
-        audioUrl: null,
-        duration: null,
-      ));
+      // Kiểm tra xem AI có trả về voice hay text
+      final audioUrl = aiMsg['audioUrl'];
+      final audioDuration = aiMsg['audioDuration'] ?? 0;
+      final transcript = aiMsg['transcript'];
+
+      if (audioUrl != null && audioUrl.toString().isNotEmpty) {
+        // AI trả về voice message
+        _addMessage(ChatMessage(
+          text: content,
+          isUser: false,
+          timestamp: ts,
+          isVoice: true,
+          audioUrl: audioUrl.toString(),
+          duration: audioDuration is int ? audioDuration : int.tryParse(audioDuration.toString()) ?? 0,
+          transcript: transcript?.toString(),
+        ));
+      } else {
+        // AI trả về text message
+        _addMessage(ChatMessage(
+          text: content,
+          isUser: false,
+          timestamp: ts,
+          isVoice: false,
+          audioUrl: null,
+          duration: null,
+          transcript: null,
+        ));
+      }
     }, onError: (e) {
       print('[AI STREAM] error: $e');
       if (mounted) setState(() => _isTyping = false);
@@ -141,6 +289,11 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages.add(message);
       });
       _scrollToBottom();
+    }
+
+    // Kiểm tra và tự động đọc tin nhắn AI đầu tiên (nếu có)
+    if (!message.isUser && !message.isVoice && message.text.trim().isNotEmpty) {
+      _autoSpeakFirstAiText();
     }
   }
 
@@ -313,6 +466,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _recordingTimer?.cancel();
     _voicePlaybackTimer?.cancel();
     _voiceCompletionSub?.cancel();
+    _flutterTts.stop();
     _topicViewModel.disposeSignalR();
     super.dispose();
   }
@@ -807,43 +961,545 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessageBubble(ChatMessage message) {
     final isUser = message.isUser;
-    final isVoice = message.isVoice; // THÊM FIELD isVoice vào ChatMessage
+    final isVoice = message.isVoice;
     final isTranslated = _translatedMessages.contains(message);
     final hasTranslation = !isUser && message.text.contains('|');
-
     final align = isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final color = isUser ? AppColors.primary : const Color(0xFFF0F2F5);
     final textColor = isUser ? Colors.white : Colors.black87;
-
     final radius = BorderRadius.only(
       topLeft: const Radius.circular(20),
       topRight: const Radius.circular(20),
       bottomLeft: Radius.circular(isUser ? 20 : 4),
       bottomRight: Radius.circular(isUser ? 4 : 20),
     );
-
     final msgIndex = _messages.indexOf(message);
+    final isVoiceTranslated = _translatedVoice.containsKey(msgIndex);
 
     return Column(
       crossAxisAlignment: align,
       children: [
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 5),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          constraints: BoxConstraints(maxWidth: Get.width * 0.75),
-          decoration: BoxDecoration(color: color, borderRadius: radius),
-          child: isVoice
-              ? _buildVoiceMessageContent(message, textColor)
-              : _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
-        ),
+        // --- HIỂN THỊ BUBBLE VOICE HOẶC BUBBLE DỊCH ---
+        if (isVoice && isVoiceTranslated)
+          // Hiển thị bubble text đã dịch với menu ở góc
+          _buildTranslatedVoiceBubble(msgIndex, message, isUser)
+        else if (isUser && isVoice && message.transcript != null && message.transcript!.isNotEmpty)
+          // Hiển thị bubble voice user với menu ở góc dưới TRÁI
+          Stack(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+                decoration: BoxDecoration(color: color, borderRadius: radius),
+                child: _buildVoiceMessageContent(message, textColor),
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                child: _buildVoiceContextMenu(message, msgIndex, isUser),
+              ),
+            ],
+          )
+        else if (!isUser && isVoice && message.transcript != null && message.transcript!.isNotEmpty)
+          // Hiển thị bubble voice AI với menu ở góc dưới PHẢI
+          Stack(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+                decoration: BoxDecoration(color: color, borderRadius: radius),
+                child: _buildVoiceMessageContent(message, textColor),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: _buildVoiceContextMenu(message, msgIndex, isUser),
+              ),
+            ],
+          )
+        else if (!isUser && !isVoice)
+          // Hiển thị bubble text AI với menu dịch + đọc ở góc dưới phải
+          Stack(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+                decoration: BoxDecoration(color: color, borderRadius: radius),
+                child: _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: _buildTextContextMenu(message, msgIndex),
+              ),
+            ],
+          )
+        else if (isUser && !isVoice)
+          // Hiển thị bubble text User với menu dịch ở góc dư���i trái
+          Stack(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+                decoration: BoxDecoration(color: color, borderRadius: radius),
+                child: _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                child: _buildUserTextContextMenu(message, msgIndex),
+              ),
+            ],
+          )
+        else
+          // Hiển thị bubble gốc (voice không có transcript hoặc trường hợp đặc biệt)
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+            decoration: BoxDecoration(color: color, borderRadius: radius),
+            child: isVoice
+                ? _buildVoiceMessageContent(message, textColor)
+                : _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
+          ),
+
+
+        // Hiển thị transcript inline nếu được chọn và chưa bị dịch thay thế
+        if (isUser && isVoice && !isVoiceTranslated && _showTranscript[msgIndex] == true)
+          _buildInlineTranscript(message),
+
+        // Hiển thị bản dịch inline cho text message (cả User và AI)
+        if (!isVoice && _translatedMessageText[msgIndex] != null)
+          _buildInlineTranslation(msgIndex, isUser),
+
+        // --- HIỂN THỊ THỜI GIAN ---
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 8, 5),
+          padding: const EdgeInsets.fromLTRB(8, 2, 8, 5),
           child: Text(
             DateFormat('HH:mm').format(message.timestamp),
             style: const TextStyle(color: Colors.grey, fontSize: 11),
           ),
         ),
-        if (!isUser && !isVoice) _buildTranslationButton(msgIndex, message),
+      ],
+    );
+  }
+
+  // Widget cho Context Menu của text message (AI)
+  Widget _buildTextContextMenu(ChatMessage message, int msgIndex) {
+    final isTranslated = _translatedMessageText.containsKey(msgIndex);
+    final isSpeaking = _speakingMessageIndex == msgIndex;
+
+    return PopupMenuButton<String>(
+      onSelected: (value) async {
+        if (value == 'translate') {
+          setState(() {
+            _isTranslatingMessage[msgIndex] = true;
+          });
+          try {
+            final translation = await _translator.translate(message.text, to: 'vi');
+            if (mounted) {
+              setState(() {
+                _translatedMessageText[msgIndex] = translation.text;
+                _isTranslatingMessage[msgIndex] = false;
+              });
+            }
+          } catch (e) {
+            if (mounted) {
+              setState(() {
+                _isTranslatingMessage.remove(msgIndex);
+              });
+            }
+            Get.snackbar('Lỗi', 'Không thể dịch tin nhắn.');
+          }
+        } else if (value == 'hide_translation') {
+          setState(() {
+            _translatedMessageText.remove(msgIndex);
+          });
+        } else if (value == 'read_aloud') {
+          // Gọi hàm đọc TTS
+          await _speakText(message.text, msgIndex);
+        }
+      },
+      itemBuilder: (BuildContext context) {
+        List<PopupMenuItem<String>> items = [];
+
+        // Luôn có nút đọc (icon thay đổi khi đang đọc)
+        items.add(
+          PopupMenuItem<String>(
+            value: 'read_aloud',
+            child: Row(
+              children: [
+                Icon(
+                  isSpeaking ? Icons.stop_circle : Icons.volume_up,
+                  color: isSpeaking ? Colors.red.shade700 : Colors.blue.shade700,
+                  size: 20
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  isSpeaking ? 'Dừng đọc' : 'Đọc',
+                  style: TextStyle(
+                    color: isSpeaking ? Colors.red.shade700 : Colors.blue.shade700
+                  )
+                ),
+              ],
+            ),
+          ),
+        );
+
+        if (isTranslated) {
+          items.add(
+            PopupMenuItem<String>(
+              value: 'hide_translation',
+              child: Row(
+                children: [
+                  Icon(Icons.close, color: Colors.orange.shade700, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Ẩn dịch', style: TextStyle(color: Colors.orange.shade700)),
+                ],
+              ),
+            ),
+          );
+        } else {
+          items.add(
+            PopupMenuItem<String>(
+              value: 'translate',
+              child: Row(
+                children: [
+                  Icon(Icons.translate, color: Colors.green.shade700, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Dịch', style: TextStyle(color: Colors.green.shade700)),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return items;
+      },
+      padding: EdgeInsets.zero,
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.9),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          isSpeaking ? Icons.graphic_eq : Icons.more_horiz,
+          size: 16,
+          color: isSpeaking ? Colors.blue : Colors.black54,
+        ),
+      ),
+    );
+  }
+
+  // Widget cho Context Menu của text message (User)
+  Widget _buildUserTextContextMenu(ChatMessage message, int msgIndex) {
+    final isTranslated = _translatedMessageText.containsKey(msgIndex);
+
+    return PopupMenuButton<String>(
+      onSelected: (value) async {
+        if (value == 'translate') {
+          setState(() {
+            _isTranslatingMessage[msgIndex] = true;
+          });
+          try {
+            final translation = await _translator.translate(message.text, to: 'vi');
+            if (mounted) {
+              setState(() {
+                _translatedMessageText[msgIndex] = translation.text;
+                _isTranslatingMessage[msgIndex] = false;
+              });
+            }
+          } catch (e) {
+            if (mounted) {
+              setState(() {
+                _isTranslatingMessage.remove(msgIndex);
+              });
+            }
+            Get.snackbar('Lỗi', 'Không thể dịch tin nhắn.');
+          }
+        } else if (value == 'hide_translation') {
+          setState(() {
+            _translatedMessageText.remove(msgIndex);
+          });
+        }
+      },
+      itemBuilder: (BuildContext context) {
+        if (isTranslated) {
+          return [
+            PopupMenuItem<String>(
+              value: 'hide_translation',
+              child: Row(
+                children: [
+                  Icon(Icons.close, color: Colors.orange.shade700, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Ẩn dịch', style: TextStyle(color: Colors.orange.shade700)),
+                ],
+              ),
+            ),
+          ];
+        }
+
+        return [
+          PopupMenuItem<String>(
+            value: 'translate',
+            child: Row(
+              children: [
+                Icon(Icons.translate, color: Colors.green.shade700, size: 20),
+                const SizedBox(width: 12),
+                Text('Dịch', style: TextStyle(color: Colors.green.shade700)),
+              ],
+            ),
+          ),
+        ];
+      },
+      padding: EdgeInsets.zero,
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.9),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Icon(Icons.more_horiz, size: 16, color: Colors.black54),
+      ),
+    );
+  }
+
+  // Widget cho Context Menu của voice message
+  Widget _buildVoiceContextMenu(ChatMessage message, int msgIndex, bool isUser) {
+    final isTranslated = _translatedVoice.containsKey(msgIndex);
+
+    return PopupMenuButton<String>(
+      onSelected: (value) async {
+        if (value == 'show_transcript') {
+          setState(() {
+            _showTranscript[msgIndex] = !(_showTranscript[msgIndex] ?? false);
+          });
+        } else if (value == 'translate') {
+          setState(() {
+            _translatedVoice[msgIndex] = 'translating...'; // Trạng thái đang dịch
+          });
+          try {
+            final translation = await _translator.translate(message.transcript!, to: 'vi');
+            if (mounted) {
+              setState(() {
+                _translatedVoice[msgIndex] = translation.text;
+              });
+            }
+          } catch (e) {
+            if (mounted) {
+              setState(() {
+                _translatedVoice.remove(msgIndex); // Xóa nếu dịch lỗi
+              });
+            }
+            Get.snackbar('Lỗi', 'Không thể dịch transcript.');
+          }
+        } else if (value == 'undo_translate') {
+          setState(() {
+            _translatedVoice.remove(msgIndex);
+          });
+        }
+      },
+      itemBuilder: (BuildContext context) {
+        // Nếu đã dịch, chỉ hiện tùy chọn hoàn tác
+        if (isTranslated) {
+          return [
+            PopupMenuItem<String>(
+              value: 'undo_translate',
+              child: Row(
+                children: [
+                  Icon(Icons.undo, color: Colors.orange.shade700, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Hiện lại voice', style: TextStyle(color: Colors.orange.shade700)),
+                ],
+              ),
+            ),
+          ];
+        }
+
+        // Nếu chưa dịch, hiện 2 tùy chọn: xem transcript và dịch
+        return [
+          PopupMenuItem<String>(
+            value: 'show_transcript',
+            child: Row(
+              children: [
+                Icon(Icons.chat_bubble_outline, color: Colors.blue.shade700, size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  _showTranscript[msgIndex] == true ? 'Ẩn Transcript' : 'Xem Transcript',
+                  style: TextStyle(color: Colors.blue.shade700),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'translate',
+            child: Row(
+              children: [
+                Icon(Icons.translate, color: Colors.green.shade700, size: 20),
+                const SizedBox(width: 12),
+                Text('Dịch Transcript', style: TextStyle(color: Colors.green.shade700)),
+              ],
+            ),
+          ),
+        ];
+      },
+      padding: EdgeInsets.zero,
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.9),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Icon(Icons.more_horiz, size: 16, color: Colors.black54),
+      ),
+    );
+  }
+
+  // Widget hiển thị transcript inline
+  Widget _buildInlineTranscript(ChatMessage message) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(40, 4, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        ),
+        child: Text(
+          '"${message.transcript!}"',
+          style: TextStyle(
+            color: Colors.blue.shade800,
+            fontStyle: FontStyle.italic,
+            fontSize: 15,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Widget hiển thị bản dịch inline cho text message
+  Widget _buildInlineTranslation(int msgIndex, bool isUser) {
+    final translatedText = _translatedMessageText[msgIndex];
+    final isTranslating = _isTranslatingMessage[msgIndex] ?? false;
+
+    return Padding(
+      padding: isUser
+          ? const EdgeInsets.fromLTRB(40, 4, 16, 8)  // User: padding trái nhiều hơn
+          : const EdgeInsets.fromLTRB(16, 4, 40, 8),  // AI: padding phải nhiều hơn
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.green.withOpacity(0.3)),
+        ),
+        child: isTranslating
+            ? const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green),
+                  ),
+                  SizedBox(width: 8),
+                  Text('Đang dịch...', style: TextStyle(color: Colors.green, fontSize: 14)),
+                ],
+              )
+            : Text(
+                translatedText ?? '',
+                style: TextStyle(
+                  color: Colors.green.shade800,
+                  fontStyle: FontStyle.italic,
+                  fontSize: 15,
+                ),
+              ),
+      ),
+    );
+  }
+
+  // Widget hiển thị bubble text đã dịch (thay thế cho voice)
+  Widget _buildTranslatedVoiceBubble(int msgIndex, ChatMessage message, bool isUser) {
+    final translatedText = _translatedVoice[msgIndex];
+    final isTranslating = translatedText == 'translating...';
+
+    return Stack(
+      children: [
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.15),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(20),
+              topRight: const Radius.circular(20),
+              bottomLeft: Radius.circular(isUser ? 20 : 4),
+              bottomRight: Radius.circular(isUser ? 4 : 20),
+            ),
+            border: Border.all(color: Colors.green.withOpacity(0.4)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.translate, color: Colors.green.shade700, size: 20),
+              const SizedBox(width: 10),
+              if (isTranslating)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green),
+                )
+              else
+                Flexible(
+                  child: Text(
+                    translatedText ?? 'Lỗi dịch',
+                    style: TextStyle(
+                      color: Colors.green.shade900,
+                      fontSize: 16,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Positioned(
+          bottom: 0,
+          left: isUser ? 0 : null,
+          right: isUser ? null : 0,
+          child: _buildVoiceContextMenu(message, msgIndex, isUser),
+        ),
       ],
     );
   }
@@ -1521,7 +2177,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendVoiceMessage() async {
-    if (_pausedRecordingPath == null || _sessionId == null) return;
+    if (_isSendingVoice) return;
+    _isSendingVoice = true;
+    if (_pausedRecordingPath == null || _sessionId == null) {
+      _isSendingVoice = false;
+      return;
+    }
 
     final file = File(_pausedRecordingPath!);
     if (!await file.exists() || await file.length() <= 100) return;
@@ -1534,18 +2195,21 @@ class _ChatScreenState extends State<ChatScreen> {
     await file.copy(persistentPath); // Copy file để tránh bị xóa
 
     // 1) Hiển thị bubble voice của user với file persistent
-    _addMessage(ChatMessage(
+    // Tạm thời chưa có transcript, sẽ cập nhật sau khi nhận từ API
+    final voiceMsg = ChatMessage(
       text: '',
       isUser: true,
       timestamp: DateTime.now(),
       isVoice: true,
       audioUrl: persistentPath, // Dùng đường dẫn persistent
       duration: seconds,
-    ));
+      transcript: null,
+    );
+    _addMessage(voiceMsg);
 
     setState(() => _isTyping = true);
 
-    // 2) Upload HTTP để lấy audioUrl và aiResponse
+    // 2) Upload HTTP để lấy audioUrl, aiResponse và transcript
     try {
       final resp = await _topicViewModel.sendVoiceMessage(
         sessionId: _sessionId!,
@@ -1555,7 +2219,26 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       print('[VOICE][HTTP] resp: $resp');
 
-      // Xử lý aiResponse từ response
+      // Lấy transcript từ response nếu có
+      final transcript = resp?['data']?['transcript'];
+
+      // Tìm message voice cuối cùng của user và cập nhật transcript
+      final idx = _messages.lastIndexWhere((m) => m.isUser && m.isVoice && m.audioUrl == persistentPath);
+      if (transcript != null && transcript.toString().isNotEmpty && idx != -1) {
+        setState(() {
+          _messages[idx] = ChatMessage(
+            text: _messages[idx].text,
+            isUser: true,
+            timestamp: _messages[idx].timestamp,
+            isVoice: true,
+            audioUrl: persistentPath,
+            duration: seconds,
+            transcript: transcript.toString(),
+          );
+        });
+      }
+
+      // 3. Xử lý aiResponse từ response
       final aiResponse = resp?['data']?['aiResponse'];
       if (aiResponse != null) {
         final content = aiResponse['messageContent'] ?? '';
@@ -1571,20 +2254,12 @@ class _ChatScreenState extends State<ChatScreen> {
           duration: null,
         ));
       }
-
-      // Nếu muốn gửi qua SignalR (tùy backend), bỏ comment và sửa
-      // if (aiResponse != null && aiResponse['audioUrl'] != null) {
-      //   await _topicViewModel.sendVoiceMessageSignalR(
-      //     sessionId: _sessionId!,
-      //     audioUrl: aiResponse['audioUrl'],
-      //     audioDuration: seconds,
-      //   );
-      // }
     } catch (e) {
       print('[VOICE][HTTP] upload error: $e');
       setState(() => _isTyping = false);
       Get.snackbar("Lỗi", "Không gửi được voice: $e");
     } finally {
+      _isSendingVoice = false;
       // Đảm bảo tắt _isTyping nếu không có lỗi
       setState(() => _isTyping = false);
     }
@@ -1660,8 +2335,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       fontWeight: FontWeight.bold,
                       color: Colors.red,
                     ),
-                  ),
-                ],
+                  ),],
               ),
 
               const SizedBox(height: 20),
@@ -1760,7 +2434,7 @@ class ChatMessage {
   final bool isVoice;
   final String? audioUrl;
   final int? duration;
-
+  final String? transcript;
   ChatMessage({
     required this.text,
     required this.isUser,
@@ -1768,6 +2442,7 @@ class ChatMessage {
     this.isVoice = false,
     this.audioUrl,
     this.duration,
+    this.transcript,
   });
 
   @override
