@@ -3,6 +3,11 @@ import 'package:get/get.dart';
 import '../../../core/constants/colors.dart';
 import '../viewmodel/course_viewmodel.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'dart:async';
+import 'dart:io';
+import 'package:record/record.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
 
 class LessonExerciseScreen extends StatefulWidget {
   final String lessonId;
@@ -25,6 +30,14 @@ class _LessonExerciseScreenState extends State<LessonExerciseScreen> {
   int _currentExerciseIndex = 0;
   bool _isPlayingAudio = false;
 
+  // NEW: recording state
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _isRecording = false;
+  Duration _recordingDuration = Duration.zero;
+  Timer? _recordTimer;
+  // Lưu file ghi âm theo exerciseId
+  final Map<String, String> _recordedFiles = {};
+
   @override
   void initState() {
     super.initState();
@@ -34,7 +47,174 @@ class _LessonExerciseScreenState extends State<LessonExerciseScreen> {
   @override
   void dispose() {
     _audioPlayer.dispose();
+    // NEW: cleanup recorder
+    _recordTimer?.cancel();
+    _recorder.stop();
+    _recorder.dispose();
     super.dispose();
+  }
+
+  // NEW: format mm:ss
+  String _fmt(Duration d) =>
+      '${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${(d.inSeconds.remainder(60)).toString().padLeft(2, '0')}';
+  // NEW: bắt đầu ghi âm cho exercise
+  Future<void> _startRecording(String exerciseId) async {
+    try {
+      // dừng audio mẫu nếu đang phát
+      if (_isPlayingAudio) {
+        await _audioPlayer.stop();
+        setState(() => _isPlayingAudio = false);
+      }
+
+      // xin quyền
+      bool hasPerm = await _recorder.hasPermission() ?? false;
+      if (!hasPerm) {
+        final st = await Permission.microphone.request();
+        if (!st.isGranted) {
+          Get.snackbar('Thông báo', 'Cần quyền micro để ghi âm');
+          return;
+        }
+      }
+
+      final dir = await getTemporaryDirectory();
+      final path =
+          '${dir.path}/exercise_${exerciseId}_${DateTime.now().millisecondsSinceEpoch}.wav';
+
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+        path: path,
+      );
+
+      setState(() {
+        _isRecording = true;
+        _recordingDuration = Duration.zero;
+      });
+
+      _recordTimer?.cancel();
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _recordingDuration += const Duration(seconds: 1));
+      });
+    } catch (e) {
+      Get.snackbar('Lỗi', 'Không thể bắt đầu ghi âm');
+    }
+  }
+
+  // NEW: dừng ghi âm và lưu file
+  Future<void> _stopRecording(String exerciseId) async {
+    try {
+      final path = await _recorder.stop();
+      _recordTimer?.cancel();
+      setState(() {
+        _isRecording = false;
+        if (path != null && path.isNotEmpty) {
+          _recordedFiles[exerciseId] = path;
+        }
+      });
+    } catch (e) {
+      Get.snackbar('Lỗi', 'Không thể dừng ghi âm');
+    }
+  }
+
+  // NEW: UI khối ghi âm
+  Widget _buildRecorder(String exerciseId) {
+    final recorded = _recordedFiles[exerciseId];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Ghi âm câu trả lời',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: _isRecording ? Colors.red : AppColors.primary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_isRecording ? Colors.red : AppColors.primary)
+                          .withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  onPressed: () async {
+                    if (_isRecording) {
+                      await _stopRecording(exerciseId);
+                    } else {
+                      await _startRecording(exerciseId);
+                    }
+                  },
+                  icon: Icon(
+                    _isRecording ? Icons.stop : Icons.mic,
+                    size: 28,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isRecording
+                          ? 'Đang ghi... ${_fmt(_recordingDuration)}'
+                          : (recorded != null && recorded.isNotEmpty
+                          ? 'Đã ghi âm: ${File(recorded).uri.pathSegments.last}'
+                          : 'Nhấn để bắt đầu ghi'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _isRecording
+                            ? Colors.red.shade700
+                            : Colors.grey.shade700,
+                        fontWeight:
+                        _isRecording ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                    if (recorded != null && recorded.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'File: $recorded',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _playAudio(String audioUrl) async {
@@ -55,7 +235,12 @@ class _LessonExerciseScreenState extends State<LessonExerciseScreen> {
     }
   }
 
-  void _nextExercise() {
+  void _nextExercise() async {
+    // NEW: đảm bảo dừng ghi khi chuyển bài
+    if (_isRecording) {
+      final id = courseViewModel.exercises[_currentExerciseIndex].exerciseID;
+      await _stopRecording(id);
+    }
     if (_currentExerciseIndex < courseViewModel.exercises.length - 1) {
       setState(() {
         _currentExerciseIndex++;
@@ -291,6 +476,10 @@ class _LessonExerciseScreenState extends State<LessonExerciseScreen> {
                       ),
                       const SizedBox(height: 24),
                     ],
+                    // NEW: Recorder block
+                    const SizedBox(height: 8),
+                    _buildRecorder(exercise.exerciseID),
+                    const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(

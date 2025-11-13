@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../data/course_progress_repository.dart';
 import '../model/course_progress.dart';
+import '../model/lesson_progress_detail.dart';
 
 class CourseProgressViewModel extends GetxController {
   final ICourseProgressRepository _repository;
@@ -19,6 +20,22 @@ class CourseProgressViewModel extends GetxController {
       print('fetchMyCourses error: $e');
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  var lessonProgressDetail = Rxn<LessonProgressDetail>();
+  var isLoadingLessonProgress = false.obs;
+
+  Future<void> fetchLessonProgressDetail(String lessonId) async {
+    try {
+      isLoadingLessonProgress.value = true;
+      final detail = await _repository.getLessonProgressDetail(lessonId);
+      lessonProgressDetail.value = detail;
+    } catch (e) {
+      lessonProgressDetail.value = null;
+      print('fetchLessonProgressDetail error: $e');
+    } finally {
+      isLoadingLessonProgress.value = false;
     }
   }
 }
