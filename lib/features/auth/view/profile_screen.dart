@@ -2,6 +2,7 @@ import 'package:flearn_app/di.dart';
 import 'package:flearn_app/features/auth/view/change_password_screen.dart';
 import 'package:flearn_app/features/auth/view/edit_profile_screen.dart';
 import 'package:flearn_app/features/auth/view/subcription_plans.dart';
+import 'package:flearn_app/features/schedule/view/schedule_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -99,7 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Colors.white,
       body: RefreshIndicator(
         onRefresh: _fetchUserProfile,
         edgeOffset: 100.0,
@@ -127,176 +128,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final displayName = (user?.fullname != null && user!.fullname!.isNotEmpty)
           ? user.fullname!
           : (user?.username ?? 'Đang tải...');
-      final username = user?.username ?? "";
       final email = user?.email ?? "";
-      final role = user?.roles?.isNotEmpty == true ? user!.roles!.first : '';
 
-      return SizedBox(
-        height: 340,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // Background gradient với wave curve
-            CustomPaint(
-              size: Size(MediaQuery.of(context).size.width, 240),
-              painter: WavePainter(),
-            ),
-
-            // Content
-            SafeArea(
-              child: Column(
-                children: [
-                  const SizedBox(height: 40),
-                  // Avatar
-                  GestureDetector(
-                    onTap: () => Get.to(
-                          () => const EditProfileScreen(),
-                      arguments: userViewModel.user.value,
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 20,
-                            spreadRadius: 2,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Colors.white,
-                        child: CircleAvatar(
-                          radius: 56,
-                          backgroundColor: Colors.grey.shade100,
-                          backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                              ? NetworkImage(avatarUrl)
-                              : null,
-                          child: (avatarUrl == null || avatarUrl.isEmpty)
-                              ? Icon(
-                            CupertinoIcons.person_fill,
-                            color: Colors.grey.shade400,
-                            size: 50,
-                          )
-                              : null,
-                        ),
-                      ),
-                    ),
+      return Container(
+        color: Colors.white,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            child: Column(
+              children: [
+                // Avatar centered
+                GestureDetector(
+                  onTap: () => Get.to(
+                    () => const EditProfileScreen(),
+                    arguments: userViewModel.user.value,
                   ),
-                  const SizedBox(height: 14),
-                  // Display Name
-                  Text(
-                    displayName,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                      letterSpacing: 0.7,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  // Username & Role
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 8,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.4),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              CupertinoIcons.at,
-                              color: Colors.white,
-                              size: 13,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              username,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (role.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            role,
-                            style: const TextStyle(
-                              color: Color(0xFF4A90E2),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  // Email
-                  Container(
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          CupertinoIcons.mail_solid,
-                          color: Colors.white,
-                          size: 13,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            email,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w400,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(25),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 5),
                         ),
                       ],
                     ),
+                    child: CircleAvatar(
+                      radius: 60,
+                      backgroundColor: Colors.grey.shade100,
+                      backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                          ? NetworkImage(avatarUrl)
+                          : null,
+                      child: (avatarUrl == null || avatarUrl.isEmpty)
+                          ? Icon(
+                              CupertinoIcons.person_fill,
+                              color: Colors.grey.shade400,
+                              size: 50,
+                            )
+                          : null,
+                    ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16),
+                // Display Name
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                // Email
+                Text(
+                  email,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       );
     });
@@ -306,11 +204,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 20,
+            color: Colors.grey.withAlpha(20),
+            blurRadius: 15,
             spreadRadius: 0,
             offset: const Offset(0, 4),
           ),
@@ -319,9 +217,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           _buildListTile(
-            icon: CupertinoIcons.person_circle_fill,
-            label: "Thông tin cá nhân",
-            subtitle: 'Xem và chỉnh sửa thông tin cá nhân',
+            icon: CupertinoIcons.person_circle,
+            label: "Chỉnh sửa hồ sơ",
             iconColor: const Color(0xFF4A90E2),
             onTap: () => Get.to(
                   () => const EditProfileScreen(),
@@ -329,43 +226,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           _buildDivider(),
-
           _buildListTile(
-            icon: CupertinoIcons.rocket_fill,
-            label: "Xem gói",
-            subtitle: 'Nâng cấp tài khoản và tăng lượt luyện tập',
-            iconColor: const Color(0xFFFF9500),
-            onTap: () => Get.to(() => const SubscriptionPlansScreen()),
-          ),
-          _buildDivider(),
-          _buildListTile(
-            icon: CupertinoIcons.map_fill,
-            label: "Roadmap",
-            subtitle: 'Lộ trình học phù hợp',
+            icon: CupertinoIcons.calendar,
+            label: "Lịch học",
             iconColor: const Color(0xFF34C759),
-            onTap: () {},
+            onTap: () {
+              Get.to(
+                () => const ScheduleScreen(),
+                transition: Transition.cupertino,
+              );
+            },
           ),
           _buildDivider(),
           _buildListTile(
-            icon: CupertinoIcons.paperplane_fill,
-            label: "Gửi đơn",
-            subtitle: 'Gửi phản hồi và yêu cầu',
-            iconColor: const Color(0xFFFF9500),
-            onTap: () {},
+            icon: CupertinoIcons.doc_text,
+            label: "Lịch sử giao dịch",
+            iconColor: const Color(0xFF4A90E2),
+            onTap: () {
+              Get.snackbar(
+                'Thông báo',
+                'Tính năng đang được phát triển',
+                snackPosition: SnackPosition.BOTTOM,
+              );
+            },
           ),
           _buildDivider(),
           _buildListTile(
-            icon: CupertinoIcons.cart_fill,
-            label: "Đơn hàng của tôi",
-            subtitle: 'Lịch sử đơn hàng & thanh toán',
-            iconColor: const Color(0xFFFF3B30),
-            onTap: () {},
-          ),
-          _buildDivider(),
-          _buildListTile(
-            icon: CupertinoIcons.arrow_right_square_fill,
+            icon: CupertinoIcons.arrow_right_square,
             label: "Đăng xuất",
-            subtitle: 'Thoát tài khoản hiện tại',
             iconColor: const Color(0xFFFF3B30),
             onTap: _showLogoutConfirmation,
             showArrow: false,
@@ -389,7 +277,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildListTile({
     required IconData icon,
     required String label,
-    String? subtitle,
     required Color iconColor,
     required VoidCallback onTap,
     bool showArrow = true,
@@ -404,47 +291,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(14),
+                  color: iconColor.withAlpha(25),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: iconColor, size: 26),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ],
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF1A1A1A),
+                  ),
                 ),
               ),
               if (showArrow)
                 Icon(
-                  CupertinoIcons.chevron_forward,
-                  size: 20,
+                  CupertinoIcons.chevron_right,
                   color: Colors.grey.shade400,
+                  size: 20,
                 ),
             ],
           ),

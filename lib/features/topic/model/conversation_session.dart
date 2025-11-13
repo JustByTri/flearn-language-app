@@ -59,6 +59,7 @@ class ConversationMessage {
   final int messageType;
   final String? audioUrl;
   final String? audioPublicId;
+  final String? transcript;
   final int? audioDuration;
   final int sequenceOrder;
   final DateTime sentAt;
@@ -73,6 +74,7 @@ class ConversationMessage {
     this.audioUrl,
     this.audioPublicId,
     this.audioDuration,
+    this.transcript,
     required this.sequenceOrder,
     required this.sentAt,
     required this.isVoiceMessage,
@@ -86,6 +88,7 @@ class ConversationMessage {
       messageContent: json['messageContent'] ?? '',
       messageType: json['messageType'] ?? 0,
       audioUrl: json['audioUrl'],
+      transcript: json['transcript'],
       audioPublicId: json['audioPublicId'],
       audioDuration: json['audioDuration'],
       sequenceOrder: json['sequenceOrder'] ?? 0,
