@@ -1,9 +1,6 @@
-import 'package:country_icons/country_icons.dart';
 import 'package:dio/dio.dart';
 import 'package:flearn_app/core/constants/colors.dart';
-import 'package:flearn_app/di.dart';
 import 'package:flearn_app/features/auth/viewmodel/login_viewmodel.dart';
-import 'package:flearn_app/features/auth/viewmodel/roadmapDetail_viewmodel.dart';
 import 'package:flearn_app/features/course/model/course.dart';
 
 import 'package:flearn_app/features/topic/model/topic.dart';
@@ -14,15 +11,17 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../course/view/course_screen.dart';
+import '../../course/view/browse_course_screen.dart';
+import '../../course/view/course_detail_screen.dart';
 import '../../course/view/course_unit_screen.dart';
 import '../../course/viewmodel/course_viewmodel.dart';
 import '../../schedule/viewmodel/teacher_schedule_viewmodel.dart';
-import '../../survey/data/repository.dart';
 import '../../survey/view/survey_screen.dart';
 import '../../survey/viewmodel/survey_viewmodel.dart';
 import '../../course_progress/viewmodel/course_progress_viewmodel.dart';
 import '../../course_progress/model/course_progress.dart';
-import '../model/course_popular.dart';
+import '../../notification/view/notification_screen.dart';
+import '../viewmodel/user_viewmodel.dart';
 
 class Language {
   final String id;
@@ -47,11 +46,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   List<Language> _languages = [];
   String? _selectedLanguageId;
   bool _isLoadingLanguages = true;
   String? _selectedTopicName;
+  bool _hasLoadedOnce = false;
+  bool _isVisible = true;
 
   late CourseViewModel courseViewModel;
   late TeacherScheduleViewModel teacherScheduleViewModel;
@@ -59,18 +61,75 @@ class _HomeScreenState extends State<HomeScreen> {
   late LoginViewModel loginViewModel;
   late TopicViewModel topicViewModel;
   late CourseProgressViewModel courseProgressViewModel;
+  late UserViewModel userViewModel;
   final Dio _dio = Dio();
 
+  String _searchQuery = '';
+  String? _sortBy;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeViewModels();
     _loadInitialData();
 
     courseProgressViewModel = Get.put(CourseProgressViewModel(Get.find()));
     courseProgressViewModel.fetchMyCourses();
-    courseViewModel.fetchPopularCourses(count: 10);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Reload when app comes back to foreground
+    if (state == AppLifecycleState.resumed && _hasLoadedOnce) {
+      debugPrint('HomeScreen: App resumed, reloading data');
+      _fetchOtherData();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Check if this route is now visible
+    final route = ModalRoute.of(context);
+    final isCurrentRoute = route?.isCurrent ?? false;
+
+    // If this is the first time becoming visible after loading, don't reload
+    // But if we were previously invisible and now visible again, reload
+    if (_hasLoadedOnce && isCurrentRoute && !_isVisible) {
+      debugPrint('HomeScreen: Became visible again, reloading data');
+      _isVisible = true;
+      Future.microtask(() => _fetchOtherData());
+    } else if (!isCurrentRoute) {
+      _isVisible = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _getLanguageFlag(String langCode) {
+    final flags = {
+      'en': '🇬🇧',
+      'ja': '🇯🇵',
+      'zh': '🇨🇳',
+      'ko': '🇰🇷',
+      'fr': '🇫🇷',
+      'de': '🇩🇪',
+      'es': '🇪🇸',
+      'vi': '🇻🇳',
+    };
+    return flags[langCode.toLowerCase()] ?? '🌐';
   }
 
   void _initializeViewModels() {
@@ -79,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
     surveyViewModel = Get.put(SurveyViewModel(Get.find()));
     topicViewModel = Get.put(TopicViewModel(Get.find()));
     loginViewModel = Get.find<LoginViewModel>();
+    userViewModel = Get.put(UserViewModel(Get.find()));
   }
 
   Future<void> _loadInitialData() async {
@@ -86,14 +146,46 @@ class _HomeScreenState extends State<HomeScreen> {
       _fetchLanguages(),
       _fetchOtherData(),
     ]);
+    _hasLoadedOnce = true;
   }
 
   Future<void> _fetchOtherData() async {
     try {
+      debugPrint('HomeScreen: _fetchOtherData called');
 
-      await courseViewModel.fetchMoreCourses(isRefresh: true);
-      await topicViewModel.fetchTopics();
-      await teacherScheduleViewModel.fetchSchedules();
+      // Get user's active language
+      final box = GetStorage();
+      final user = box.read('user');
+      String? langCode;
+
+      if (user != null && user['languageId'] != null) {
+        // Find language code from language ID
+        final language = _languages.firstWhere(
+          (lang) => lang.id == user['languageId'],
+          orElse: () => Language(id: '', langName: '', langCode: ''),
+        );
+        langCode = language.langCode.isNotEmpty ? language.langCode : null;
+      }
+
+      debugPrint('HomeScreen: Fetching courses with langCode: $langCode');
+
+      // Always fetch courses to ensure they appear when navigating back
+      await courseViewModel.fetchCoursesWithLanguage(
+        lang: langCode,
+        searchTerm: _searchQuery.isEmpty ? null : _searchQuery,
+        sortBy: _sortBy,
+        isRefresh: true,
+      );
+
+      debugPrint('HomeScreen: Fetched ${courseViewModel.courses.length} courses');
+
+      // Always fetch topics and schedules if empty
+      if (topicViewModel.topics.isEmpty) {
+        await topicViewModel.fetchTopics();
+      }
+      if (teacherScheduleViewModel.schedules.isEmpty) {
+        await teacherScheduleViewModel.fetchSchedules();
+      }
     } catch (e) {
       debugPrint('Lỗi tải dữ liệu khác: $e');
     }
@@ -157,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   box.write('selectedLanguageId', languageId);
                   Get.offAll(
-                        () => const SurveyScreen(),
+                    () => const SurveyScreen(),
                     binding: BindingsBuilder(() {
                       if (!Get.isRegistered<SurveyViewModel>()) {
                         Get.put(SurveyViewModel(Get.find()));
@@ -203,9 +295,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Must call super for AutomaticKeepAliveClientMixin
     return AppScaffold(
       backgroundColor: Colors.white,
       body: RefreshIndicator(
@@ -231,7 +323,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 20),
                 _buildSectionHeader(title: 'Khóa học phổ biến'),
                 const SizedBox(height: 12),
-                _buildPopularCourses(),
+                _buildPopularCoursesHorizontal(),
+                const SizedBox(height: 20),
+                _buildSectionHeader(title: 'Khám phá'),
+                const SizedBox(height: 12),
+                _buildDiscoverCoursesVertical(),
                 const SizedBox(height: 20),
               ],
             ),
@@ -242,159 +338,486 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeader() {
-    final box = GetStorage();
-    final user = box.read('user');
-    final username = user?['userName'] ?? 'Bạn';
-    final avatarUrl = user?['avatar'];
+    return Obx(() {
+      final user = userViewModel.user.value;
+      final username = user?.fullname ?? user?.username ?? 'Bạn';
+      final avatarUrl = user?.avatar;
 
+      return Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: AppColors.primary.withAlpha(25),
+            backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                ? NetworkImage(avatarUrl)
+                : null,
+            child: (avatarUrl == null || avatarUrl.isEmpty)
+                ? const Icon(Icons.person, color: AppColors.primary, size: 24)
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Xin chào, $username.',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text('Chào mừng quay trở lại!', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withAlpha(25),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.notifications_outlined,
+                color: AppColors.primary,
+                size: 24,
+              ),
+            ),
+            onPressed: () {
+              Get.to(
+                () => const NotificationScreen(),
+                transition: Transition.cupertino,
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+          _buildLanguageSelector(),
+        ],
+      );
+    });
+  }
+
+  Widget _buildSearchBar() {
     return Row(
       children: [
-        CircleAvatar(
-          radius: 22,
-          backgroundColor: AppColors.primary.withOpacity(0.1),
-          backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
-          child: (avatarUrl == null || avatarUrl.isEmpty)
-              ? const Icon(Icons.person, color: AppColors.primary)
-              : null,
-        ),
-        const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Xin chào, $username.',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-                overflow: TextOverflow.ellipsis,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+              onSubmitted: (value) async {
+                if (value.isNotEmpty) {
+                  // Navigate to BrowseCourseScreen with search query
+                  await Get.to(
+                    () => BrowseCourseScreen(
+                      searchQuery: value,
+                      topic: _selectedTopicName,
+                      sortBy: _sortBy,
+                    ),
+                    transition: Transition.cupertino,
+                  );
+
+                  // Reload data after returning from browse screen
+                  debugPrint('HomeScreen: Returned from BrowseCourseScreen, reloading');
+                  await _fetchOtherData();
+
+                  // Clear search after navigation
+                  _searchController.clear();
+                  setState(() {
+                    _searchQuery = '';
+                  });
+                }
+              },
+              decoration: const InputDecoration(
+                icon: Icon(CupertinoIcons.search, color: Colors.grey),
+                border: InputBorder.none,
+                hintText: 'Tìm kiếm khóa học...',
               ),
-              const SizedBox(height: 2),
-              Text('Chào mừng quay trở lại!', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-            ],
+            ),
           ),
         ),
-        IconButton(
-          onPressed: () {},
-          icon: const Icon(CupertinoIcons.bell, color: AppColors.textPrimary, size: 24),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
+        const SizedBox(width: 12),
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withAlpha(255),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
+            onPressed: () {
+              _showFilterBottomSheet();
+            },
+            icon: const Icon(CupertinoIcons.slider_horizontal_3, color: Colors.white, size: 24),
+            padding: EdgeInsets.zero,
+          ),
         ),
-        const SizedBox(width: 8),
-        _buildLanguageSelector(),
       ],
     );
   }
 
-  Widget _buildLanguageSelector() {
-    if (_isLoadingLanguages) {
-      return const SizedBox(width: 60, height: 24, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
-    }
-    if (_languages.isEmpty) {
-      return const SizedBox.shrink();
-    }
+  void _showFilterBottomSheet() {
+    String? tempSelectedTopic = _selectedTopicName;
+    String? tempSortBy = _sortBy;
+    String? tempSelectedProgram;
 
-
-    final validIds = _languages.map((lang) => lang.id).toList();
-    if (_selectedLanguageId == null || !validIds.contains(_selectedLanguageId)) {
-      _selectedLanguageId = validIds.isNotEmpty ? validIds.first : null;
-    }
-
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<String>(
-        value: _selectedLanguageId,
-        icon: const Icon(Icons.keyboard_arrow_down, size: 20),
-        items: _languages.map((Language lang) {
-          return DropdownMenuItem<String>(
-            value: lang.id,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 24,
-                  height: 18,
-                  child: CountryIcons.getSvgFlag(
-                    lang.langCode == 'EN' ? 'gb' : lang.langCode == 'ZH' ? 'cn' : lang.langCode == 'JP' ? 'jp' : lang.langCode.toLowerCase(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(lang.langCode, style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-          );
-        }).toList(),
-        onChanged: (String? newValue) {
-          if (newValue != null && newValue != _selectedLanguageId) {
-            _handleLanguageChange(newValue);
-          }
-        },
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (context, scrollController) {
+                return SingleChildScrollView(
+                  controller: scrollController,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Lọc khóa học',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.pop(context),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Chọn chương trình',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: _fetchPrograms(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CupertinoActivityIndicator());
+                            }
+
+                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                              return const Text('Không có chương trình nào');
+                            }
+
+                            final programs = [
+                              {'programId': null, 'programName': 'Tất cả chương trình'},
+                              ...snapshot.data!
+                            ];
+
+                            return Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: programs.map((program) {
+                                final isSelected = (tempSelectedProgram == null && program['programId'] == null) ||
+                                    (tempSelectedProgram == program['programId']);
+
+                                return FilterChip(
+                                  label: Text(program['programName']),
+                                  selected: isSelected,
+                                  onSelected: (selected) {
+                                    if (selected) {
+                                      setModalState(() {
+                                        tempSelectedProgram = program['programId'];
+                                      });
+                                    }
+                                  },
+                                  backgroundColor: Colors.grey.shade100,
+                                  selectedColor: AppColors.primary.withAlpha(51),
+                                  checkmarkColor: AppColors.primary,
+                                  labelStyle: TextStyle(
+                                    color: isSelected ? AppColors.primary : Colors.black87,
+                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                  ),
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Chọn chủ đề',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Obx(() {
+                          if (topicViewModel.isLoadingTopics.value) {
+                            return const Center(child: CupertinoActivityIndicator());
+                          }
+
+                          final List<TopicModel> topicsWithAll = [
+                            TopicModel(
+                              topicId: 'all',
+                              topicName: 'Tất cả',
+                              topicDescription: '',
+                              imageUrl: '',
+                            ),
+                            ...topicViewModel.topics,
+                          ];
+
+                          return Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: topicsWithAll.map((topic) {
+                              final isSelected = (tempSelectedTopic == null && topic.topicId == 'all') ||
+                                  (tempSelectedTopic == topic.topicName);
+
+                              return FilterChip(
+                                label: Text(topic.topicName),
+                                selected: isSelected,
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    setModalState(() {
+                                      tempSelectedTopic = topic.topicId == 'all' ? null : topic.topicName;
+                                    });
+                                  }
+                                },
+                                backgroundColor: Colors.grey.shade100,
+                                selectedColor: AppColors.primary.withAlpha(51),
+                                checkmarkColor: AppColors.primary,
+                                labelStyle: TextStyle(
+                                  color: isSelected ? AppColors.primary : Colors.black87,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        }),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Sắp xếp theo',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: tempSortBy,
+                          onChanged: (newValue) {
+                            setModalState(() {
+                              tempSortBy = newValue;
+                            });
+                          },
+                          items: const [
+                            DropdownMenuItem(
+                              value: null,
+                              child: Text('Mặc định'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'newest',
+                              child: Text('Mới nhất'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'oldest',
+                              child: Text('Cũ nhất'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'price_asc',
+                              child: Text('Giá: Thấp đến Cao'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'price_desc',
+                              child: Text('Giá: Cao đến Thấp'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'rating_desc',
+                              child: Text('Đánh giá: Cao nhất'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'rating_asc',
+                              child: Text('Đánh giá: Thấp nhất'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'learners_desc',
+                              child: Text('Học viên: Nhiều nhất'),
+                            ),
+                          ],
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.primary),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              // Navigate to BrowseCourseScreen with filters
+                              await Get.to(
+                                () => BrowseCourseScreen(
+                                  topic: tempSelectedTopic,
+                                  sortBy: tempSortBy,
+                                  programId: tempSelectedProgram,
+                                ),
+                                transition: Transition.cupertino,
+                              );
+
+                              // Reload data after returning from browse screen
+                              debugPrint('HomeScreen: Returned from filter browse, reloading');
+                              await _fetchOtherData();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Áp dụng',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () {
+                              setModalState(() {
+                                tempSelectedTopic = null;
+                                tempSortBy = null;
+                                tempSelectedProgram = null;
+                              });
+                            },
+                            child: const Text(
+                              'Đặt lại',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
-  Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const TextField(
-        decoration: InputDecoration(
-          icon: Icon(CupertinoIcons.search, color: Colors.grey),
-          border: InputBorder.none,
-          hintText: 'Tìm kiếm khóa học...',
-        ),
-      ),
-    );
+
+  Future<List<Map<String, dynamic>>> _fetchPrograms() async {
+    try {
+      // Get current language code
+      final box = GetStorage();
+      final user = box.read('user');
+      String langCode = 'en'; // default
+
+      if (user != null && user['languageId'] != null) {
+        final language = _languages.firstWhere(
+          (lang) => lang.id == user['languageId'],
+          orElse: () => Language(id: '', langName: '', langCode: 'en'),
+        );
+        langCode = language.langCode;
+      }
+
+      final response = await _dio.get('https://f-learn.app/api/languages/$langCode/programs?Page=1&PageSize=100&SortBy=newest');
+
+      if (response.statusCode == 200 && response.data['status'] == 'success') {
+        List<dynamic> data = response.data['data'];
+        return data.map((program) => {
+          'programId': program['programId'],
+          'programName': program['programName'],
+        }).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Lỗi tải danh sách chương trình: $e');
+      return [];
+    }
   }
 
   Widget _buildPromoBanner() {
     return Container(
-      height: 150,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, Colors.blueAccent],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.blue.shade50,
       ),
       child: Row(
         children: [
           Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Center(
-                child: Text(
-                  'Khám phá các khoá học mới',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Khám phá các khóa học mới!',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
-                  textAlign: TextAlign.left,
                 ),
-              ),
+                const SizedBox(height: 12),
+
+              ],
             ),
           ),
-          Expanded(
-            flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  'assets/images/homescreen.png',
-                  height: 120,
-                  width: double.infinity,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
+          const SizedBox(width: 12),
+          Image.asset(
+            'assets/images/Home.png',
+            height: 140,
+            width: 120,
+            fit: BoxFit.cover,
           ),
         ],
       ),
@@ -402,38 +825,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSectionHeader({required String title}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-        GestureDetector(
-          onTap: () {
-            // Chuyển sang CourseScreen với paging
-            Get.to(
-                  () => CourseScreen(topic: _selectedTopicName),
-              transition: Transition.cupertino,
-            );
-          },
-          child: const Text(
-            'Xem tất cả',
-            style: TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+        color: AppColors.textPrimary,
+      ),
     );
   }
-
 
   Widget _buildTopicFilter() {
     return Obx(() {
       if (topicViewModel.isLoadingTopics.value) {
         return const Center(child: CupertinoActivityIndicator());
       }
-      // Create a new list with an 'All' topic
+
       final List<TopicModel> topicsWithAll = [
         TopicModel(
           topicId: 'all',
-          topicName: 'For you',
+          topicName: 'Tất cả',
           topicDescription: '',
           imageUrl: '',
         ),
@@ -441,14 +852,15 @@ class _HomeScreenState extends State<HomeScreen> {
       ];
 
       return SizedBox(
-        height: 40,
+        height: 45,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: topicsWithAll.length,
           separatorBuilder: (_, __) => const SizedBox(width: 8),
           itemBuilder: (context, index) {
             final topic = topicsWithAll[index];
-            final isSelected = (_selectedTopicName == null && topic.topicId == 'all') || (_selectedTopicName == topic.topicName);
+            final isSelected = (_selectedTopicName == null && topic.topicId == 'all') ||
+                (_selectedTopicName == topic.topicName);
 
             return ChoiceChip(
               label: Text(topic.topicName),
@@ -460,22 +872,77 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                 }
               },
-              backgroundColor: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.grey.shade100,
-              selectedColor: AppColors.primary.withOpacity(0.2),
+              backgroundColor: isSelected ? AppColors.primary : Colors.white,
+              selectedColor: AppColors.primary,
               labelStyle: TextStyle(
-                color: isSelected ? AppColors.primary : AppColors.textPrimary,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.white : AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
               ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: isSelected ? AppColors.primary : Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(
+                  color: isSelected ? AppColors.primary : Colors.grey.shade300,
+                ),
               ),
               showCheckmark: false,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             );
           },
         ),
       );
     });
+  }
+  Widget _buildLanguageSelector() {
+    if (_isLoadingLanguages) {
+      return const CupertinoActivityIndicator();
+    }
+
+    if (_languages.isEmpty || _selectedLanguageId == null) {
+      return const SizedBox.shrink();
+    }
+
+    final selectedLanguage = _languages.firstWhere(
+      (lang) => lang.id == _selectedLanguageId,
+      orElse: () => _languages.first,
+    );
+
+    return PopupMenuButton<String>(
+      icon: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withAlpha(25),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          _getLanguageFlag(selectedLanguage.langCode),
+          style: const TextStyle(fontSize: 24),
+        ),
+      ),
+      onSelected: _handleLanguageChange,
+      itemBuilder: (context) {
+        return _languages.map((lang) {
+          return PopupMenuItem<String>(
+            value: lang.id,
+            child: Row(
+              children: [
+                Text(
+                  _getLanguageFlag(lang.langCode),
+                  style: const TextStyle(fontSize: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(lang.langName)),
+                if (lang.id == _selectedLanguageId)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(Icons.check, color: AppColors.primary, size: 20),
+                  ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+    );
   }
 
   Widget _buildOngoingCourses() {
@@ -483,27 +950,28 @@ class _HomeScreenState extends State<HomeScreen> {
       if (courseProgressViewModel.isLoading.value) {
         return const Center(child: CupertinoActivityIndicator());
       }
-      if (courseProgressViewModel.courses.isEmpty) {
+
+      final myCourses = courseProgressViewModel.courses;
+
+      if (myCourses.isEmpty) {
         return const SizedBox.shrink();
       }
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Khóa học đang học',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-          ),
+          _buildSectionHeader(title: 'Khóa học của tôi'),
           const SizedBox(height: 12),
           SizedBox(
-            height: 150,
+            height: 120,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: courseProgressViewModel.courses.length,
+              itemCount: myCourses.length,
               separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
-                final course = courseProgressViewModel.courses[index];
+                final course = myCourses[index];
                 return SizedBox(
-                  width: 320,
+                  width: MediaQuery.of(context).size.width * 0.85,
                   child: _OngoingCourseCard(course: course),
                 );
               },
@@ -513,31 +981,116 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     });
   }
-
-  // Sửa lại widget _buildPopularCourses để truyền CoursePopular vào CourseCard
-  Widget _buildPopularCourses() {
+  Widget _buildPopularCoursesHorizontal() {
     return Obx(() {
-      if (courseViewModel.isLoadingPopularCourses.value) {
+      if (courseViewModel.isLoadingCourse.value) {
+        return const SizedBox(
+          height: 220,
+          child: Center(child: CupertinoActivityIndicator()),
+        );
+      }
+
+      var popularCourses = courseViewModel.courses.take(5).toList();
+
+      if (popularCourses.isEmpty) {
+        return SizedBox(
+          height: 220,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.school_outlined, size: 60, color: Colors.grey.shade300),
+                const SizedBox(height: 12),
+                Text(
+                  'Chưa có khóa học nào',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return SizedBox(
+        height: 220,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: popularCourses.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 16),
+          itemBuilder: (context, index) {
+            final course = popularCourses[index];
+            return SizedBox(
+              width: MediaQuery.of(context).size.width * 0.65,
+              child: PopularCourseCard(course: course),
+            );
+          },
+        ),
+      );
+    });
+  }
+
+  Widget _buildDiscoverCoursesVertical() {
+    return Obx(() {
+      if (courseViewModel.isLoadingCourse.value) {
         return const Center(child: CupertinoActivityIndicator());
       }
-      final filteredCourses = courseViewModel.popularCourses;
-      if (filteredCourses.isEmpty) {
-        return const Center(child: Text('Không có khoá học nào.'));
+
+      var discoverCourses = courseViewModel.courses;
+
+      // Filter by selected topic if any
+      if (_selectedTopicName != null) {
+        discoverCourses = discoverCourses.where((course) {
+          return course.topics.any((topic) => topic.topicName == _selectedTopicName);
+        }).toList().obs;
       }
+
+      if (discoverCourses.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.school_outlined, size: 80, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                Text(
+                  'Chưa có khóa học nào',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Ngôn ngữ này chưa có khóa học. Vui lòng chọn ngôn ngữ khác.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
       return Column(
         children: [
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: filteredCourses.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemCount: discoverCourses.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
             itemBuilder: (context, index) {
-              final course = filteredCourses[index];
-              return CourseCard(course: course); // Truyền CoursePopular vào
+              final course = discoverCourses[index];
+              return DiscoverCourseCard(course: course);
             },
           ),
-          const SizedBox(height: 16),
-
           const SizedBox(height: 100),
         ],
       );
@@ -545,53 +1098,368 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class CourseCard extends StatelessWidget {
-  final CoursePopular course;
+// Helper function to format VND
+String formatVND(int price) {
+  if (price == 0) return 'Miễn phí';
+  return '${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}₫';
+}
 
-  const CourseCard({super.key, required this.course});
+// Popular Course Card - Horizontal
+class PopularCourseCard extends StatelessWidget {
+  final Course course;
+
+  const PopularCourseCard({super.key, required this.course});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
-      child: Row(
-        children: [
-          (course.imageUrl.isNotEmpty)
-              ? Image.network(course.imageUrl, width: 100, height: 100, fit: BoxFit.cover)
-              : Container(width: 100, height: 100, color: Colors.grey.shade200, child: const Icon(Icons.school, color: Colors.grey)),
-          Expanded(
-            child: Padding(
+    return InkWell(
+      onTap: () {
+        Get.to(() => CourseDetailScreen(
+          courseId: course.courseID,
+        ));
+      },
+      child: Card(
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                (course.imageUrl.isNotEmpty)
+                    ? Image.network(
+                  course.imageUrl,
+                  width: double.infinity,
+                  height: 120,
+                  fit: BoxFit.cover,
+                )
+                    : Container(
+                  width: double.infinity,
+                  height: 120,
+                  color: Colors.grey.shade200,
+                  child: const Icon(Icons.school, color: Colors.grey, size: 40),
+                ),
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: course.courseType == 'Free' ? Colors.green.shade400 : Colors.orange.shade400,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      formatVND(course.price),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(course.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text('Giáo viên: ${course.teacherName}', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                  Text('Chương trình: ${course.programName}', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                  const SizedBox(height: 4),
+                  Text(
+                    course.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.star, color: Colors.orange, size: 16),
+                      const Icon(Icons.star, color: Colors.orange, size: 14),
                       const SizedBox(width: 4),
-                      Text('${course.averageRating} (${course.reviewCount} đánh giá)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      const Spacer(),
-                      Text('${course.learnerCount} học viên', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                      Text(
+                        '${course.averageRating}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(Icons.person_outline, color: Colors.grey.shade600, size: 14),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          '${course.learnerCount}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text('Giá: ${course.price}đ', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
+
+// Discover Course Card - Vertical
+class DiscoverCourseCard extends StatelessWidget {
+  final Course course;
+
+  const DiscoverCourseCard({super.key, required this.course});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Get.to(() => CourseDetailScreen(
+          courseId: course.courseID,
+        ));
+      },
+      child: Card(
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                (course.imageUrl.isNotEmpty)
+                    ? Image.network(
+                  course.imageUrl,
+                  width: double.infinity,
+                  height: 180,
+                  fit: BoxFit.cover,
+                )
+                    : Container(
+                  width: double.infinity,
+                  height: 180,
+                  color: Colors.grey.shade200,
+                  child: const Icon(Icons.school, color: Colors.grey, size: 60),
+                ),
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: course.courseType == 'Free' ? Colors.green.shade400 : Colors.orange.shade400,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      formatVND(course.price),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(25),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      course.program?.name ?? 'Chương trình',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    course.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.orange, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${course.averageRating}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Icon(Icons.person_outline, color: Colors.grey.shade600, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${course.learnerCount} học viên',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Keep old BrowseCourseCard for backward compatibility
+class BrowseCourseCard extends StatelessWidget {
+  final Course course;
+
+  const BrowseCourseCard({super.key, required this.course});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Get.to(() => CourseDetailScreen(
+          courseId: course.courseID,
+        ));
+      },
+      child: Card(
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                (course.imageUrl.isNotEmpty)
+                    ? Image.network(
+                  course.imageUrl,
+                  width: double.infinity,
+                  height: 180,
+                  fit: BoxFit.cover,
+                )
+                    : Container(
+                  width: double.infinity,
+                  height: 180,
+                  color: Colors.grey.shade200,
+                  child: const Icon(Icons.school, color: Colors.grey, size: 60),
+                ),
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: course.courseType == 'Free' ? Colors.green.shade400 : Colors.orange.shade400,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      course.courseType == 'Free' ? 'Miễn phí' : '\$${course.price}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(25),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      course.program?.name ?? 'Chương trình',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    course.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.orange, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${course.averageRating}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Icon(Icons.person_outline, color: Colors.grey.shade600, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${course.learnerCount} học viên',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class _OngoingCourseCard extends StatelessWidget {
   final CourseProgress course;

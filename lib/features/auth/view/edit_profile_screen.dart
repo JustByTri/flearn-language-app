@@ -6,9 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
-import 'dart:math' as math;
 import '../../../core/constants/colors.dart';
-import '../../../shared/widgets/app_scaffold.dart';
 import '../viewmodel/user_viewmodel.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -162,9 +160,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
+    return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Thông tin cá nhân'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back, color: Color(0xFF1A1A1A)),
+          onPressed: () => Get.back(),
+        ),
+        title: const Text(
+          'Thông tin cá nhân',
+          style: TextStyle(
+            color: Color(0xFF1A1A1A),
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
+        ),
         centerTitle: true,
       ),
       body: Builder(builder: (context) {
@@ -178,84 +190,249 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _fullNameController ??= TextEditingController(text: user.fullname ?? '');
         _userNameController ??= TextEditingController(text: user.username ?? '');
 
-        final viewInsets = MediaQuery.of(context).viewInsets.bottom;
-        final viewPadding = MediaQuery.of(context).padding.bottom;
-        final bottomPad = math.max(viewInsets, viewPadding) + 24.0;
         return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, bottomPad),
           child: Column(
             children: [
-              const SizedBox(height: 20),
-              _buildAvatar(user.avatar),
-              const SizedBox(height: 20),
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(CupertinoIcons.person, color: AppColors.primary),
-                          const SizedBox(width: 8),
-                          Text(user.username, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(CupertinoIcons.mail, color: Colors.blueGrey),
-                          const SizedBox(width: 8),
-                          Text(user.email, style: const TextStyle(fontSize: 16)),
-                        ],
-                      ),
-                      if (user.roles != null && user.roles!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Chip(
-                            label: Text(user.roles!.join(', ')),
-                            backgroundColor: AppColors.primary.withOpacity(0.15),
-                            labelStyle: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                        ),
+              // Header with avatar
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.primary.withAlpha(25),
+                      Colors.white,
                     ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                   ),
                 ),
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    _buildAvatar(user.avatar),
+                    const SizedBox(height: 16),
+                    Text(
+                      user.email,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    if (user.roles != null && user.roles!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withAlpha(25),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            user.roles!.join(', '),
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 20),
-              // Username field: block whitespace and show validation
-              _buildTextField(
-                _userNameController!,
-                'Tên người dùng',
-                errorText: _usernameError,
-                inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
-                keyboardType: TextInputType.text,
-                textCapitalization: TextCapitalization.none,
-              ),
-              const SizedBox(height: 20),
-              // Full name: allow Vietnamese characters, capitalize words
-              _buildTextField(
-                _fullNameController!,
-                'Họ và tên',
-                keyboardType: TextInputType.name,
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: 20),
-              _buildSaveButton(),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: const Icon(CupertinoIcons.lock_shield),
-                  label: const Text('Đổi mật khẩu'),
-                  onPressed: _goToChangePassword,
+
+              // Form fields
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Thông tin tài khoản',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Username field
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tên người dùng',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _userNameController,
+                          decoration: InputDecoration(
+                            hintText: 'Nhập tên người dùng',
+                            errorText: _usernameError,
+                            prefixIcon: const Icon(
+                              CupertinoIcons.person,
+                              color: AppColors.primary,
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF8F9FA),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppColors.primary,
+                                width: 2,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Colors.red,
+                                width: 1,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.deny(RegExp(r'\s'))
+                          ],
+                          keyboardType: TextInputType.text,
+                          textCapitalization: TextCapitalization.none,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Full name field
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Họ và tên',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _fullNameController,
+                          decoration: InputDecoration(
+                            hintText: 'Nhập họ và tên',
+                            prefixIcon: const Icon(
+                              CupertinoIcons.person_fill,
+                              color: AppColors.primary,
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF8F9FA),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppColors.primary,
+                                width: 2,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                          ),
+                          keyboardType: TextInputType.name,
+                          textCapitalization: TextCapitalization.words,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Save button
+                    StreamBuilder<bool>(
+                      stream: userViewModel.isLoading.stream,
+                      initialData: userViewModel.isLoading.value,
+                      builder: (context, snapshot) {
+                        final loading = snapshot.data ?? false;
+                        return SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              disabledBackgroundColor: Colors.grey.shade300,
+                            ),
+                            onPressed: (loading || !_isFormValid())
+                                ? null
+                                : _submit,
+                            child: loading
+                                ? const CupertinoActivityIndicator(
+                                    color: Colors.white)
+                                : const Text(
+                                    'Lưu thay đổi',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Change password button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.teal,
+                          side: const BorderSide(color: Colors.teal, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(CupertinoIcons.lock_shield),
+                        label: const Text(
+                          'Đổi mật khẩu',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onPressed: _goToChangePassword,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -266,78 +443,72 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildAvatar(String? currentAvatarUrl) {
-    return Center(
-      child: Stack(
-        children: [
-          CircleAvatar(
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.primary.withAlpha(51),
+              width: 4,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withAlpha(25),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: CircleAvatar(
             radius: 60,
-            backgroundColor: Colors.grey.shade200,
+            backgroundColor: Colors.grey.shade100,
             backgroundImage: _avatarImage != null
                 ? FileImage(_avatarImage!)
                 : (currentAvatarUrl != null && currentAvatarUrl.isNotEmpty
                     ? NetworkImage(currentAvatarUrl)
                     : null) as ImageProvider?,
-            child: (_avatarImage == null && (currentAvatarUrl == null || currentAvatarUrl.isEmpty))
-                ? const Icon(CupertinoIcons.person_fill, size: 60, color: Colors.grey)
+            child: (_avatarImage == null &&
+                    (currentAvatarUrl == null || currentAvatarUrl.isEmpty))
+                ? Icon(
+                    CupertinoIcons.person_fill,
+                    size: 50,
+                    color: Colors.grey.shade400,
+                  )
                 : null,
           ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: GestureDetector(
-              onTap: _pickImage,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
+        ),
+        Positioned(
+          bottom: 4,
+          right: 4,
+          child: GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white,
+                  width: 3,
                 ),
-                child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.camera_alt,
+                color: Colors.white,
+                size: 18,
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextField(TextEditingController controller, String label, {String? errorText, List<TextInputFormatter>? inputFormatters, TextInputType? keyboardType, TextCapitalization? textCapitalization}) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        errorText: errorText,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      ),
-      inputFormatters: inputFormatters,
-      keyboardType: keyboardType,
-      textCapitalization: textCapitalization ?? TextCapitalization.none,
-    );
-  }
-
-  Widget _buildSaveButton() {
-    return StreamBuilder<bool>(
-      stream: userViewModel.isLoading.stream,
-      initialData: userViewModel.isLoading.value,
-      builder: (context, snapshot) {
-        final loading = snapshot.data ?? false;
-        return SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: (loading || !_isFormValid()) ? null : _submit,
-            child: loading
-                ? const CupertinoActivityIndicator(color: Colors.white)
-                : const Text('Lưu thay đổi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ),
-        );
-      },
+        ),
+      ],
     );
   }
 }

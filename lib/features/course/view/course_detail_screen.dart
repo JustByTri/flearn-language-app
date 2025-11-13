@@ -39,14 +39,8 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   }
 
   String _formatPrice(int price) {
-    if (price >= 1000000) {
-      final millions = price / 1000000;
-      return millions % 1 == 0 ? '${millions.toInt()}tr' : '${millions.toStringAsFixed(1)}tr';
-    } else if (price >= 1000) {
-      final thousands = price / 1000;
-      return thousands % 1 == 0 ? '${thousands.toInt()}k' : '${thousands.toStringAsFixed(1)}k';
-    }
-    return '${price}đ';
+    if (price == 0) return 'Miễn phí';
+    return '${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}₫';
   }
 
   Future<void> _handleEnrollNow(BuildContext context) async {

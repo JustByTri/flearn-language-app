@@ -160,7 +160,7 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar>
                               0, "Trang chủ")),
                       Expanded(
                           child: _buildNavItem(
-                              Icons.speaker_notes, Icons.speaker_notes_outlined, 1, "Roleplay")),
+                              Icons.speaker_notes, Icons.speaker_notes_outlined, 1, "Nhập vai")),
                       Expanded(
                           child: _buildNavItem(Icons.book,
                               Icons.book_outlined, 2, "Khoá học")),

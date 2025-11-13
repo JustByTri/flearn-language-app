@@ -20,7 +20,7 @@ class WelcomeSurveyScreen extends StatelessWidget {
             children: [
               const Spacer(flex: 2),
               Image.asset(
-                'assets/images/logoa3.gif', // Using the GIF
+                'assets/images/WelcomeToSurvey.png', // Using the GIF
                 height: size.width * 0.65,
                 fit: BoxFit.contain,
               ),

@@ -28,6 +28,50 @@ class CourseViewModel extends GetxController {
 
   CourseViewModel(this._courseRepository);
 
+  // New method to fetch courses with language and search support
+  Future<void> fetchCoursesWithLanguage({
+    String? lang,
+    String? searchTerm,
+    String? sortBy,
+    bool isRefresh = false,
+  }) async {
+    if (isLoadingCourse.value) return;
+    try {
+      isLoadingCourse.value = true;
+      final int pageToFetch = isRefresh ? 1 : currentPage.value;
+      print('CourseViewModel: Fetching page $pageToFetch with lang: $lang, search: $searchTerm, sortBy: $sortBy');
+
+      final List<Course> list = await _courseRepository.getCourse(
+        page: pageToFetch,
+        pageSize: 10, // Show more courses on home screen
+        status: 'Published',
+        lang: lang,
+        searchTerm: searchTerm,
+        sortBy: sortBy,
+      );
+      print('CourseViewModel: Fetched ${list.length} courses');
+
+      if (isRefresh) {
+        courses.assignAll(list);
+        currentPage.value = 2;
+        hasMoreCourses.value = list.length == 10;
+      } else {
+        if (list.isNotEmpty) courses.addAll(list);
+        currentPage.value = currentPage.value + 1;
+        hasMoreCourses.value = list.length == 10;
+      }
+    } catch (e) {
+      print('CourseViewModel: fetchCoursesWithLanguage error: $e');
+      // Clear courses on error to show empty state
+      if (isRefresh) {
+        courses.clear();
+      }
+      hasMoreCourses.value = false;
+    } finally {
+      isLoadingCourse.value = false;
+    }
+  }
+
   // Replace or add this method
   Future<void> fetchMoreCourses({bool isRefresh = false}) async {
     if (isLoadingCourse.value) return;
@@ -39,6 +83,7 @@ class CourseViewModel extends GetxController {
         page: pageToFetch,
         pageSize: pageSize,
         status: 'Published',
+        sortBy: null,
       );
       print('CourseViewModel: Fetched ${list.length} courses from page $pageToFetch');
 

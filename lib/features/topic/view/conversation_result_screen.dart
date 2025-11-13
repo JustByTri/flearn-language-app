@@ -134,7 +134,6 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
     final feedbackOriginal = widget.resultData['aiFeedback']?.toString() ?? "";
