@@ -12,11 +12,12 @@ import '../model/lesson_tracking.dart';
 
 abstract class ICourseRepository{
   Future<List<Course>> getCourse({
-    int page,
-    int pageSize,
+    int page = 1,
+    int pageSize = 10,
     String? status,
     String? searchTerm,
     String? lang,
+    String? sortBy,
   });
 
   Future<List<CourseUnit>> getCourseUnit(String courseId, {int page, int pageSize});

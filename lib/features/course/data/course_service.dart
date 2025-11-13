@@ -23,6 +23,7 @@ class CourseService implements ICourseRepository {
     String? status,
     String? searchTerm,
     String? lang,
+    String? sortBy,
   }) async {
     final queryParams = {
       'Page': '$page',
@@ -30,11 +31,19 @@ class CourseService implements ICourseRepository {
       if (status != null) 'status': status,
       if (searchTerm != null && searchTerm.isNotEmpty) 'SearchTerm': searchTerm,
       if (lang != null && lang.isNotEmpty) 'lang': lang,
+      if (sortBy != null && sortBy.isNotEmpty) 'SortBy': sortBy,
     };
     final url = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.getCourse}')
         .replace(queryParameters: queryParams);
     print('getCourse : $url');
     final res = await http.get(url, headers: {'Content-Type': 'application/json'});
+
+    // Handle 404 as empty list instead of throwing error
+    if (res.statusCode == 404) {
+      print('getCourse: No courses found for this language/filter');
+      return [];
+    }
+
     if (res.statusCode != 200) {
       throw Exception('getCourse failed ${res.statusCode}: ${res.body}');
     }
