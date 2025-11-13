@@ -89,16 +89,22 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
           if (data == null) return _buildEmptyState();
           final units = data.units;
           if (units.isEmpty) return _buildEmptyState();
-          return FadeSlideAnimation(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: units.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, i) {
-                final u = units[i];
-                final expanded = _expandedUnits.contains(u.unitId);
-                return _buildCurriculumUnitCard(u, expanded);
-              },
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              await courseViewModel.fetchCurriculum(widget.enrollmentId!);
+            },
+            child: FadeSlideAnimation(
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: units.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, i) {
+                  final u = units[i];
+                  final expanded = _expandedUnits.contains(u.unitId);
+                  return _buildCurriculumUnitCard(u, expanded);
+                },
+              ),
             ),
           );
         }
@@ -232,16 +238,11 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
 
   Widget _buildLessonTile(dynamic lesson) {
     return InkWell(
-      onTap: () async {
-        final courseViewModel = Get.find<CourseViewModel>();
-        final lessonDetail = await courseViewModel.fetchLessonById(lesson.lessonID);
-        if (lessonDetail != null) {
-          Get.to(() => CourseLessonScreen(
-            lesson: lessonDetail,
-          ));
-        } else {
-          Get.snackbar('Lỗi', 'Không thể tải bài học');
-        }
+      onTap: () {
+
+        Get.to(() => CourseLessonScreen(
+          lessonId: lesson.lessonID,
+        ));
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -269,17 +270,35 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(20),
+
+            if (lesson.status != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  lesson.status.toString().toLowerCase() == 'inprogress'
+                      ? 'Tiếp tục'
+                      : (lesson.status.toString().toLowerCase() == 'notstarted'
+                      ? 'Bắt đầu'
+                      : 'Hoàn thành'),
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Bắt đầu',
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
               ),
-              child: const Text(
-                'Bắt đầu',
-                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-            ),
           ],
         ),
       ),
@@ -397,7 +416,8 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
           if (isExpanded) ...[
             const Divider(height: 1),
             Column(
-              children: unit.lessons.map((l) => _buildCurriculumLessonTile(l)).toList(),
+
+              children: unit.lessons.map((l) => _buildCurriculumLessonTile(l, unit.unitId)).toList(),
             ),
           ],
         ],
@@ -405,16 +425,29 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
     );
   }
 
-  Widget _buildCurriculumLessonTile(CurriculumLesson lesson) {
+  Widget _buildCurriculumLessonTile(CurriculumLesson lesson, String unitId) {
     return InkWell(
       onTap: () async {
         final vm = Get.find<CourseViewModel>();
-        final detail = await vm.fetchLessonById(lesson.lessonId);
-        if (detail != null) {
-          Get.to(() => CourseLessonScreen(lesson: detail));
-        } else {
-          Get.snackbar('Lỗi', 'Không thể tải bài học');
+
+        if (lesson.status.toLowerCase() == 'notstarted') {
+          Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+          try {
+            await vm.startLesson(unitId: unitId, lessonId: lesson.lessonId);
+
+            if (widget.enrollmentId != null && widget.enrollmentId!.isNotEmpty) {
+              await vm.fetchCurriculum(widget.enrollmentId!);
+            }
+          } catch (e) {
+            Get.snackbar('Lỗi', 'Không thể bắt đầu bài học');
+          } finally {
+            if (Get.isDialogOpen ?? false) Get.back();
+          }
         }
+
+        Get.to(() => CourseLessonScreen(
+          lessonId: lesson.lessonId,
+        ));
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -459,19 +492,25 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
               ),
             ),
             const SizedBox(width: 12),
+
+            Text(
+              '${lesson.progressPercent.toInt()}%',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: _statusColor(lesson.status).withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                lesson.status,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: _statusColor(lesson.status),
-                ),
+                lesson.status.toLowerCase() == 'inprogress'
+                    ? 'Tiếp tục'
+                    : (lesson.status.toLowerCase() == 'notstarted'
+                    ? 'Bắt đầu'
+                    : 'Hoàn thành'),
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
               ),
             ),
           ],

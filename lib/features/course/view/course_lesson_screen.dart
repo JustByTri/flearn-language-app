@@ -1,26 +1,96 @@
+import 'package:flearn_app/features/course_progress/model/lesson_progress_detail.dart';
+import 'package:flearn_app/features/course_progress/viewmodel/course_progress_viewmodel.dart';
 import 'package:flearn_app/features/course/view/video_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/colors.dart';
-import '../model/course_lesson.dart';
 import '../viewmodel/course_viewmodel.dart';
 import 'course_exercise_screen.dart';
+import 'course_lesson_drawer.dart';
+
+enum LessonStep { content, video, document }
 
 class CourseLessonScreen extends StatefulWidget {
-  final Lesson lesson;
-  const CourseLessonScreen({super.key, required this.lesson});
+  final String lessonId;
+  const CourseLessonScreen({super.key, required this.lessonId});
 
   @override
   State<CourseLessonScreen> createState() => _CourseLessonScreenState();
 }
 
 class _CourseLessonScreenState extends State<CourseLessonScreen> {
+  final CourseProgressViewModel progressViewModel = Get.find<CourseProgressViewModel>();
   int _currentStep = 0;
+  List<LessonStep> _availableSteps = [];
+  List<bool> _stepChecked = [];
+  final Set<LessonStep> _loggedSteps = {};
+  bool _isLogging = false;
   final CourseViewModel courseViewModel = Get.find<CourseViewModel>();
 
 
-  final List<bool> _stepChecked = [false, false, false];
+  late String _lessonId;
+
+  @override
+  void initState() {
+    super.initState();
+    _lessonId = widget.lessonId;
+    progressViewModel.fetchLessonProgressDetail(_lessonId);
+  }
+
+  @override
+  void didUpdateWidget(covariant CourseLessonScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.lessonId != widget.lessonId) {
+      _lessonId = widget.lessonId;
+      progressViewModel.fetchLessonProgressDetail(_lessonId);
+      setState(() {
+        _currentStep = 0;
+        _loggedSteps.clear();
+      });
+    }
+  }
+
+  void _initSteps(LessonProgressDetail detail) {
+    final activity = detail.activityStatus;
+    final steps = <LessonStep>[];
+    if (activity.content.isAvailable) steps.add(LessonStep.content);
+    if (activity.video.isAvailable) steps.add(LessonStep.video);
+    if (activity.document.isAvailable) steps.add(LessonStep.document);
+    if (steps.isEmpty) steps.add(LessonStep.content);
+
+    _availableSteps = steps;
+    _stepChecked = [
+      if (activity.content.isAvailable) activity.content.isCompleted else false,
+      if (activity.video.isAvailable) activity.video.isCompleted else false,
+      if (activity.document.isAvailable) activity.document.isCompleted else false,
+    ];
+    if (_currentStep >= _availableSteps.length) _currentStep = _availableSteps.length - 1;
+    if (_currentStep < 0) _currentStep = 0;
+  }
+
+  int _indexOf(LessonStep step) => _availableSteps.indexOf(step);
+  String _labelOf(LessonStep step) {
+    switch (step) {
+      case LessonStep.content:
+        return 'Nội dung';
+      case LessonStep.video:
+        return 'Video';
+      case LessonStep.document:
+        return 'Tài liệu';
+    }
+  }
+
+  int _logTypeOf(LessonStep step) {
+    switch (step) {
+      case LessonStep.content:
+        return 1;
+      case LessonStep.video:
+        return 2;
+      case LessonStep.document:
+        return 3;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,35 +103,70 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Get.back(),
         ),
-        title: Text(
-          widget.lesson.unitTitle,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        title: Obx(() {
+          final detail = progressViewModel.lessonProgressDetail.value;
+          return Text(
+            detail?.unitTitle ?? '',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          );
+        }),
         centerTitle: true,
-      ),
-      body: Column(
-        children: [
-
-          _buildProgressIndicator(),
-
-          // Content body
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: _buildCurrentStepContent(),
-              ),
+        actions: [
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu_book, color: AppColors.primary),
+              tooltip: 'Danh sách bài học',
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
             ),
           ),
-
-          // Bottom navigation
-          _buildBottomNavigation(),
         ],
       ),
+
+      endDrawer: CourseLessonDrawer(
+        currentLessonId: _lessonId,
+        onLessonSelected: (newLessonId) {
+          if (newLessonId == _lessonId) return;
+          // reset state và fetch bài mới
+          setState(() {
+            _lessonId = newLessonId;
+            _currentStep = 0;
+            _loggedSteps.clear();
+            _availableSteps = [];
+            _stepChecked = [];
+          });
+          // gọi fetch sau khi Drawer đóng hẳn (đã delay ở Drawer), ở đây vẫn an toàn gọi lại
+          progressViewModel.fetchLessonProgressDetail(newLessonId);
+        },
+      ),
+      body: Obx(() {
+        if (progressViewModel.isLoadingLessonProgress.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final detail = progressViewModel.lessonProgressDetail.value;
+        if (detail == null) {
+          return const Center(child: Text('Không thể tải dữ liệu bài học'));
+        }
+        _initSteps(detail);
+
+        return Column(
+          children: [
+            _buildProgressIndicator(),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildCurrentStepContent(detail),
+                ),
+              ),
+            ),
+            _buildBottomNavigation(detail),
+          ],
+        );
+      }),
     );
   }
 
@@ -80,11 +185,10 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
       ),
       child: Row(
         children: [
-          _buildStepDot(0, 'Nội dung'),
-          _buildStepLine(0),
-          _buildStepDot(1, 'Video'),
-          _buildStepLine(1),
-          _buildStepDot(2, 'Tài liệu'),
+          for (int i = 0; i < _availableSteps.length; i++) ...[
+            Expanded(child: _buildStepDot(i, _labelOf(_availableSteps[i]))),
+            if (i < _availableSteps.length - 1) _buildStepLine(i),
+          ],
         ],
       ),
     );
@@ -94,42 +198,40 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     final isActive = _currentStep == step;
     final isCompleted = _currentStep > step;
 
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isCompleted
-                  ? Colors.green
-                  : (isActive ? AppColors.primary : Colors.grey.shade300),
-            ),
-            child: Center(
-              child: isCompleted
-                  ? const Icon(Icons.check, color: Colors.white, size: 18)
-                  : Text(
-                '${step + 1}',
-                style: TextStyle(
-                  color: isActive ? Colors.white : Colors.grey.shade600,
-                  fontWeight: FontWeight.bold,
-                ),
+    return Column(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isCompleted
+                ? Colors.green
+                : (isActive ? AppColors.primary : Colors.grey.shade300),
+          ),
+          child: Center(
+            child: isCompleted
+                ? const Icon(Icons.check, color: Colors.white, size: 18)
+                : Text(
+              '${step + 1}',
+              style: TextStyle(
+                color: isActive ? Colors.white : Colors.grey.shade600,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: isActive ? AppColors.primary : Colors.grey.shade600,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            ),
-            textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: isActive ? AppColors.primary : Colors.grey.shade600,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
           ),
-        ],
-      ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
@@ -144,20 +246,22 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     );
   }
 
-  Widget _buildCurrentStepContent() {
-    switch (_currentStep) {
-      case 0:
-        return _buildContentStep();
-      case 1:
-        return _buildVideoStep();
-      case 2:
-        return _buildDocumentStep();
-      default:
-        return const SizedBox.shrink();
+  Widget _buildCurrentStepContent(LessonProgressDetail detail) {
+    if (_availableSteps.isEmpty) return const SizedBox.shrink();
+    final step = _availableSteps[_currentStep];
+    final activity = detail.activityStatus;
+    switch (step) {
+      case LessonStep.content:
+        return _buildContentStep(detail, activity);
+      case LessonStep.video:
+        return _buildVideoStep(detail, activity);
+      case LessonStep.document:
+        return _buildDocumentStep(detail, activity);
     }
   }
 
-  Widget _buildContentStep() {
+  Widget _buildContentStep(LessonProgressDetail detail, ActivityStatus activity) {
+    final idx = _indexOf(LessonStep.content);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -170,7 +274,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                'Bài ${widget.lesson.position}',
+                'Bài ${detail.lessonTitle}',
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontSize: 12,
@@ -182,17 +286,17 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          widget.lesson.title,
+          detail.lessonTitle,
           style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
           ),
         ),
-        if (widget.lesson.description.isNotEmpty) ...[
+        if (detail.description.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
-            widget.lesson.description,
+            detail.description,
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.shade600,
@@ -209,55 +313,31 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
             border: Border.all(color: Colors.grey.shade200),
           ),
           child: Html(
-            data: widget.lesson.content,
-            style: {
-              "body": Style(
-                margin: Margins.zero,
-                padding: HtmlPaddings.zero,
-              ),
-              "h1": Style(
-                fontSize: FontSize(20),
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-              "h2": Style(
-                fontSize: FontSize(18),
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-              "p": Style(
-                fontSize: FontSize(15),
-                lineHeight: LineHeight(1.6),
-                color: AppColors.textSecondary,
-              ),
-              "li": Style(
-                fontSize: FontSize(15),
-                lineHeight: LineHeight(1.6),
-                color: AppColors.textSecondary,
-              ),
-            },
+            data: activity.content.resourceUrl ?? '',
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Checkbox(
-              value: _stepChecked[0],
-              onChanged: (val) {
-                setState(() {
-                  _stepChecked[0] = val ?? false;
-                });
-              },
-            ),
-            const Text('Đã đọc nội dung bài học'),
-          ],
-        ),
+        if (idx >= 0)
+          Row(
+            children: [
+              Checkbox(
+                value: _stepChecked[idx],
+                onChanged: (val) {
+                  _onStepChecked(LessonStep.content, idx, val ?? false, detail.lessonId);
+                },
+              ),
+              const Text('Đã đọc nội dung bài học'),
+            ],
+          ),
       ],
     );
   }
 
-  Widget _buildVideoStep() {
-    if (widget.lesson.videoUrl.isEmpty) {
+  Widget _buildVideoStep(LessonProgressDetail detail, ActivityStatus activity) {
+    final idx = _indexOf(LessonStep.video);
+    if (idx < 0) return const SizedBox.shrink();
+
+    if (!(activity.video.isAvailable && (activity.video.resourceUrl?.isNotEmpty ?? false))) {
       return _buildEmptyState(
         icon: Icons.video_library_outlined,
         message: 'Bài học này không có video',
@@ -278,7 +358,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         const SizedBox(height: 16),
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: VideoPlayerWidget(videoUrl: widget.lesson.videoUrl),
+          child: VideoPlayerWidget(videoUrl: activity.video.resourceUrl!),
         ),
         const SizedBox(height: 16),
         Container(
@@ -306,11 +386,9 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         Row(
           children: [
             Checkbox(
-              value: _stepChecked[1],
+              value: _stepChecked[idx],
               onChanged: (val) {
-                setState(() {
-                  _stepChecked[1] = val ?? false;
-                });
+                _onStepChecked(LessonStep.video, idx, val ?? false, detail.lessonId);
               },
             ),
             const Text('Đã xem video bài học'),
@@ -320,8 +398,11 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     );
   }
 
-  Widget _buildDocumentStep() {
-    if (widget.lesson.documentUrl.isEmpty) {
+  Widget _buildDocumentStep(LessonProgressDetail detail, ActivityStatus activity) {
+    final idx = _indexOf(LessonStep.document);
+    if (idx < 0) return const SizedBox.shrink();
+
+    if (!(activity.document.isAvailable && (activity.document.resourceUrl?.isNotEmpty ?? false))) {
       return _buildEmptyState(
         icon: Icons.description_outlined,
         message: 'Bài học này không có tài liệu PDF',
@@ -352,7 +433,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
               Icon(Icons.picture_as_pdf, size: 80, color: Colors.red.shade400),
               const SizedBox(height: 16),
               Text(
-                widget.lesson.title,
+                detail.lessonTitle,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -370,7 +451,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () {
-                  // TODO: Mở PDF viewer hoặc download
+                  // TODO: mở PDF
                   Get.snackbar(
                     'Thông báo',
                     'Chức năng xem PDF đang được phát triển',
@@ -414,11 +495,9 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         Row(
           children: [
             Checkbox(
-              value: _stepChecked[2],
+              value: _stepChecked[idx],
               onChanged: (val) {
-                setState(() {
-                  _stepChecked[2] = val ?? false;
-                });
+                _onStepChecked(LessonStep.document, idx, val ?? false, detail.lessonId);
               },
             ),
             const Text('Đã xem tài liệu bài học'),
@@ -451,7 +530,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     );
   }
 
-  Widget _buildBottomNavigation() {
+  Widget _buildBottomNavigation(LessonProgressDetail detail) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -497,51 +576,32 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
               flex: 1,
               child: ElevatedButton(
                 onPressed: () async {
-                  if (_currentStep < 2) {
-                    setState(() {
-                      _currentStep++;
-                    });
+                  if (_currentStep < _availableSteps.length - 1) {
+                    setState(() => _currentStep++);
                   } else {
-                    // Kiểm tra tất cả checkbox đã được check
-                    if (_stepChecked.any((checked) => !checked)) {
-                      Get.snackbar(
-                        'Thông báo',
-                        'Bạn cần hoàn thành tất cả các mục trước khi hoàn thành bài học!',
-                        snackPosition: SnackPosition.BOTTOM,
-                        backgroundColor: Colors.red,
-                        colorText: Colors.white,
-                      );
+                    if (_stepChecked.any((c) => !c)) {
+                      Get.snackbar('Thông báo', 'Bạn cần hoàn thành tất cả các mục trước khi hoàn thành bài học!',
+                          snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
                       return;
                     }
 
-
                     Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
-                    for (int i = 0; i < 3; i++) {
-                      await courseViewModel.trackLessonActivity(
-                        lessonId: widget.lesson.lessonID,
-                        logType: i + 1,
-                        durationMinutes: 0,
-                        metadata: '',
-                      );
-                    }
-                    Get.back();
 
-                    await courseViewModel.fetchLessonExercises(widget.lesson.lessonID);
+
+                    await courseViewModel.fetchLessonExercises(detail.lessonId);
+
+                    if (Get.isDialogOpen ?? false) Get.back();
+
 
                     if (courseViewModel.exercises.isNotEmpty) {
                       Get.to(() => LessonExerciseScreen(
-                        lessonId: widget.lesson.lessonID,
-                        lessonTitle: widget.lesson.title,
+                        lessonId: detail.lessonId,
+                        lessonTitle: detail.lessonTitle,
                       ));
                     } else {
                       Get.back();
-                      Get.snackbar(
-                        'Hoàn thành',
-                        'Bạn đã hoàn thành bài học ${widget.lesson.title}!',
-                        snackPosition: SnackPosition.BOTTOM,
-                        backgroundColor: Colors.green,
-                        colorText: Colors.white,
-                      );
+                      Get.snackbar('Hoàn thành', 'Bạn đã hoàn thành bài học ${detail.lessonTitle}!',
+                          snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
                     }
                   }
                 },
@@ -558,7 +618,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      _currentStep < 2 ? 'Tiếp theo' : 'Hoàn thành',
+                      _currentStep < _availableSteps.length - 1 ? 'Tiếp theo' : 'Hoàn thành',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -566,7 +626,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                     ),
                     const SizedBox(width: 8),
                     Icon(
-                      _currentStep < 2 ? Icons.arrow_forward : Icons.check,
+                      _currentStep < _availableSteps.length - 1 ? Icons.arrow_forward : Icons.check,
                       size: 20,
                     ),
                   ],
@@ -577,5 +637,33 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _onStepChecked(LessonStep step, int idx, bool checked, String lessonId) async {
+    setState(() {
+      _stepChecked[idx] = checked;
+    });
+    if (!checked) return;
+    if (_loggedSteps.contains(step)) return;
+    if (_isLogging) return;
+
+    _isLogging = true;
+    try {
+
+      await courseViewModel.trackLessonActivity(
+        lessonId: lessonId,
+        logType: _logTypeOf(step),
+        durationMinutes: 0,
+        metadata: '',
+      );
+      _loggedSteps.add(step);
+    } catch (e) {
+      setState(() {
+        _stepChecked[idx] = false;
+      });
+      Get.snackbar('Lỗi', 'Không thể cập nhật tiến độ. Vui lòng thử lại.');
+    } finally {
+      _isLogging = false;
+    }
   }
 }
