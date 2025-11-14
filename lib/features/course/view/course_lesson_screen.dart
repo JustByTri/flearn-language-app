@@ -118,7 +118,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         actions: [
           Builder(
             builder: (context) => IconButton(
-              icon: const Icon(Icons.menu_book, color: AppColors.primary),
+              icon: const Icon(Icons.menu, color: AppColors.primary),
               tooltip: 'Danh sách bài học',
               onPressed: () => Scaffold.of(context).openEndDrawer(),
             ),

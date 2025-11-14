@@ -63,7 +63,7 @@ class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
         elevation: 0.5,
         centerTitle: true,
         title: Text(
-          "Chủ đề Roleplay",
+          "Chủ đề nhập vai",
           style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,

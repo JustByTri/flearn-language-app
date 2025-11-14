@@ -57,4 +57,9 @@ abstract class ICourseRepository{
   });
 
   Future<List<CoursePopular>> getCoursePopular({int count});
+
+  Future<bool> submitExercise({
+    required String exerciseId,
+    required String audioFilePath,
+  });
 }
