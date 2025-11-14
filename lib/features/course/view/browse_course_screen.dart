@@ -36,10 +36,19 @@ class _BrowseCourseScreenState extends State<BrowseCourseScreen> {
   final RxList<Course> _localCourses = <Course>[].obs;
   final RxBool _isLoading = false.obs;
 
+  // ===== NEW: local filters giống Home =====
+  String? _currentSortBy;
+  String? _selectedTopicName;
+  String? _selectedProgramId;
+
   @override
   void initState() {
     super.initState();
     _searchController.text = widget.searchQuery ?? '';
+    // init local filters từ params ban đầu
+    _currentSortBy = widget.sortBy;
+    _selectedTopicName = widget.topic;
+    _selectedProgramId = widget.programId;
     _loadCourses();
   }
 
@@ -62,7 +71,7 @@ class _BrowseCourseScreenState extends State<BrowseCourseScreen> {
         if (response.statusCode == 200 && response.data['status'] == 'success') {
           List<dynamic> languages = response.data['data'];
           final language = languages.firstWhere(
-            (lang) => lang['id'] == languageId,
+                (lang) => lang['id'] == languageId,
             orElse: () => null,
           );
 
@@ -84,13 +93,13 @@ class _BrowseCourseScreenState extends State<BrowseCourseScreen> {
       // Get language code
       final langCode = await _getCurrentLanguageCode();
 
-      debugPrint('BrowseCourseScreen: Loading courses with langCode: $langCode, search: ${widget.searchQuery}, sortBy: ${widget.sortBy}');
+      debugPrint('BrowseCourseScreen: Loading courses with langCode: $langCode, search: ${widget.searchQuery}, sortBy: ${_currentSortBy}');
 
       // Fetch courses but store in local state
       await courseViewModel.fetchCoursesWithLanguage(
         lang: langCode,
         searchTerm: widget.searchQuery,
-        sortBy: widget.sortBy,
+        sortBy: _currentSortBy, // dùng sort hiện tại
         isRefresh: true,
       );
 
@@ -103,6 +112,202 @@ class _BrowseCourseScreenState extends State<BrowseCourseScreen> {
     } finally {
       _isLoading.value = false;
     }
+  }
+
+  // ===== NEW: tiện ích build danh sách chương trình & chủ đề từ courses hiện có =====
+  List<Map<String, String>> _derivePrograms() {
+    final map = <String, String>{};
+    for (final c in _localCourses) {
+      final id = c.program?.programId;
+      final name = c.program?.name;
+      if (id != null && id.isNotEmpty && name != null && name.isNotEmpty) {
+        map[id] = name;
+      }
+    }
+    return map.entries.map((e) => {'id': e.key, 'name': e.value}).toList();
+  }
+
+  List<String> _deriveTopics() {
+    final set = <String>{};
+    for (final c in _localCourses) {
+      for (final t in c.topics) {
+        if (t.topicName.isNotEmpty) set.add(t.topicName);
+      }
+    }
+    return set.toList()..sort();
+  }
+
+  // ===== NEW: bottom sheet filter giống Home =====
+  void _showFilterBottomSheet() {
+    String? tempSelectedProgram = _selectedProgramId;
+    String? tempSelectedTopic = _selectedTopicName;
+    String? tempSortBy = _currentSortBy;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        final programs = _derivePrograms();
+        final topics = _deriveTopics();
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (context, scrollController) {
+                return SingleChildScrollView(
+                  controller: scrollController,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Lọc khóa học', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Programs
+                        const Text('Chọn chương trình', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('Tất cả chương trình'),
+                              selected: tempSelectedProgram == null,
+                              onSelected: (_) => setModalState(() => tempSelectedProgram = null),
+                            ),
+                            ...programs.map((p) {
+                              final selected = tempSelectedProgram == p['id'];
+                              return ChoiceChip(
+                                label: Text(p['name'] ?? ''),
+                                selected: selected,
+                                onSelected: (_) => setModalState(() => tempSelectedProgram = p['id']),
+                              );
+                            }),
+                          ],
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Topics
+                        const Text('Chọn chủ đề', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('Tất cả'),
+                              selected: tempSelectedTopic == null,
+                              onSelected: (_) => setModalState(() => tempSelectedTopic = null),
+                            ),
+                            ...topics.map((name) {
+                              final selected = tempSelectedTopic == name;
+                              return ChoiceChip(
+                                label: Text(name),
+                                selected: selected,
+                                onSelected: (_) => setModalState(() => tempSelectedTopic = name),
+                              );
+                            }),
+                          ],
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Sort
+                        const Text('Sắp xếp theo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          value: tempSortBy,
+                          items: const [
+                            DropdownMenuItem(value: null, child: Text('Mặc định')),
+                            DropdownMenuItem(value: 'newest', child: Text('Mới nhất')),
+                            DropdownMenuItem(value: 'oldest', child: Text('Cũ nhất')),
+                            DropdownMenuItem(value: 'price_asc', child: Text('Giá: Thấp đến Cao')),
+                            DropdownMenuItem(value: 'price_desc', child: Text('Giá: Cao đến Thấp')),
+                            DropdownMenuItem(value: 'rating_desc', child: Text('Đánh giá: Cao nhất')),
+                            DropdownMenuItem(value: 'rating_asc', child: Text('Đánh giá: Thấp nhất')),
+                            DropdownMenuItem(value: 'learners_desc', child: Text('Học viên: Nhiều nhất')),
+                          ],
+                          onChanged: (v) => setModalState(() => tempSortBy = v),
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.primary),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Actions
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              setState(() {
+                                _selectedProgramId = tempSelectedProgram;
+                                _selectedTopicName = tempSelectedTopic;
+                                _currentSortBy = tempSortBy;
+                              });
+                              await _loadCourses();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Áp dụng', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () {
+                              setModalState(() {
+                                tempSelectedProgram = null;
+                                tempSelectedTopic = null;
+                                tempSortBy = null;
+                              });
+                            },
+                            child: const Text('Đặt lại', style: TextStyle(fontSize: 16, color: AppColors.primary)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   String _getTitle() {
@@ -145,46 +350,45 @@ class _BrowseCourseScreenState extends State<BrowseCourseScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Search bar
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withAlpha(25),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onSubmitted: (value) async {
-                      if (value.trim().isNotEmpty) {
-                        // Navigate to new search results
-                        Get.off(
-                          () => BrowseCourseScreen(
-                            searchQuery: value.trim(),
-                            topic: widget.topic,
-                            sortBy: widget.sortBy,
-                            programId: widget.programId,
-                          ),
-                        );
-                      } else {
-                        // Clear search and reload
-                        _searchController.clear();
-                        setState(() {});
-                        await _loadCourses();
-                      }
-                    },
-                    decoration: InputDecoration(
-                      icon: const Icon(CupertinoIcons.search, color: Colors.grey),
-                      border: InputBorder.none,
-                      hintText: 'Tìm kiếm khóa học...',
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
+                // ===== UPDATED: Search + Filter button giống Home =====
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withAlpha(25),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          onSubmitted: (value) async {
+                            if (value.trim().isNotEmpty) {
+                              Get.off(() => BrowseCourseScreen(
+                                searchQuery: value.trim(),
+                                topic: _selectedTopicName,
+                                sortBy: _currentSortBy,
+                                programId: _selectedProgramId,
+                              ));
+                            } else {
+                              _searchController.clear();
+                              setState(() {});
+                              await _loadCourses();
+                            }
+                          },
+                          decoration: InputDecoration(
+                            icon: const Icon(CupertinoIcons.search, color: Colors.grey),
+                            border: InputBorder.none,
+                            hintText: 'Tìm kiếm khóa học...',
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
                               icon: const Icon(Icons.clear, size: 20),
                               onPressed: () {
                                 _searchController.clear();
@@ -192,18 +396,33 @@ class _BrowseCourseScreenState extends State<BrowseCourseScreen> {
                                 _loadCourses();
                               },
                             )
-                          : null,
+                                : null,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
                     ),
-                    onChanged: (value) {
-                      setState(() {}); // Update UI for clear button
-                    },
-                  ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withAlpha(255),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        onPressed: _showFilterBottomSheet,
+                        icon: const Icon(CupertinoIcons.slider_horizontal_3, color: Colors.white, size: 24),
+                        padding: EdgeInsets.zero,
+                        tooltip: 'Lọc khóa học',
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
 
                 // Courses list
                 Obx(() {
-                  // Use local loading state
                   if (_isLoading.value) {
                     return const Center(
                       child: Padding(
@@ -216,17 +435,17 @@ class _BrowseCourseScreenState extends State<BrowseCourseScreen> {
                   // Use local courses to prevent data loss
                   var courses = _localCourses;
 
-                  // Filter by topic if specified
-                  if (widget.topic != null && widget.topic!.isNotEmpty) {
+                  // Filter by topic if specified (state)
+                  if (_selectedTopicName != null && _selectedTopicName!.isNotEmpty) {
                     courses = courses.where((course) {
-                      return course.topics.any((topic) => topic.topicName == widget.topic);
+                      return course.topics.any((topic) => topic.topicName == _selectedTopicName);
                     }).toList().obs;
                   }
 
-                  // Filter by program if specified
-                  if (widget.programId != null && widget.programId!.isNotEmpty) {
+                  // Filter by program if specified (state)
+                  if (_selectedProgramId != null && _selectedProgramId!.isNotEmpty) {
                     courses = courses.where((course) {
-                      return course.program?.programId == widget.programId;
+                      return course.program?.programId == _selectedProgramId;
                     }).toList().obs;
                   }
 
@@ -237,30 +456,17 @@ class _BrowseCourseScreenState extends State<BrowseCourseScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.school_outlined,
-                              size: 80,
-                              color: Colors.grey.shade300,
-                            ),
+                            Icon(Icons.school_outlined, size: 80, color: Colors.grey.shade300),
                             const SizedBox(height: 16),
-                            Text(
-                              'Không tìm thấy khóa học',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
+                            Text('Không tìm thấy khóa học',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
                             const SizedBox(height: 8),
                             Text(
-                              widget.searchQuery != null && widget.searchQuery!.isNotEmpty
+                              _searchController.text.isNotEmpty
                                   ? 'Thử tìm kiếm với từ khóa khác'
                                   : 'Chưa có khóa học nào phù hợp với bộ lọc',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade500,
-                              ),
+                              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                             ),
                           ],
                         ),
@@ -330,17 +536,17 @@ class _CourseCard extends StatelessWidget {
               children: [
                 (course.imageUrl.isNotEmpty)
                     ? Image.network(
-                        course.imageUrl,
-                        width: double.infinity,
-                        height: 180,
-                        fit: BoxFit.cover,
-                      )
+                  course.imageUrl,
+                  width: double.infinity,
+                  height: 180,
+                  fit: BoxFit.cover,
+                )
                     : Container(
-                        width: double.infinity,
-                        height: 180,
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.school, color: Colors.grey, size: 60),
-                      ),
+                  width: double.infinity,
+                  height: 180,
+                  color: Colors.grey.shade200,
+                  child: const Icon(Icons.school, color: Colors.grey, size: 60),
+                ),
                 Positioned(
                   top: 12,
                   left: 12,

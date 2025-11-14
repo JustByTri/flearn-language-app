@@ -9,7 +9,8 @@ import 'package:url_launcher/url_launcher.dart'; // Thêm package này vào pubs
 import 'payment_webview_screen.dart';
 
 class SubscriptionPlansScreen extends StatefulWidget {
-  const SubscriptionPlansScreen({super.key});
+  final List<String>? availablePlans;
+  const SubscriptionPlansScreen({super.key,this.availablePlans});
 
   @override
   State<SubscriptionPlansScreen> createState() => _SubscriptionPlansScreenState();
@@ -400,7 +401,14 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> with 
                 ),
               ],
               const SizedBox(height: 24),
-              ..._plans.map((plan) {
+              // Hiển thị các gói theo availablePlans nếu có
+              ..._plans
+                  .where((plan) {
+                if (widget.availablePlans == null) return true;
+                final planKey = (plan['plan'] ?? '').toString().toLowerCase();
+                return widget.availablePlans!.contains(planKey);
+              })
+                  .map((plan) {
                 return _buildPlanCard(
                   planName: plan['plan'] ?? '',
                   dailyQuota: plan['dailyQuota'] ?? 0,

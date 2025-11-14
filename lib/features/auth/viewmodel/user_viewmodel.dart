@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
 
 import '../data/auth_repository.dart';
+import '../model/purchase_history.dart';
 
 class UserViewModel extends GetxController {
   final IAuthRepository _authRepository;
@@ -81,6 +82,36 @@ class UserViewModel extends GetxController {
       return false;
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  var isLoadingPurchases = false.obs;
+  var purchaseHistory = <Purchase>[].obs;
+  var purchaseMeta = Rxn<PurchaseMeta>();
+
+  Future<void> fetchPurchaseHistory({
+    int page = 1,
+    int pageSize = 10,
+    String sortBy = 'newest',
+  }) async {
+    try {
+      isLoadingPurchases.value = true;
+      final resp = await _authRepository.getPurchaseHistory(
+        page: page,
+        pageSize: pageSize,
+        sortBy: sortBy,
+      );
+      final items = (resp?['data'] as List<dynamic>? ?? [])
+          .map((e) => Purchase.fromJson(e as Map<String, dynamic>))
+          .toList();
+      purchaseHistory.assignAll(items);
+      purchaseMeta.value = PurchaseMeta.fromJson((resp?['meta'] ?? {}) as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('fetchPurchaseHistory error: $e');
+      purchaseHistory.clear();
+      purchaseMeta.value = null;
+    } finally {
+      isLoadingPurchases.value = false;
     }
   }
 }

@@ -8,6 +8,7 @@ import "package:get_storage/get_storage.dart";
 import "../../../config/api_config.dart";
 import "../model/login_request.dart";
 import "../model/login_response.dart";
+import "../model/purchase_history.dart";
 import "../model/response.dart";
 import "../model/roadmap_detail.dart";
 import "../model/user.dart";
@@ -284,6 +285,26 @@ class AuthService implements IAuthRepository {
     }
   }
 
-
+  @override
+  Future<Map<String, dynamic>?> getPurchaseHistory({
+    int page = 1,
+    int pageSize = 10,
+    String sortBy = 'newest',
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/purchases?Page=$page&PageSize=$pageSize&SortBy=$sortBy');
+    final res = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null && accessToken.toString().isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      },
+    );
+    if (res.statusCode != 200) {
+      throw Exception('getPurchaseHistory failed ${res.statusCode}: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
 
 }

@@ -6,6 +6,9 @@ import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:flearn_app/core/constants/colors.dart';
 
+import '../../topic/viewmodel/topic_viewmodel.dart';
+import '../viewmodel/user_viewmodel.dart';
+
 class PaymentWebViewScreen extends StatefulWidget {
   final String paymentUrl;
   final String planName;
@@ -61,6 +64,18 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
         ),
       )
       ..loadRequest(Uri.parse(widget.paymentUrl));
+  }
+
+  void _onPaymentSuccess() async {
+
+    if (Get.isRegistered<UserViewModel>()) {
+      await Get.find<UserViewModel>().fetchUserInfo();
+    }
+    if (Get.isRegistered<TopicViewModel>()) {
+      await Get.find<TopicViewModel>().fetchConversationUsage();
+    }
+
+    Get.back();
   }
 
   @override
