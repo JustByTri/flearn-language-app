@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../../../config/api_config.dart';
 import '../../auth/model/course_popular.dart';
 import '../model/course.dart';
@@ -298,6 +299,40 @@ class CourseService implements ICourseRepository {
       return data.map((item) => CoursePopular.fromJson(item)).toList();
     } else {
       throw Exception('getCoursePopular failed: ${response.body}');
+    }
+  }
+
+  @override
+  Future<bool> submitExercise({
+    required String exerciseId,
+    required String audioFilePath,
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/progress-tracking/submit-exercise');
+
+    final req = http.MultipartRequest('POST', url);
+    if (accessToken != null && accessToken.toString().isNotEmpty) {
+      req.headers['Authorization'] = 'Bearer $accessToken';
+    }
+
+
+    req.fields['ExerciseId'] = exerciseId;
+    if (audioFilePath.isNotEmpty) {
+      req.files.add(await http.MultipartFile.fromPath(
+        'Audio',
+        audioFilePath,
+        contentType: MediaType('audio', 'wav'),
+      ));
+    }
+
+    final streamed = await req.send();
+    final res = await http.Response.fromStream(streamed);
+
+    if (res.statusCode == 200) {
+      return true;
+    } else {
+      print('submitExercise failed: ${res.statusCode} ${res.body}');
+      return false;
     }
   }
 

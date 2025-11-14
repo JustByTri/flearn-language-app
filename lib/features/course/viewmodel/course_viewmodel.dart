@@ -304,4 +304,24 @@ class CourseViewModel extends GetxController {
       isLoadingPopularCourses.value = false;
     }
   }
+
+  var isSubmittingExercise = false.obs;
+
+  Future<bool> submitExercise({
+    required String exerciseId,
+    required String audioFilePath,
+  }) async {
+    try {
+      isSubmittingExercise.value = true;
+      return await _courseRepository.submitExercise(
+        exerciseId: exerciseId,
+        audioFilePath: audioFilePath,
+      );
+    } catch (e) {
+      print('submitExercise error: $e');
+      return false;
+    } finally {
+      isSubmittingExercise.value = false;
+    }
+  }
 }

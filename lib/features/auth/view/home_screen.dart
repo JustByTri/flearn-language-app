@@ -100,8 +100,7 @@ class _HomeScreenState extends State<HomeScreen>
     final route = ModalRoute.of(context);
     final isCurrentRoute = route?.isCurrent ?? false;
 
-    // If this is the first time becoming visible after loading, don't reload
-    // But if we were previously invisible and now visible again, reload
+
     if (_hasLoadedOnce && isCurrentRoute && !_isVisible) {
       debugPrint('HomeScreen: Became visible again, reloading data');
       _isVisible = true;
@@ -159,9 +158,9 @@ class _HomeScreenState extends State<HomeScreen>
       String? langCode;
 
       if (user != null && user['languageId'] != null) {
-        // Find language code from language ID
+
         final language = _languages.firstWhere(
-          (lang) => lang.id == user['languageId'],
+              (lang) => lang.id == user['languageId'],
           orElse: () => Language(id: '', langName: '', langCode: ''),
         );
         langCode = language.langCode.isNotEmpty ? language.langCode : null;
@@ -169,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       debugPrint('HomeScreen: Fetching courses with langCode: $langCode');
 
-      // Always fetch courses to ensure they appear when navigating back
+
       await courseViewModel.fetchCoursesWithLanguage(
         lang: langCode,
         searchTerm: _searchQuery.isEmpty ? null : _searchQuery,
@@ -179,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       debugPrint('HomeScreen: Fetched ${courseViewModel.courses.length} courses');
 
-      // Always fetch topics and schedules if empty
+
       if (topicViewModel.topics.isEmpty) {
         await topicViewModel.fetchTopics();
       }
@@ -249,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen>
 
                   box.write('selectedLanguageId', languageId);
                   Get.offAll(
-                    () => const SurveyScreen(),
+                        () => const SurveyScreen(),
                     binding: BindingsBuilder(() {
                       if (!Get.isRegistered<SurveyViewModel>()) {
                         Get.put(SurveyViewModel(Get.find()));
@@ -283,6 +282,7 @@ class _HomeScreenState extends State<HomeScreen>
           });
         }
         await _loadInitialData();
+        await courseProgressViewModel.fetchMyCourses();
 
         Get.snackbar('Thành công', message, snackPosition: SnackPosition.BOTTOM);
       }
@@ -390,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             onPressed: () {
               Get.to(
-                () => const NotificationScreen(),
+                    () => const NotificationScreen(),
                 transition: Transition.cupertino,
               );
             },
@@ -423,7 +423,7 @@ class _HomeScreenState extends State<HomeScreen>
                 if (value.isNotEmpty) {
                   // Navigate to BrowseCourseScreen with search query
                   await Get.to(
-                    () => BrowseCourseScreen(
+                        () => BrowseCourseScreen(
                       searchQuery: value,
                       topic: _selectedTopicName,
                       sortBy: _sortBy,
@@ -694,7 +694,7 @@ class _HomeScreenState extends State<HomeScreen>
                               Navigator.pop(context);
                               // Navigate to BrowseCourseScreen with filters
                               await Get.to(
-                                () => BrowseCourseScreen(
+                                    () => BrowseCourseScreen(
                                   topic: tempSelectedTopic,
                                   sortBy: tempSortBy,
                                   programId: tempSelectedProgram,
@@ -757,14 +757,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<List<Map<String, dynamic>>> _fetchPrograms() async {
     try {
-      // Get current language code
+
       final box = GetStorage();
       final user = box.read('user');
       String langCode = 'en'; // default
 
       if (user != null && user['languageId'] != null) {
         final language = _languages.firstWhere(
-          (lang) => lang.id == user['languageId'],
+              (lang) => lang.id == user['languageId'],
           orElse: () => Language(id: '', langName: '', langCode: 'en'),
         );
         langCode = language.langCode;
@@ -903,7 +903,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     final selectedLanguage = _languages.firstWhere(
-      (lang) => lang.id == _selectedLanguageId,
+          (lang) => lang.id == _selectedLanguageId,
       orElse: () => _languages.first,
     );
 
@@ -953,30 +953,38 @@ class _HomeScreenState extends State<HomeScreen>
 
       final myCourses = courseProgressViewModel.courses;
 
-      if (myCourses.isEmpty) {
-        return const SizedBox.shrink();
-      }
-
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionHeader(title: 'Khóa học của tôi'),
+          _buildSectionHeader(title: 'Tiếp tục học'),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 120,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: myCourses.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final course = myCourses[index];
-                return SizedBox(
-                  width: MediaQuery.of(context).size.width * 0.85,
-                  child: _OngoingCourseCard(course: course),
-                );
-              },
+          if (myCourses.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Bạn chưa đăng ký khóa học nào cho ngôn ngữ này.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 130,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: myCourses.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final course = myCourses[index];
+                  return SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.85,
+                    child: _OngoingCourseCard(course: course),
+                  );
+                },
+              ),
             ),
-          ),
         ],
       );
     });
@@ -1473,6 +1481,7 @@ class _OngoingCourseCard extends StatelessWidget {
         Get.to(() => CourseUnitScreen(
           courseId: course.courseId,
           courseTitle: course.courseTitle,
+          enrollmentId: course.enrollmentId,
         ));
       },
       child: Card(
@@ -1485,36 +1494,76 @@ class _OngoingCourseCard extends StatelessWidget {
         child: Row(
           children: [
             (course.courseImage.isNotEmpty)
-                ? Image.network(course.courseImage, width: 100, height: 100, fit: BoxFit.cover)
-                : Container(width: 100, height: 100, color: Colors.grey.shade200, child: const Icon(Icons.school, color: Colors.grey)),
+                ? Image.network(
+              course.courseImage,
+              width: 90,
+              height: 130, // Tăng chiều cao từ 110 lên 130
+              fit: BoxFit.cover,
+            )
+                : Container(
+              width: 90,
+              height: 130, // Tăng chiều cao từ 110 lên 130
+              color: Colors.grey.shade200,
+              child: const Icon(Icons.school, color: Colors.grey),
+            ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(course.courseTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 4),
-                    Text('Giáo viên: ${course.teacherName}', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                    const SizedBox(height: 8),
+                    Text(
+                      course.courseTitle,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Giáo viên: ${course.teacherName}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 5),
                     Row(
                       children: [
-                        const Text('Tiến độ:', style: TextStyle(fontSize: 12)),
-                        const SizedBox(width: 4),
                         Expanded(
                           child: LinearProgressIndicator(
                             value: course.progressPercent / 100,
-                            minHeight: 8,
+                            minHeight: 5,
                             backgroundColor: Colors.grey.shade300,
                             valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text('${course.progressPercent}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${course.progressPercent}%',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text('Bài hiện tại: ${course.currentLesson}', style: TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Bài: ${course.currentLesson}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
               ),

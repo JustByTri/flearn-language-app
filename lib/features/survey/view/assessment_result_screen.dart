@@ -3,6 +3,7 @@ import 'package:flearn_app/features/survey/view/language_screen.dart';
 import 'package:flearn_app/features/survey/viewmodel/survey_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/mainBottomNavbar.dart';
 import '../model/assessment_result.dart';
@@ -41,6 +42,11 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
 
     if (mounted) {
       if (success) {
+        final box = GetStorage();
+        final user = box.read('user') ?? {};
+        user['languageId'] = widget.result.languageId;
+        box.write('user', user);
+        box.write('selectedLanguageId', widget.result.languageId);
         if (!Get.isRegistered<LoginViewModel>()) {
           Get.put(LoginViewModel(Get.find()));
         }
