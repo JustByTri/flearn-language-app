@@ -6,10 +6,12 @@ import 'package:get/get.dart';
 import '../model/course_detail.dart';
 import '../viewmodel/course_viewmodel.dart';
 import 'course_unit_screen.dart';
+import 'package:flearn_app/features/teacher/view/teacher_profile_screen.dart';
 
 class CourseDetailScreen extends StatefulWidget {
   final String courseId;
-  const CourseDetailScreen({super.key, required this.courseId});
+  final bool showTeacherProfile;
+  const CourseDetailScreen({super.key, required this.courseId, this.showTeacherProfile = true});
 
   @override
   State<CourseDetailScreen> createState() => _CourseDetailScreenState();
@@ -106,11 +108,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
 
         return CustomScrollView(
           slivers: [
-
             SliverToBoxAdapter(
               child: Column(
                 children: [
-
                   Container(
                     color: Colors.white,
                     child: SafeArea(
@@ -122,7 +122,14 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.arrow_back, color: Colors.black),
-                              onPressed: () => Get.back(),
+                              onPressed: () {
+                                if (widget.showTeacherProfile == false) {
+                                  // Quay lại đúng TeacherProfileScreen, không quay lại detail cũ
+                                  Get.until((route) => route.settings.name == '/teacherProfile');
+                                } else {
+                                  Get.back();
+                                }
+                              },
                             ),
                             const Text(
                               'Chi tiết khóa học',
@@ -391,55 +398,72 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                       ),
 
                     // Teacher Profile
-                    if (course.teacher != null)
+                    if (course.teacher != null && widget.showTeacherProfile)
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Hồ sơ giáo viên',
+                              'Giáo viên',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 30,
-                                  backgroundImage: course.teacher!.avatar.isNotEmpty
-                                      ? NetworkImage(course.teacher!.avatar)
-                                      : null,
-                                  child: course.teacher!.avatar.isEmpty
-                                      ? const Icon(Icons.person, size: 30)
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        course.teacher!.name,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        course.teacher!.email,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                    ],
+                            InkWell(
+                              onTap: () {
+                                // Kiểm tra nếu TeacherProfileScreen đã có trong stack thì pop về, nếu chưa thì push mới
+                                bool found = false;
+                                Get.until((route) {
+                                  if (route.settings.name == '/teacherProfile') {
+                                    found = true;
+                                  }
+                                  return true;
+                                });
+                                if (!found) {
+                                  Get.to(() => TeacherProfileScreen(teacherId: course.teacher!.teacherId), routeName: '/teacherProfile');
+                                } else {
+                                  Get.back();
+                                }
+                              },
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 30,
+                                    backgroundImage: course.teacher!.avatar.isNotEmpty
+                                        ? NetworkImage(course.teacher!.avatar)
+                                        : null,
+                                    child: course.teacher!.avatar.isEmpty
+                                        ? const Icon(Icons.person, size: 30)
+                                        : null,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          course.teacher!.name,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          course.teacher!.email,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),

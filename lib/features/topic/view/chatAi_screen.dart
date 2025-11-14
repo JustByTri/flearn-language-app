@@ -87,6 +87,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Map<int, String?> _translatedVoice = {};
 
   bool _isSendingVoice = false; // Thêm biến trạng thái gửi voice
+  Timer? _aiResponseTimeout; // Timeout cho AI response từ SignalR
 
   // TTS state
   int? _speakingMessageIndex;
@@ -239,6 +240,29 @@ class _ChatScreenState extends State<ChatScreen> {
 
       final content = aiMsg['content'] ?? aiMsg['messageContent'] ?? '';
       final ts = DateTime.tryParse(aiMsg['timestamp'] ?? aiMsg['sentAt'] ?? '') ?? DateTime.now();
+      final sender = aiMsg['sender'];
+      final synonymSuggestions = aiMsg['synonymSuggestions'];
+
+      // Kiểm tra nếu có synonymSuggestions, cập nhật lại message cuối cùng của user
+      // synonymSuggestions thường được trả về cho tin nhắn user (để gợi ý cải thiện)
+      if (synonymSuggestions != null) {
+        print('[AI STREAM] Found synonymSuggestions: $synonymSuggestions');
+        final idx = _messages.lastIndexWhere((m) => m.isUser && !m.isVoice);
+        if (idx != -1) {
+          setState(() {
+            _messages[idx] = ChatMessage(
+              text: _messages[idx].text,
+              isUser: true,
+              timestamp: _messages[idx].timestamp,
+              isVoice: false,
+              audioUrl: null,
+              duration: null,
+              synonymSuggestions: synonymSuggestions,
+            );
+          });
+          print('[AI STREAM] Updated user message at index $idx with synonymSuggestions');
+        }
+      }
 
       // Kiểm tra xem AI có trả về voice hay text
       final audioUrl = aiMsg['audioUrl'];
@@ -255,6 +279,7 @@ class _ChatScreenState extends State<ChatScreen> {
           audioUrl: audioUrl.toString(),
           duration: audioDuration is int ? audioDuration : int.tryParse(audioDuration.toString()) ?? 0,
           transcript: transcript?.toString(),
+          synonymSuggestions: null, // AI message không cần synonymSuggestions
         ));
       } else {
         // AI trả về text message
@@ -266,6 +291,7 @@ class _ChatScreenState extends State<ChatScreen> {
           audioUrl: null,
           duration: null,
           transcript: null,
+          synonymSuggestions: null, // AI message không cần synonymSuggestions
         ));
       }
     }, onError: (e) {
@@ -318,12 +344,42 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _isTyping = true);
 
     try {
+      // Gọi SignalR để gửi realtime
       await _topicViewModel.sendConversationMessageSignalR(
         sessionId: _sessionId!,
         messageContent: text,
-        messageType: "Text", // Đảm bảo đúng enum/chuỗi backend yêu cầu
+        messageType: "Text",
       );
-      // Không set _isTyping = false ở đây. Sẽ tắt khi nhận AIMessageReceived hoặc khi catch lỗi.
+
+      // Gọi HTTP API để lấy synonymSuggestions
+      final httpResp = await _topicViewModel.sendConversationMessage(
+        sessionId: _sessionId!,
+        messageContent: text,
+        messageType: 1, // 1 = Text
+      );
+
+      // Nếu có synonymSuggestions trong response, cập nhật lại user message cuối cùng
+      if (httpResp != null && httpResp['data'] != null) {
+        final synonymSuggestions = httpResp['data']['synonymSuggestions'];
+        if (synonymSuggestions != null) {
+          print('[HTTP] Found synonymSuggestions: $synonymSuggestions');
+          final idx = _messages.lastIndexWhere((m) => m.isUser && !m.isVoice && m.text == text);
+          if (idx != -1) {
+            setState(() {
+              _messages[idx] = ChatMessage(
+                text: text,
+                isUser: true,
+                timestamp: _messages[idx].timestamp,
+                isVoice: false,
+                audioUrl: null,
+                duration: null,
+                synonymSuggestions: synonymSuggestions,
+              );
+            });
+            print('[HTTP] Updated user message at index $idx with synonymSuggestions');
+          }
+        }
+      }
     } catch (e) {
       setState(() => _isTyping = false);
       Get.snackbar("Lỗi", "Không thể gửi tin nhắn: $e");
@@ -849,11 +905,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Text.rich(TextSpan(children: [
                       TextSpan(
                         text: "Vai của bạn: ",
-                        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13, fontWeight: FontWeight.w600),
+                        style: TextStyle(color: Colors.white.withAlpha((0.9 * 255).toInt()), fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                       TextSpan(
                         text: _getTranslatedText(_sessionModel?.characterRole ?? '...', _isRoleTranslated),
-                        style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13),
+                        style: TextStyle(color: Colors.white.withAlpha((0.9 * 255).toInt()), fontSize: 13),
                       )
                     ])),
                   ),
@@ -984,8 +1040,9 @@ class _ChatScreenState extends State<ChatScreen> {
           // Hiển thị bubble text đã dịch với menu ở góc
           _buildTranslatedVoiceBubble(msgIndex, message, isUser)
         else if (isUser && isVoice && message.transcript != null && message.transcript!.isNotEmpty)
-          // Hiển thị bubble voice user với menu ở góc dưới TRÁI
+          // Hiển thị bubble voice user với menu ở góc dưới trái + bóng đèn ở góc trên phải
           Stack(
+            clipBehavior: Clip.none,
             children: [
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 5),
@@ -994,11 +1051,44 @@ class _ChatScreenState extends State<ChatScreen> {
                 decoration: BoxDecoration(color: color, borderRadius: radius),
                 child: _buildVoiceMessageContent(message, textColor),
               ),
+              // Menu context ở góc dưới trái
               Positioned(
                 bottom: 0,
                 left: 0,
                 child: _buildVoiceContextMenu(message, msgIndex, isUser),
               ),
+              // Bóng đèn gợi ý ở góc trên phải
+              if (message.synonymSuggestions != null)
+                Positioned(
+                  top: -8,
+                  right: -8,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _showSynonymSuggestions(message.synonymSuggestions!),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.amber.withOpacity(0.3),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.lightbulb,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           )
         else if (!isUser && isVoice && message.transcript != null && message.transcript!.isNotEmpty)
@@ -1020,7 +1110,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           )
         else if (!isUser && !isVoice)
-          // Hiển thị bubble text AI với menu dịch + đọc ở góc dưới phải
+          // Hiển thị bubble text AI với menu dịch + đọc ở góc dưới phải (KHÔNG có bóng đèn)
           Stack(
             children: [
               Container(
@@ -1038,8 +1128,9 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           )
         else if (isUser && !isVoice)
-          // Hiển thị bubble text User với menu dịch ở góc dư���i trái
+          // Hiển thị bubble text User với menu dịch ở góc dưới trái và bóng đèn ở góc trên phải
           Stack(
+            clipBehavior: Clip.none,
             children: [
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 5),
@@ -1048,11 +1139,44 @@ class _ChatScreenState extends State<ChatScreen> {
                 decoration: BoxDecoration(color: color, borderRadius: radius),
                 child: _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
               ),
+              // Menu context ở góc dưới trái
               Positioned(
                 bottom: 0,
                 left: 0,
                 child: _buildUserTextContextMenu(message, msgIndex),
               ),
+              // Bóng đèn gợi ý ở góc trên phải
+              if (message.synonymSuggestions != null)
+                Positioned(
+                  top: -8,
+                  right: -8,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _showSynonymSuggestions(message.synonymSuggestions!),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.amber.withOpacity(0.3),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.lightbulb,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           )
         else
@@ -1185,7 +1309,7 @@ class _ChatScreenState extends State<ChatScreen> {
         margin: const EdgeInsets.all(4),
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withAlpha((0.9 * 255).toInt()),
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
@@ -1270,7 +1394,7 @@ class _ChatScreenState extends State<ChatScreen> {
         margin: const EdgeInsets.all(4),
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withAlpha((0.9 * 255).toInt()),
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
@@ -1365,22 +1489,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ];
       },
       padding: EdgeInsets.zero,
-      child: Container(
-        margin: const EdgeInsets.all(4),
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Icon(Icons.more_horiz, size: 16, color: Colors.black54),
-      ),
+      child: const Icon(Icons.more_horiz, size: 16, color: Colors.black54),
     );
   }
 
@@ -1391,9 +1500,9 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.blue.withOpacity(0.1),
+          color: Colors.blue.withAlpha((0.1 * 255).toInt()),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+          border: Border.all(color: Colors.blue.withAlpha((0.3 * 255).toInt())),
         ),
         child: Text(
           '"${message.transcript!}"',
@@ -1419,9 +1528,9 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.1),
+          color: Colors.green.withAlpha((0.1 * 255).toInt()),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.green.withOpacity(0.3)),
+          border: Border.all(color: Colors.green.withAlpha((0.3 * 255).toInt())),
         ),
         child: isTranslating
             ? const Row(
@@ -1460,14 +1569,14 @@ class _ChatScreenState extends State<ChatScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           constraints: BoxConstraints(maxWidth: Get.width * 0.75),
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.15),
+            color: Colors.green.withAlpha((0.15 * 255).toInt()),
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(20),
               topRight: const Radius.circular(20),
               bottomLeft: Radius.circular(isUser ? 20 : 4),
               bottomRight: Radius.circular(isUser ? 4 : 20),
             ),
-            border: Border.all(color: Colors.green.withOpacity(0.4)),
+            border: Border.all(color: Colors.green.withAlpha((0.4 * 255).toInt())),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1566,7 +1675,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       decoration: BoxDecoration(
                         color: isActive
                             ? (isUser ? Colors.white : AppColors.primary)
-                            : (isUser ? Colors.white : AppColors.primary).withOpacity(0.3),
+                            : (isUser ? Colors.white : AppColors.primary).withAlpha((0.3 * 255).toInt()),
                         borderRadius: BorderRadius.circular(1.5),
                       ),
                       height: height,
@@ -1810,7 +1919,7 @@ class _ChatScreenState extends State<ChatScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: (_recordingState == RecordingState.recording ? Colors.red : AppColors.primary).withOpacity(0.3),
+                  color: (_recordingState == RecordingState.recording ? Colors.red : AppColors.primary).withAlpha((0.3 * 255).toInt()),
                   blurRadius: 20,
                   spreadRadius: 2,
                   offset: const Offset(0, 4),
@@ -2065,7 +2174,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                   decoration: BoxDecoration(
                                     color: isActive
                                         ? AppColors.primary
-                                        : AppColors.primary.withOpacity(0.3),
+                                        : AppColors.primary.withAlpha((0.3 * 255).toInt()),
                                     borderRadius: BorderRadius.circular(1.5),
                                   ),
                                   height: height,
@@ -2209,22 +2318,25 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _isTyping = true);
 
-    // 2) Upload HTTP để lấy audioUrl, aiResponse và transcript
+    // 2) Upload HTTP để lấy transcript, synonymSuggestions VÀ AI response
+    // Backend trả về đầy đủ trong HTTP response, lấy ngay để nhanh
     try {
       final resp = await _topicViewModel.sendVoiceMessage(
         sessionId: _sessionId!,
-        audioFilePath: _pausedRecordingPath!, // Vẫn dùng file gốc để upload
+        audioFilePath: _pausedRecordingPath!,
         audioDuration: seconds,
         transcript: null,
       );
       print('[VOICE][HTTP] resp: $resp');
 
-      // Lấy transcript từ response nếu có
+      // Lấy transcript, synonymSuggestions và AI response từ HTTP
       final transcript = resp?['data']?['transcript'];
+      final aiResponse = resp?['data']?['aiResponse'];
+      final synonymSuggestions = aiResponse?['synonymSuggestions'];
 
-      // Tìm message voice cuối cùng của user và cập nhật transcript
+      // Cập nhật user voice message với transcript + synonymSuggestions
       final idx = _messages.lastIndexWhere((m) => m.isUser && m.isVoice && m.audioUrl == persistentPath);
-      if (transcript != null && transcript.toString().isNotEmpty && idx != -1) {
+      if (idx != -1) {
         setState(() {
           _messages[idx] = ChatMessage(
             text: _messages[idx].text,
@@ -2233,18 +2345,22 @@ class _ChatScreenState extends State<ChatScreen> {
             isVoice: true,
             audioUrl: persistentPath,
             duration: seconds,
-            transcript: transcript.toString(),
+            transcript: transcript?.toString(),
+            synonymSuggestions: synonymSuggestions,
           );
         });
+        if (synonymSuggestions != null) {
+          print('[VOICE][HTTP] Updated voice message with synonymSuggestions');
+        }
       }
 
-      // 3. Xử lý aiResponse từ response
-      final aiResponse = resp?['data']?['aiResponse'];
+      // Lấy ngay AI response từ HTTP (backend đã trả về đầy đủ)
       if (aiResponse != null) {
         final content = aiResponse['messageContent'] ?? '';
         final ts = DateTime.tryParse(aiResponse['sentAt'] ?? '') ?? DateTime.now();
 
-        // Thêm tin nhắn AI vào UI
+        setState(() => _isTyping = false);
+
         _addMessage(ChatMessage(
           text: content,
           isUser: false,
@@ -2252,16 +2368,19 @@ class _ChatScreenState extends State<ChatScreen> {
           isVoice: false,
           audioUrl: null,
           duration: null,
+          synonymSuggestions: null,
         ));
+        print('[VOICE][HTTP] Added AI response from HTTP');
+      } else {
+        setState(() => _isTyping = false);
       }
+
     } catch (e) {
       print('[VOICE][HTTP] upload error: $e');
       setState(() => _isTyping = false);
       Get.snackbar("Lỗi", "Không gửi được voice: $e");
     } finally {
       _isSendingVoice = false;
-      // Đảm bảo tắt _isTyping nếu không có lỗi
-      setState(() => _isTyping = false);
     }
 
     // Reset trạng thái ghi âm, nhưng giữ file persistent cho message
@@ -2397,7 +2516,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.red.withOpacity(0.3),
+                        color: Colors.red.withAlpha((0.3 * 255).toInt()),
                         blurRadius: 12,
                         spreadRadius: 2,
                       )
@@ -2425,6 +2544,206 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+
+  void _showSynonymSuggestions(Map<String, dynamic> suggestions) {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Gợi ý câu đồng nghĩa',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber),
+                    ),
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => Get.back(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withAlpha((0.1 * 255).toInt()),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          size: 24,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ..._buildSynonymSuggestionList(suggestions),
+            ],
+          ),
+        ),
+      ),
+      isDismissible: true,
+      enableDrag: true,
+      isScrollControlled: true,
+    );
+  }
+
+  List<Widget> _buildSynonymSuggestionList(Map<String, dynamic> suggestions) {
+    final List<Widget> widgets = [];
+
+    // Hiển thị thông tin header nếu có
+    if (suggestions['originalMessage'] != null) {
+      widgets.add(
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withAlpha((0.08 * 255).toInt()),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.withAlpha((0.2 * 255).toInt())),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Câu gốc của bạn:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text(suggestions['originalMessage'], style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic)),
+              if (suggestions['currentLevel'] != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.amber, size: 16),
+                      const SizedBox(width: 4),
+                      Text('Level hiện tại: ${suggestions['currentLevel']}', style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Lấy danh sách alternatives (ưu tiên alternatives, fallback sang items)
+    final List<dynamic>? alternatives = suggestions['alternatives'] ?? suggestions['items'];
+
+    if (alternatives != null && alternatives.isNotEmpty) {
+      for (final item in alternatives) {
+        widgets.add(
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withAlpha((0.08 * 255).toInt()),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.withAlpha((0.2 * 255).toInt())),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (item['level'] != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withAlpha((0.2 * 255).toInt()),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text('Level: ${item['level']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontSize: 12)),
+                  ),
+                if (item['alternativeText'] != null || item['sentence'] != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      item['alternativeText'] ?? item['sentence'] ?? '',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                if (item['difference'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Khác biệt: ${item['difference']}',
+                            style: const TextStyle(fontSize: 13, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (item['exampleUsage'] != null || item['example'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.lightbulb_outline, size: 16, color: Colors.orange),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Ví dụ: ${item['exampleUsage'] ?? item['example']}',
+                            style: const TextStyle(fontSize: 13, color: Colors.grey, fontStyle: FontStyle.italic),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      }
+    } else {
+      widgets.add(const Text('Không có gợi ý đồng nghĩa.'));
+    }
+
+    // Hiển thị explanation nếu có
+    if (suggestions['explanation'] != null) {
+      widgets.add(
+        Container(
+          margin: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.green.withAlpha((0.08 * 255).toInt()),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green.withAlpha((0.2 * 255).toInt())),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.tips_and_updates, color: Colors.green, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  suggestions['explanation'],
+                  style: const TextStyle(fontSize: 14, color: Colors.green),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return widgets;
+  }
 }
 
 class ChatMessage {
@@ -2435,6 +2754,7 @@ class ChatMessage {
   final String? audioUrl;
   final int? duration;
   final String? transcript;
+  final Map<String, dynamic>? synonymSuggestions;
   ChatMessage({
     required this.text,
     required this.isUser,
@@ -2443,6 +2763,7 @@ class ChatMessage {
     this.audioUrl,
     this.duration,
     this.transcript,
+    this.synonymSuggestions,
   });
 
   @override
