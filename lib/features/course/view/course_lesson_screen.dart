@@ -27,6 +27,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
   final Set<LessonStep> _loggedSteps = {};
   bool _isLogging = false;
   final CourseViewModel courseViewModel = Get.find<CourseViewModel>();
+  String? _initedForLessonId; // NEW: đánh dấu lesson đã init
 
 
   late String _lessonId;
@@ -43,6 +44,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.lessonId != widget.lessonId) {
       _lessonId = widget.lessonId;
+      _initedForLessonId = null; // NEW: reset để init lại cho bài mới
       progressViewModel.fetchLessonProgressDetail(_lessonId);
       setState(() {
         _currentStep = 0;
@@ -53,6 +55,8 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
 
   void _initSteps(LessonProgressDetail detail) {
     final activity = detail.activityStatus;
+
+
     final steps = <LessonStep>[];
     if (activity.content.isAvailable) steps.add(LessonStep.content);
     if (activity.video.isAvailable) steps.add(LessonStep.video);
@@ -60,11 +64,22 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     if (steps.isEmpty) steps.add(LessonStep.content);
 
     _availableSteps = steps;
-    _stepChecked = [
-      if (activity.content.isAvailable) activity.content.isCompleted else false,
-      if (activity.video.isAvailable) activity.video.isCompleted else false,
-      if (activity.document.isAvailable) activity.document.isCompleted else false,
-    ];
+
+    // Chỉ thêm trạng thái cho step thực sự có
+    _stepChecked = [];
+    _loggedSteps.clear();
+    for (final s in _availableSteps) {
+      bool completed = switch (s) {
+        LessonStep.content => activity.content.isCompleted,
+        LessonStep.video => activity.video.isCompleted,
+        LessonStep.document => activity.document.isCompleted,
+      };
+      _stepChecked.add(completed);
+      if (completed) {
+        _loggedSteps.add(s);
+      }
+    }
+
     if (_currentStep >= _availableSteps.length) _currentStep = _availableSteps.length - 1;
     if (_currentStep < 0) _currentStep = 0;
   }
@@ -130,15 +145,14 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         currentLessonId: _lessonId,
         onLessonSelected: (newLessonId) {
           if (newLessonId == _lessonId) return;
-          // reset state và fetch bài mới
           setState(() {
             _lessonId = newLessonId;
             _currentStep = 0;
             _loggedSteps.clear();
             _availableSteps = [];
             _stepChecked = [];
+            _initedForLessonId = null; // NEW
           });
-          // gọi fetch sau khi Drawer đóng hẳn (đã delay ở Drawer), ở đây vẫn an toàn gọi lại
           progressViewModel.fetchLessonProgressDetail(newLessonId);
         },
       ),
@@ -150,7 +164,12 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         if (detail == null) {
           return const Center(child: Text('Không thể tải dữ liệu bài học'));
         }
-        _initSteps(detail);
+
+
+        if (_initedForLessonId != detail.lessonId || _availableSteps.isEmpty || _stepChecked.isEmpty) {
+          _initSteps(detail);
+          _initedForLessonId = detail.lessonId;
+        }
 
         return Column(
           children: [
@@ -196,42 +215,50 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
 
   Widget _buildStepDot(int step, String label) {
     final isActive = _currentStep == step;
-    final isCompleted = _currentStep > step;
+    final isCompleted = _stepChecked.length > step && _stepChecked[step];
 
-    return Column(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isCompleted
-                ? Colors.green
-                : (isActive ? AppColors.primary : Colors.grey.shade300),
-          ),
-          child: Center(
-            child: isCompleted
-                ? const Icon(Icons.check, color: Colors.white, size: 18)
-                : Text(
-              '${step + 1}',
-              style: TextStyle(
-                color: isActive ? Colors.white : Colors.grey.shade600,
-                fontWeight: FontWeight.bold,
+    return InkWell(
+      onTap: () {
+
+        setState(() {
+          _currentStep = step;
+        });
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isCompleted
+                  ? Colors.green
+                  : (isActive ? AppColors.primary : Colors.grey.shade300),
+            ),
+            child: Center(
+              child: isCompleted
+                  ? const Icon(Icons.check, color: Colors.white, size: 18)
+                  : Text(
+                '${step + 1}',
+                style: TextStyle(
+                  color: isActive ? Colors.white : Colors.grey.shade600,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: isActive ? AppColors.primary : Colors.grey.shade600,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: isActive ? AppColors.primary : Colors.grey.shade600,
+              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -322,7 +349,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
             children: [
               Checkbox(
                 value: _stepChecked[idx],
-                onChanged: (val) {
+                onChanged: _stepChecked[idx] ? null : (val) {
                   _onStepChecked(LessonStep.content, idx, val ?? false, detail.lessonId);
                 },
               ),
@@ -387,7 +414,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
           children: [
             Checkbox(
               value: _stepChecked[idx],
-              onChanged: (val) {
+              onChanged: _stepChecked[idx] ? null : (val) {
                 _onStepChecked(LessonStep.video, idx, val ?? false, detail.lessonId);
               },
             ),
@@ -496,7 +523,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
           children: [
             Checkbox(
               value: _stepChecked[idx],
-              onChanged: (val) {
+              onChanged: _stepChecked[idx] ? null : (val) {
                 _onStepChecked(LessonStep.document, idx, val ?? false, detail.lessonId);
               },
             ),
@@ -531,6 +558,9 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
   }
 
   Widget _buildBottomNavigation(LessonProgressDetail detail) {
+    final allCompleted = _stepChecked.isNotEmpty && _stepChecked.every((c) => c);
+    final isLastStep = _currentStep == _availableSteps.length - 1;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -546,14 +576,12 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
       child: SafeArea(
         child: Row(
           children: [
-            if (_currentStep > 0)
+            if (_availableSteps.length > 1)
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {
-                    setState(() {
-                      _currentStep--;
-                    });
-                  },
+                  onPressed: _currentStep > 0
+                      ? () => setState(() => _currentStep--)
+                      : null,
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: const BorderSide(color: AppColors.primary),
@@ -571,38 +599,46 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                   ),
                 ),
               ),
-            if (_currentStep > 0) const SizedBox(width: 12),
+            if (_availableSteps.length > 1) const SizedBox(width: 12),
             Expanded(
               flex: 1,
               child: ElevatedButton(
                 onPressed: () async {
-                  if (_currentStep < _availableSteps.length - 1) {
-                    setState(() => _currentStep++);
+
+                  if (!isLastStep) {
+                    setState(() => _currentStep = (_currentStep + 1).clamp(0, _availableSteps.length - 1));
+                    return;
+                  }
+
+
+                  if (!allCompleted) {
+                    Get.snackbar(
+                      'Thông báo',
+                      'Bạn cần hoàn thành tất cả các mục trước khi hoàn thành bài học!',
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.red,
+                      colorText: Colors.white,
+                    );
+                    return;
+                  }
+
+                  Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+                  await courseViewModel.fetchLessonExercises(detail.lessonId);
+                  if (Get.isDialogOpen ?? false) Get.back();
+
+                  if (courseViewModel.exercises.isNotEmpty) {
+                    Get.to(() => LessonExerciseScreen(
+                      lessonId: detail.lessonId,
+                      lessonTitle: detail.lessonTitle,
+                    ));
                   } else {
-                    if (_stepChecked.any((c) => !c)) {
-                      Get.snackbar('Thông báo', 'Bạn cần hoàn thành tất cả các mục trước khi hoàn thành bài học!',
-                          snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
-                      return;
-                    }
-
-                    Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
-
-
-                    await courseViewModel.fetchLessonExercises(detail.lessonId);
-
-                    if (Get.isDialogOpen ?? false) Get.back();
-
-
-                    if (courseViewModel.exercises.isNotEmpty) {
-                      Get.to(() => LessonExerciseScreen(
-                        lessonId: detail.lessonId,
-                        lessonTitle: detail.lessonTitle,
-                      ));
-                    } else {
-                      Get.back();
-                      Get.snackbar('Hoàn thành', 'Bạn đã hoàn thành bài học ${detail.lessonTitle}!',
-                          snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
-                    }
+                    Get.snackbar(
+                      'Hoàn thành',
+                      'Bạn đã hoàn thành bài học ${detail.lessonTitle}!',
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.green,
+                      colorText: Colors.white,
+                    );
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -618,7 +654,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      _currentStep < _availableSteps.length - 1 ? 'Tiếp theo' : 'Hoàn thành',
+                      isLastStep ? 'Hoàn thành' : 'Tiếp theo',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -626,7 +662,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                     ),
                     const SizedBox(width: 8),
                     Icon(
-                      _currentStep < _availableSteps.length - 1 ? Icons.arrow_forward : Icons.check,
+                      isLastStep ? Icons.check : Icons.arrow_forward,
                       size: 20,
                     ),
                   ],
@@ -640,28 +676,36 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
   }
 
   Future<void> _onStepChecked(LessonStep step, int idx, bool checked, String lessonId) async {
-    setState(() {
-      _stepChecked[idx] = checked;
-    });
+    // Nếu đã completed (từ server) hoặc đã log rồi ⇒ không làm lại
+    if (_loggedSteps.contains(step) || _stepChecked[idx]) {
+      setState(() { _stepChecked[idx] = true; });
+      Get.snackbar('Thông báo', 'Mục này đã được hoàn thành.');
+      return;
+    }
     if (!checked) return;
-    if (_loggedSteps.contains(step)) return;
+
+    // Hiệu ứng UI ngay
+    setState(() { _stepChecked[idx] = true; });
+
     if (_isLogging) return;
-
     _isLogging = true;
-    try {
+    _loggedSteps.add(step);
 
+    try {
       await courseViewModel.trackLessonActivity(
         lessonId: lessonId,
         logType: _logTypeOf(step),
         durationMinutes: 0,
         metadata: '',
       );
-      _loggedSteps.add(step);
+
+
+      final curriculum = courseViewModel.curriculum.value;
+      if (curriculum != null && curriculum.enrollmentId.isNotEmpty) {
+        await courseViewModel.fetchCurriculum(curriculum.enrollmentId);
+      }
     } catch (e) {
-      setState(() {
-        _stepChecked[idx] = false;
-      });
-      Get.snackbar('Lỗi', 'Không thể cập nhật tiến độ. Vui lòng thử lại.');
+      Get.snackbar('Lỗi', 'Không thể cập nhật tiến độ.');
     } finally {
       _isLogging = false;
     }

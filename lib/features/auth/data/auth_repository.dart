@@ -2,6 +2,7 @@ import 'dart:io';
 
 import "../model/login_request.dart";
 import "../model/login_response.dart";
+import "../model/purchase_history.dart";
 import "../model/response.dart";
 import '../model/logout_request.dart';
 import "../model/roadmap_detail.dart";
@@ -43,4 +44,9 @@ abstract class IAuthRepository {
 
   Future<Map<String, dynamic>?> purchaseSubscription(String planName);
 
+  Future<Map<String, dynamic>?> getPurchaseHistory({
+    int page = 1,
+    int pageSize = 10,
+    String sortBy = 'newest',
+  });
 }
