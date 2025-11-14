@@ -42,7 +42,7 @@ class ConversationSessionModel {
           .map((e) => ConversationMessage.fromJson(e))
           .toList(),
       status: json['status'] ?? 0,
-      startedAt: DateTime.tryParse(json['startedAt'] ?? '') ?? DateTime.now(),
+      startedAt: DateTime.tryParse(json['startedAt']?.toString() ?? '') ?? DateTime.now(),
       overallScore: json['overallScore'] != null
           ? double.tryParse(json['overallScore'].toString())
           : null,
@@ -92,7 +92,7 @@ class ConversationMessage {
       audioPublicId: json['audioPublicId'],
       audioDuration: json['audioDuration'],
       sequenceOrder: json['sequenceOrder'] ?? 0,
-      sentAt: DateTime.tryParse(json['sentAt'] ?? '') ?? DateTime.now(),
+      sentAt: DateTime.tryParse(json['sentAt']?.toString() ?? '') ?? DateTime.now(),
       isVoiceMessage: json['isVoiceMessage'] ?? false,
       formattedDuration: json['formattedDuration'] ?? '',
     );

@@ -5,6 +5,9 @@ import 'package:flearn_app/features/schedule/data/repository.dart';
 import 'package:flearn_app/features/schedule/data/service.dart';
 import 'package:flearn_app/features/survey/data/repository.dart';
 import 'package:flearn_app/features/survey/data/service.dart';
+import 'package:flearn_app/features/teacher/data/teacher_repository.dart';
+import 'package:flearn_app/features/teacher/data/teacher_service.dart';
+import 'package:flearn_app/features/teacher/viewmodel/teacher_viewmodel.dart';
 import 'package:flearn_app/features/topic/data/repository.dart';
 import 'package:flearn_app/core/services/dio_interceptor.dart';
 import 'package:flearn_app/shared/controllers/navigation_controller.dart';
@@ -35,8 +38,10 @@ void setupDI() {
   Get.lazyPut<ICourseRepository>(() => CourseService(), fenix: true);
   Get.lazyPut<ISurveyRepository>(() => serviceSurvey(), fenix: true);
   Get.lazyPut<IScheduleRepository>(() => ScheduleService(), fenix: true);
+  Get.lazyPut<ITeacherRepository>(() => TeacherService(Get.find<Dio>()), fenix: true);
   Get.lazyPut<SurveyViewModel>(() => SurveyViewModel(Get.find<ISurveyRepository>()), fenix: true);
   Get.lazyPut<CourseViewModel>(() => CourseViewModel(Get.find<ICourseRepository>()), fenix: true);
+  Get.lazyPut<TeacherViewModel>(() => TeacherViewModel(Get.find<ITeacherRepository>()), fenix: true);
   Get.lazyPut<ICourseProgressRepository>(() => CourseProgressService(), fenix: true);
   Get.lazyPut(() => NavigationController(), fenix: true);
 
