@@ -69,7 +69,18 @@ class TeacherScheduleViewModel extends GetxController {
         await fetchSchedules();
       }
     } catch (e) {
-      Get.snackbar('Lỗi', 'Đặt lịch thất bại. Vui lòng thử lại sau.');
+      final errStr = e.toString();
+      if (errStr.contains('Student already enrolled in this class')) {
+        Get.snackbar(
+          'Thông báo',
+          'Bạn đã có lịch học lớp này, kiểm tra lịch học nhé',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.orange.shade100,
+          colorText: Colors.black,
+        );
+      } else {
+        Get.snackbar('Lỗi', 'Đặt lịch thất bại. Vui lòng thử lại sau.');
+      }
       print('bookClass error: $e');
     } finally {
       isBooking.value = false;

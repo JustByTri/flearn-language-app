@@ -21,6 +21,7 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> {
   void initState() {
     super.initState();
     _viewModel = Get.put(TeacherScheduleViewModel(service: Get.find()));
+    _viewModel.fetchSchedules();
   }
 
   @override
@@ -651,7 +652,21 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> {
           ElevatedButton(
             onPressed: () async {
               Get.back();
-              await _viewModel.bookClass(cls.classID);
+              try {
+                await _viewModel.bookClass(cls.classID);
+              } catch (e) {
+                if (e.toString().contains('Student already enrolled in this class')) {
+                  Get.snackbar(
+                    'Thông báo',
+                    'Bạn đã có lịch học lớp này, kiểm tra lịch học nhé',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: Colors.orange.shade100,
+                    colorText: Colors.black,
+                  );
+                } else {
+                  Get.snackbar('Lỗi', e.toString(), snackPosition: SnackPosition.BOTTOM);
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -668,4 +683,3 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> {
     );
   }
 }
-
