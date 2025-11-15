@@ -28,6 +28,7 @@ class CourseProgressService implements ICourseProgressRepository {
 
   @override
   Future<LessonProgressDetail> getLessonProgressDetail(String lessonId) async {
+    print('getLessonProgressDetail: $lessonId');
     final accessToken = GetStorage().read('accessToken');
     final url = Uri.parse('https://f-learn.app/api/lesson-progress/lessons/$lessonId/progress');
     final response = await http.get(

@@ -114,4 +114,21 @@ class UserViewModel extends GetxController {
       isLoadingPurchases.value = false;
     }
   }
+
+
+  var refundRequests = <Map<String, dynamic>>[].obs;
+  var isLoadingRefundRequests = false.obs;
+
+  Future<void> fetchRefundRequests() async {
+    isLoadingRefundRequests.value = true;
+    try {
+      final list = await _authRepository.fetchRefundRequests();
+      refundRequests.assignAll(list);
+    } catch (e) {
+      refundRequests.clear();
+    } finally {
+      isLoadingRefundRequests.value = false;
+    }
+  }
+
 }

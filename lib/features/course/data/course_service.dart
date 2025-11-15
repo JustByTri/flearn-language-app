@@ -327,7 +327,7 @@ class CourseService implements ICourseRepository {
 
     final streamed = await req.send();
     final res = await http.Response.fromStream(streamed);
-
+    print('submitExercise response: ${res.statusCode} ${res.body}');
     if (res.statusCode == 200) {
       return true;
     } else {

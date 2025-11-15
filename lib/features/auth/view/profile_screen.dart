@@ -1,20 +1,23 @@
 import 'package:flearn_app/di.dart';
-import 'package:flearn_app/features/auth/view/change_password_screen.dart';
 import 'package:flearn_app/features/auth/view/edit_profile_screen.dart';
 import 'package:flearn_app/features/auth/view/purchase_history_screen.dart';
+import 'package:flearn_app/features/auth/view/refund_center_screen.dart';
 import 'package:flearn_app/features/auth/view/subcription_plans.dart';
-import 'package:flearn_app/features/schedule/view/schedule_screen.dart';
+
 import 'package:flearn_app/features/schedule/view/student_schedule_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:flearn_app/core/constants/colors.dart';
+
+import '../../schedule/viewmodel/schedule_viewmodel.dart';
 import '../../topic/viewmodel/topic_viewmodel.dart';
 import '../view/login_screen.dart';
 import '../viewmodel/login_viewmodel.dart';
 import '../viewmodel/user_viewmodel.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+
 
 
 class ProfileScreen extends StatefulWidget {
@@ -27,11 +30,19 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserver {
   late final UserViewModel userViewModel;
   final loginViewModel = Get.find<LoginViewModel>();
-
+  ScheduleViewModel? scheduleViewModel;
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this); // Đăng ký observer
+    WidgetsBinding.instance.addObserver(this);
+    if (Get.isRegistered<ScheduleViewModel>()) {
+      scheduleViewModel = Get.find<ScheduleViewModel>();
+    } else {
+      scheduleViewModel = Get.put(
+        ScheduleViewModel(service: Get.find()),
+        permanent: true,
+      );
+    }
     if (Get.isRegistered<UserViewModel>()) {
       userViewModel = Get.find<UserViewModel>();
     } else {
@@ -43,6 +54,8 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
           ? Get.find<TopicViewModel>()
           : Get.put(TopicViewModel(Get.find()), permanent: true);
       await topicVM.fetchConversationUsage();
+
+      await scheduleViewModel?.fetchMyEnrollments();
     });
   }
 
@@ -122,6 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
       debugPrint("Lỗi đăng xuất: $e");
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +312,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                   width: 160,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFD700), // vàng phẳng
+                    color: const Color(0xFFFFD700),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Material(
@@ -405,7 +419,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             iconColor: const Color(0xFF34C759),
             onTap: () {
               Get.to(
-                () => const StudentScheduleScreen(),
+                    () => const StudentScheduleScreen(),
                 transition: Transition.cupertino,
               );
             },
@@ -422,6 +436,20 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
               );
             },
           ),
+          _buildDivider(),
+
+          _buildListTile(
+            icon: CupertinoIcons.paperplane,
+            label: "Gửi đơn / Xem đơn",
+            iconColor: const Color(0xFFFB8C00),
+            onTap: () {
+              Get.to(
+                    () => const RefundCenterScreen(),
+                transition: Transition.cupertino,
+              );
+            },
+          ),
+
           _buildDivider(),
           _buildListTile(
             icon: CupertinoIcons.arrow_right_square,
