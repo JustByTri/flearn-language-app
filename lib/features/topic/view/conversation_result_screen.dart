@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flearn_app/core/constants/colors.dart';
+import 'package:translator/translator.dart';
 import '../../../shared/widgets/mainBottomNavbar.dart';
 
 class ConversationResultScreen extends StatefulWidget {
@@ -13,21 +14,181 @@ class ConversationResultScreen extends StatefulWidget {
 }
 
 class _ConversationResultScreenState extends State<ConversationResultScreen> {
+  bool isSummaryTranslated = false;
+  bool isFluentTranslated = false;
+  bool isGrammarTranslated = false;
+  bool isVocabularyTranslated = false;
+  bool isCultureTranslated = false;
+  bool isPositiveTranslated = false;
+  bool isAreasTranslated = false;
+  bool isObservationsTranslated = false;
+
+  String? summaryVi;
+  String? fluentAssessmentVi;
+  List<String>? fluentExamplesVi;
+  List<String>? fluentImprovementsVi;
+  String? fluentLevelVi;
+  String? grammarAssessmentVi;
+  List<String>? grammarExamplesVi;
+  List<String>? grammarImprovementsVi;
+  String? grammarLevelVi;
+  String? vocabularyAssessmentVi;
+  List<String>? vocabularyExamplesVi;
+  List<String>? vocabularyImprovementsVi;
+  String? vocabularyLevelVi;
+  String? cultureAssessmentVi;
+  List<String>? cultureExamplesVi;
+  List<String>? cultureImprovementsVi;
+  String? cultureLevelVi;
+  List<String> positivePatternsVi = [];
+  List<String> areasNeedingWorkVi = [];
+  List<Map<String, dynamic>> specificObservationsVi = [];
+
+  bool loadingSummary = false;
+  bool loadingFluent = false;
+  bool loadingGrammar = false;
+  bool loadingVocabulary = false;
+  bool loadingCulture = false;
+  bool loadingPositive = false;
+  bool loadingAreas = false;
+  bool loadingObservations = false;
+
+  final translator = GoogleTranslator();
+
+  Future<void> _translateSummary(String text) async {
+    setState(() { loadingSummary = true; });
+    final result = await translator.translate(text, from: 'auto', to: 'vi');
+    setState(() {
+      summaryVi = result.text;
+      isSummaryTranslated = true;
+      loadingSummary = false;
+    });
+  }
+
+  Future<void> _translateFluent(Map<String, dynamic> analysis) async {
+    setState(() { loadingFluent = true; });
+    fluentAssessmentVi = (await translator.translate(analysis['qualitativeAssessment'] ?? '', from: 'auto', to: 'vi')).text;
+    fluentLevelVi = (await translator.translate(analysis['currentLevel'] ?? '', from: 'auto', to: 'vi')).text;
+    fluentExamplesVi = [];
+    for (var e in (analysis['specificExamples'] as List? ?? [])) {
+      fluentExamplesVi!.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    fluentImprovementsVi = [];
+    for (var e in (analysis['suggestedImprovements'] as List? ?? [])) {
+      fluentImprovementsVi!.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    setState(() {
+      isFluentTranslated = true;
+      loadingFluent = false;
+    });
+  }
+
+  Future<void> _translateGrammar(Map<String, dynamic> analysis) async {
+    setState(() { loadingGrammar = true; });
+    grammarAssessmentVi = (await translator.translate(analysis['qualitativeAssessment'] ?? '', from: 'auto', to: 'vi')).text;
+    grammarLevelVi = (await translator.translate(analysis['currentLevel'] ?? '', from: 'auto', to: 'vi')).text;
+    grammarExamplesVi = [];
+    for (var e in (analysis['specificExamples'] as List? ?? [])) {
+      grammarExamplesVi!.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    grammarImprovementsVi = [];
+    for (var e in (analysis['suggestedImprovements'] as List? ?? [])) {
+      grammarImprovementsVi!.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    setState(() {
+      isGrammarTranslated = true;
+      loadingGrammar = false;
+    });
+  }
+
+  Future<void> _translateVocabulary(Map<String, dynamic> analysis) async {
+    setState(() { loadingVocabulary = true; });
+    vocabularyAssessmentVi = (await translator.translate(analysis['qualitativeAssessment'] ?? '', from: 'auto', to: 'vi')).text;
+    vocabularyLevelVi = (await translator.translate(analysis['currentLevel'] ?? '', from: 'auto', to: 'vi')).text;
+    vocabularyExamplesVi = [];
+    for (var e in (analysis['specificExamples'] as List? ?? [])) {
+      vocabularyExamplesVi!.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    vocabularyImprovementsVi = [];
+    for (var e in (analysis['suggestedImprovements'] as List? ?? [])) {
+      vocabularyImprovementsVi!.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    setState(() {
+      isVocabularyTranslated = true;
+      loadingVocabulary = false;
+    });
+  }
+
+  Future<void> _translateCulture(Map<String, dynamic> analysis) async {
+    setState(() { loadingCulture = true; });
+    cultureAssessmentVi = (await translator.translate(analysis['qualitativeAssessment'] ?? '', from: 'auto', to: 'vi')).text;
+    cultureLevelVi = (await translator.translate(analysis['currentLevel'] ?? '', from: 'auto', to: 'vi')).text;
+    cultureExamplesVi = [];
+    for (var e in (analysis['specificExamples'] as List? ?? [])) {
+      cultureExamplesVi!.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    cultureImprovementsVi = [];
+    for (var e in (analysis['suggestedImprovements'] as List? ?? [])) {
+      cultureImprovementsVi!.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    setState(() {
+      isCultureTranslated = true;
+      loadingCulture = false;
+    });
+  }
+
+  Future<void> _translatePositive(List<String> patterns) async {
+    setState(() { loadingPositive = true; });
+    positivePatternsVi = [];
+    for (var e in patterns) {
+      positivePatternsVi.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    setState(() {
+      isPositiveTranslated = true;
+      loadingPositive = false;
+    });
+  }
+
+  Future<void> _translateAreas(List<String> areas) async {
+    setState(() { loadingAreas = true; });
+    areasNeedingWorkVi = [];
+    for (var e in areas) {
+      areasNeedingWorkVi.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+    }
+    setState(() {
+      isAreasTranslated = true;
+      loadingAreas = false;
+    });
+  }
+
+  Future<void> _translateObservations(List<Map<String, dynamic>> observations) async {
+    setState(() { loadingObservations = true; });
+    specificObservationsVi = [];
+    for (var obs in observations) {
+      final newObs = Map<String, dynamic>.from(obs);
+      for (var k in ['category', 'observation', 'impact', 'example']) {
+        if (newObs[k] != null && newObs[k].toString().isNotEmpty) {
+          newObs[k] = '[VI] ${newObs[k]}';
+        }
+      }
+      specificObservationsVi.add(newObs);
+    }
+    setState(() {
+      isObservationsTranslated = true;
+      loadingObservations = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = widget.resultData;
-
-    // Extract main data
     final sessionDuration = data['sessionDuration'] ?? 0;
     final totalMessages = data['totalMessages'] ?? 0;
-    final progressSummary = data['progressSummary']?.toString() ?? '';
-
-    // Extract analysis data
+    final progressSummary = isSummaryTranslated ? '[VI] ${data['progressSummary'] ?? ''}' : data['progressSummary']?.toString() ?? '';
     final fluentAnalysis = data['fluentAnalysis'] as Map<String, dynamic>?;
     final grammarAnalysis = data['grammarAnalysis'] as Map<String, dynamic>?;
     final vocabularyAnalysis = data['vocabularyAnalysis'] as Map<String, dynamic>?;
     final culturalAnalysis = data['culturalAnalysis'] as Map<String, dynamic>?;
-
     final positivePatterns = (data['positivePatterns'] as List?)?.cast<String>() ?? [];
     final areasNeedingWork = (data['areasNeedingWork'] as List?)?.cast<String>() ?? [];
     final specificObservations = (data['specificObservations'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
@@ -51,38 +212,55 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Header completion
             _buildCompletionHeader(sessionDuration, totalMessages),
-
-            // Progress summary
             if (progressSummary.isNotEmpty)
-              _buildSummarySection(progressSummary),
-
-            // Skills analysis
+              _buildSummarySection(progressSummary, isSummaryTranslated, () {
+                _translateSummary(progressSummary);
+              }, () {
+                setState(() { isSummaryTranslated = false; });
+              }),
             if (fluentAnalysis != null)
-              _buildSkillAnalysis('Độ trôi chảy', fluentAnalysis, Icons.record_voice_over, AppColors.primary),
-
+              _buildSkillAnalysis('Độ trôi chảy', fluentAnalysis, Icons.record_voice_over, AppColors.primary, isFluentTranslated, () {
+                _translateFluent(fluentAnalysis);
+              }, () {
+                setState(() { isFluentTranslated = false; });
+              }),
             if (grammarAnalysis != null)
-              _buildSkillAnalysis('Ngữ pháp', grammarAnalysis, Icons.spellcheck, const Color(0xFF00897B)),
-
+              _buildSkillAnalysis('Ngữ pháp', grammarAnalysis, Icons.spellcheck, const Color(0xFF00897B), isGrammarTranslated, () {
+                _translateGrammar(grammarAnalysis);
+              }, () {
+                setState(() { isGrammarTranslated = false; });
+              }),
             if (vocabularyAnalysis != null)
-              _buildSkillAnalysis('Từ vựng', vocabularyAnalysis, Icons.library_books, const Color(0xFF5E35B1)),
-
+              _buildSkillAnalysis('Từ vựng', vocabularyAnalysis, Icons.library_books, const Color(0xFF5E35B1), isVocabularyTranslated, () {
+                _translateVocabulary(vocabularyAnalysis);
+              }, () {
+                setState(() { isVocabularyTranslated = false; });
+              }),
             if (culturalAnalysis != null)
-              _buildSkillAnalysis('Hiểu biết văn hóa', culturalAnalysis, Icons.public, const Color(0xFFFF6F00)),
-
-            // Positive patterns
+              _buildSkillAnalysis('Hiểu biết văn hóa', culturalAnalysis, Icons.public, const Color(0xFFFF6F00), isCultureTranslated, () {
+                _translateCulture(culturalAnalysis);
+              }, () {
+                setState(() { isCultureTranslated = false; });
+              }),
             if (positivePatterns.isNotEmpty)
-              _buildListSection('Điểm mạnh', positivePatterns, Icons.thumb_up, Colors.green),
-
-            // Areas needing work
+              _buildListSection('Điểm mạnh', positivePatterns, Icons.thumb_up, Colors.green, isPositiveTranslated, () {
+                _translatePositive(positivePatterns);
+              }, () {
+                setState(() { isPositiveTranslated = false; });
+              }),
             if (areasNeedingWork.isNotEmpty)
-              _buildListSection('Cần cải thiện', areasNeedingWork, Icons.trending_up, Colors.orange),
-
-            // Specific observations
+              _buildListSection('Cần cải thiện', areasNeedingWork, Icons.trending_up, Colors.orange, isAreasTranslated, () {
+                _translateAreas(areasNeedingWork);
+              }, () {
+                setState(() { isAreasTranslated = false; });
+              }),
             if (specificObservations.isNotEmpty)
-              _buildObservationsSection(specificObservations),
-
+              _buildObservationsSection(specificObservations, isObservationsTranslated, () {
+                _translateObservations(specificObservations);
+              }, () {
+                setState(() { isObservationsTranslated = false; });
+              }),
             const SizedBox(height: 80),
           ],
         ),
@@ -170,7 +348,7 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
     );
   }
 
-  Widget _buildSummarySection(String summary) {
+  Widget _buildSummarySection(String summary, bool isTranslated, VoidCallback onTranslate, VoidCallback onReset) {
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
@@ -194,27 +372,90 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
                   color: AppColors.textPrimary,
                 ),
               ),
+              const Spacer(),
+              if (!isTranslated)
+                ElevatedButton.icon(
+                  onPressed: onTranslate,
+                  icon: const Icon(Icons.translate, size: 18),
+                  label: const Text('Dịch ra tiếng Việt', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              if (isTranslated)
+                ElevatedButton.icon(
+                  onPressed: onReset,
+                  icon: const Icon(Icons.language, size: 18),
+                  label: const Text('Đổi lại tiếng Anh', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade300,
+                    foregroundColor: AppColors.textPrimary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            summary,
+            isTranslated && summaryVi != null ? summaryVi! : summary,
             style: const TextStyle(
               fontSize: 14,
               color: AppColors.textSecondary,
               height: 1.6,
             ),
           ),
+          if (loadingSummary) ...[
+            const SizedBox(height: 12),
+            const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildSkillAnalysis(String skillName, Map<String, dynamic> analysis, IconData icon, Color color) {
-    final assessment = analysis['qualitativeAssessment']?.toString() ?? '';
-    final examples = (analysis['specificExamples'] as List?)?.cast<String>() ?? [];
-    final improvements = (analysis['suggestedImprovements'] as List?)?.cast<String>() ?? [];
-    final level = analysis['currentLevel']?.toString() ?? '';
+  Widget _buildSkillAnalysis(String skillName, Map<String, dynamic> analysis, IconData icon, Color color, bool isTranslated, VoidCallback onTranslate, VoidCallback onReset) {
+    String assessment;
+    List<String> examples;
+    List<String> improvements;
+    String level;
+    bool loading;
+    if (skillName == 'Độ trôi chảy') {
+      assessment = isTranslated && fluentAssessmentVi != null ? fluentAssessmentVi! : analysis['qualitativeAssessment']?.toString() ?? '';
+      examples = isTranslated && fluentExamplesVi != null ? fluentExamplesVi! : (analysis['specificExamples'] as List?)?.cast<String>() ?? [];
+      improvements = isTranslated && fluentImprovementsVi != null ? fluentImprovementsVi! : (analysis['suggestedImprovements'] as List?)?.cast<String>() ?? [];
+      level = isTranslated && fluentLevelVi != null ? fluentLevelVi! : analysis['currentLevel']?.toString() ?? '';
+      loading = loadingFluent;
+    } else if (skillName == 'Ngữ pháp') {
+      assessment = isTranslated && grammarAssessmentVi != null ? grammarAssessmentVi! : analysis['qualitativeAssessment']?.toString() ?? '';
+      examples = isTranslated && grammarExamplesVi != null ? grammarExamplesVi! : (analysis['specificExamples'] as List?)?.cast<String>() ?? [];
+      improvements = isTranslated && grammarImprovementsVi != null ? grammarImprovementsVi! : (analysis['suggestedImprovements'] as List?)?.cast<String>() ?? [];
+      level = isTranslated && grammarLevelVi != null ? grammarLevelVi! : analysis['currentLevel']?.toString() ?? '';
+      loading = loadingGrammar;
+    } else if (skillName == 'Từ vựng') {
+      assessment = isTranslated && vocabularyAssessmentVi != null ? vocabularyAssessmentVi! : analysis['qualitativeAssessment']?.toString() ?? '';
+      examples = isTranslated && vocabularyExamplesVi != null ? vocabularyExamplesVi! : (analysis['specificExamples'] as List?)?.cast<String>() ?? [];
+      improvements = isTranslated && vocabularyImprovementsVi != null ? vocabularyImprovementsVi! : (analysis['suggestedImprovements'] as List?)?.cast<String>() ?? [];
+      level = isTranslated && vocabularyLevelVi != null ? vocabularyLevelVi! : analysis['currentLevel']?.toString() ?? '';
+      loading = loadingVocabulary;
+    } else if (skillName == 'Hiểu biết văn hóa') {
+      assessment = isTranslated && cultureAssessmentVi != null ? cultureAssessmentVi! : analysis['qualitativeAssessment']?.toString() ?? '';
+      examples = isTranslated && cultureExamplesVi != null ? cultureExamplesVi! : (analysis['specificExamples'] as List?)?.cast<String>() ?? [];
+      improvements = isTranslated && cultureImprovementsVi != null ? cultureImprovementsVi! : (analysis['suggestedImprovements'] as List?)?.cast<String>() ?? [];
+      level = isTranslated && cultureLevelVi != null ? cultureLevelVi! : analysis['currentLevel']?.toString() ?? '';
+      loading = loadingCulture;
+    } else {
+      assessment = analysis['qualitativeAssessment']?.toString() ?? '';
+      examples = (analysis['specificExamples'] as List?)?.cast<String>() ?? [];
+      improvements = (analysis['suggestedImprovements'] as List?)?.cast<String>() ?? [];
+      level = analysis['currentLevel']?.toString() ?? '';
+      loading = false;
+    }
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -264,6 +505,31 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
                   ),
                 )
               : null,
+          trailing: !isTranslated
+              ? ElevatedButton.icon(
+                  onPressed: onTranslate,
+                  icon: const Icon(Icons.translate, size: 18),
+                  label: const Text('Dịch', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                )
+              : ElevatedButton.icon(
+                  onPressed: onReset,
+                  icon: const Icon(Icons.language, size: 18),
+                  label: const Text('Đổi lại tiếng Anh', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade300,
+                    foregroundColor: AppColors.textPrimary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
           children: [
             if (assessment.isNotEmpty) ...[
               const Align(
@@ -288,7 +554,6 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
               ),
               const SizedBox(height: 16),
             ],
-
             if (examples.isNotEmpty) ...[
               const Align(
                 alignment: Alignment.centerLeft,
@@ -332,7 +597,6 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
               )),
               const SizedBox(height: 8),
             ],
-
             if (improvements.isNotEmpty) ...[
               const Align(
                 alignment: Alignment.centerLeft,
@@ -367,13 +631,18 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
                 ),
               )),
             ],
+            if (loading) ...[
+              const SizedBox(height: 12),
+              const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildListSection(String title, List<String> items, IconData icon, Color color) {
+  Widget _buildListSection(String title, List<String> items, IconData icon, Color color, bool isTranslated, VoidCallback onTranslate, VoidCallback onReset) {
+    final displayItems = isTranslated ? items.map((e) => '[VI] $e').toList() : items;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       padding: const EdgeInsets.all(16),
@@ -397,10 +666,37 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
                   color: AppColors.textPrimary,
                 ),
               ),
+              const Spacer(),
+              if (!isTranslated)
+                ElevatedButton.icon(
+                  onPressed: onTranslate,
+                  icon: const Icon(Icons.translate, size: 18),
+                  label: const Text('Dịch', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              if (isTranslated)
+                ElevatedButton.icon(
+                  onPressed: onReset,
+                  icon: const Icon(Icons.language, size: 18),
+                  label: const Text('Đổi lại tiếng Anh', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade300,
+                    foregroundColor: AppColors.textPrimary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 12),
-          ...items.map((item) => Padding(
+          ...displayItems.map((item) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,7 +729,8 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
     );
   }
 
-  Widget _buildObservationsSection(List<Map<String, dynamic>> observations) {
+  Widget _buildObservationsSection(List<Map<String, dynamic>> observations, bool isTranslated, VoidCallback onTranslate, VoidCallback onReset) {
+    final displayObs = isTranslated ? specificObservationsVi : observations;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       padding: const EdgeInsets.all(16),
@@ -457,10 +754,37 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
                   color: AppColors.textPrimary,
                 ),
               ),
+              const Spacer(),
+              if (!isTranslated)
+                ElevatedButton.icon(
+                  onPressed: onTranslate,
+                  icon: const Icon(Icons.translate, size: 18),
+                  label: const Text('Dịch', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              if (isTranslated)
+                ElevatedButton.icon(
+                  onPressed: onReset,
+                  icon: const Icon(Icons.language, size: 18),
+                  label: const Text('Đổi lại tiếng Anh', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade300,
+                    foregroundColor: AppColors.textPrimary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16),
-          ...observations.map((obs) {
+          ...displayObs.map((obs) {
             final category = obs['category']?.toString() ?? '';
             final observation = obs['observation']?.toString() ?? '';
             final impact = obs['impact']?.toString() ?? '';
@@ -570,4 +894,3 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
     );
   }
 }
-

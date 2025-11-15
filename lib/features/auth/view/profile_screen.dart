@@ -4,6 +4,7 @@ import 'package:flearn_app/features/auth/view/edit_profile_screen.dart';
 import 'package:flearn_app/features/auth/view/purchase_history_screen.dart';
 import 'package:flearn_app/features/auth/view/subcription_plans.dart';
 import 'package:flearn_app/features/schedule/view/schedule_screen.dart';
+import 'package:flearn_app/features/schedule/view/student_schedule_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -404,7 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             iconColor: const Color(0xFF34C759),
             onTap: () {
               Get.to(
-                    () => const ScheduleScreen(),
+                () => const StudentScheduleScreen(),
                 transition: Transition.cupertino,
               );
             },

@@ -12,6 +12,13 @@ class Enrollment {
   final String paymentTransactionId;
   final String enrollmentStatus;
   final String classStatus;
+  final DateTime enrolledAt;
+  final int totalEnrollments;
+  final int capacity;
+  final String googleMeetLink;
+  final bool canJoinClass;
+  final bool isClassStarted;
+  final bool isClassFinished;
 
   Enrollment({
     required this.enrollmentID,
@@ -27,23 +34,37 @@ class Enrollment {
     required this.paymentTransactionId,
     required this.enrollmentStatus,
     required this.classStatus,
+    required this.enrolledAt,
+    required this.totalEnrollments,
+    required this.capacity,
+    required this.googleMeetLink,
+    required this.canJoinClass,
+    required this.isClassStarted,
+    required this.isClassFinished,
   });
 
   factory Enrollment.fromJson(Map<String, dynamic> json) {
     return Enrollment(
-      enrollmentID: json['enrollmentID'],
-      classID: json['classID'],
-      title: json['title'],
-      description: json['description'],
-      languageID: json['languageID'],
-      languageName: json['languageName'],
-      teacherName: json['teacherName'],
+      enrollmentID: json['enrollmentID'] ?? '',
+      classID: json['classID'] ?? '',
+      title: json['title'] ?? '',
+      description: json['description'] ?? '',
+      languageID: json['languageID'] ?? '',
+      languageName: json['languageName'] ?? '',
+      teacherName: json['teacherName'] ?? '',
       startDateTime: DateTime.parse(json['startDateTime']),
       endDateTime: DateTime.parse(json['endDateTime']),
-      amountPaid: (json['amountPaid'] as num).toInt(),
-      paymentTransactionId: json['paymentTransactionId'],
-      enrollmentStatus: json['enrollmentStatus'],
-      classStatus: json['classStatus'],
+      amountPaid: (json['amountPaid'] as num? ?? 0).toInt(),
+      paymentTransactionId: json['paymentTransactionId'] ?? '',
+      enrollmentStatus: json['enrollmentStatus'] ?? '',
+      classStatus: json['classStatus'] ?? '',
+      enrolledAt: DateTime.parse(json['enrolledAt']),
+      totalEnrollments: json['totalEnrollments'] ?? 0,
+      capacity: json['capacity'] ?? 0,
+      googleMeetLink: json['googleMeetLink'] ?? '',
+      canJoinClass: json['canJoinClass'] ?? false,
+      isClassStarted: json['isClassStarted'] ?? false,
+      isClassFinished: json['isClassFinished'] ?? false,
     );
   }
 }
