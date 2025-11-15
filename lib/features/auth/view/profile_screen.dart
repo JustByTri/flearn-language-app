@@ -5,6 +5,8 @@ import 'package:flearn_app/features/auth/view/purchase_history_screen.dart';
 import 'package:flearn_app/features/auth/view/subcription_plans.dart';
 import 'package:flearn_app/features/schedule/view/schedule_screen.dart';
 import 'package:flearn_app/features/schedule/view/student_schedule_screen.dart';
+import 'package:flearn_app/features/gamification/view/daily_goal_screen.dart';
+import 'package:flearn_app/features/gamification/view/leaderboard_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -406,6 +408,30 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             onTap: () {
               Get.to(
                 () => const StudentScheduleScreen(),
+                transition: Transition.cupertino,
+              );
+            },
+          ),
+          _buildDivider(),
+          _buildListTile(
+            icon: CupertinoIcons.chart_bar,
+            label: "Mục tiêu học tập",
+            iconColor: const Color(0xFFFF9500),
+            onTap: () {
+              Get.to(
+                () => const DailyGoalScreen(),
+                transition: Transition.cupertino,
+              );
+            },
+          ),
+          _buildDivider(),
+          _buildListTile(
+            icon: CupertinoIcons.chart_bar_alt_fill,
+            label: "Bảng xếp hạng",
+            iconColor: const Color(0xFFFFD700),
+            onTap: () {
+              Get.to(
+                () => const LeaderboardScreen(),
                 transition: Transition.cupertino,
               );
             },
