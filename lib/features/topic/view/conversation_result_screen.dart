@@ -141,7 +141,8 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
     setState(() { loadingPositive = true; });
     positivePatternsVi = [];
     for (var e in patterns) {
-      positivePatternsVi.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+      final translated = (await translator.translate(e, from: 'auto', to: 'vi')).text;
+      positivePatternsVi.add(translated);
     }
     setState(() {
       isPositiveTranslated = true;
@@ -153,7 +154,8 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
     setState(() { loadingAreas = true; });
     areasNeedingWorkVi = [];
     for (var e in areas) {
-      areasNeedingWorkVi.add((await translator.translate(e, from: 'auto', to: 'vi')).text);
+      final translated = (await translator.translate(e, from: 'auto', to: 'vi')).text;
+      areasNeedingWorkVi.add(translated);
     }
     setState(() {
       isAreasTranslated = true;
@@ -168,7 +170,8 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
       final newObs = Map<String, dynamic>.from(obs);
       for (var k in ['category', 'observation', 'impact', 'example']) {
         if (newObs[k] != null && newObs[k].toString().isNotEmpty) {
-          newObs[k] = '[VI] ${newObs[k]}';
+          final translated = (await translator.translate(newObs[k].toString(), from: 'auto', to: 'vi')).text;
+          newObs[k] = translated;
         }
       }
       specificObservationsVi.add(newObs);
@@ -642,7 +645,7 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
   }
 
   Widget _buildListSection(String title, List<String> items, IconData icon, Color color, bool isTranslated, VoidCallback onTranslate, VoidCallback onReset) {
-    final displayItems = isTranslated ? items.map((e) => '[VI] $e').toList() : items;
+    final displayItems = isTranslated ? (title == 'Điểm mạnh' ? positivePatternsVi : areasNeedingWorkVi) : items;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       padding: const EdgeInsets.all(16),
@@ -730,7 +733,7 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
   }
 
   Widget _buildObservationsSection(List<Map<String, dynamic>> observations, bool isTranslated, VoidCallback onTranslate, VoidCallback onReset) {
-    final displayObs = isTranslated ? specificObservationsVi : observations;
+    final displayObservations = isTranslated ? specificObservationsVi : observations;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       padding: const EdgeInsets.all(16),
@@ -784,7 +787,7 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          ...displayObs.map((obs) {
+          ...displayObservations.map((obs) {
             final category = obs['category']?.toString() ?? '';
             final observation = obs['observation']?.toString() ?? '';
             final impact = obs['impact']?.toString() ?? '';

@@ -7,6 +7,7 @@ import 'package:flearn_app/features/schedule/view/schedule_screen.dart';
 import 'package:flearn_app/features/schedule/view/student_schedule_screen.dart';
 import 'package:flearn_app/features/gamification/view/daily_goal_screen.dart';
 import 'package:flearn_app/features/gamification/view/leaderboard_screen.dart';
+import 'package:flearn_app/features/gamification/viewmodel/gamification_viewmodel.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -194,33 +195,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                         () => const EditProfileScreen(),
                     arguments: userViewModel.user.value,
                   ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(25),
-                          blurRadius: 15,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.grey.shade100,
-                      backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                          ? NetworkImage(avatarUrl)
-                          : null,
-                      child: (avatarUrl == null || avatarUrl.isEmpty)
-                          ? Icon(
-                        CupertinoIcons.person_fill,
-                        color: Colors.grey.shade400,
-                        size: 50,
-                      )
-                          : null,
-                    ),
-                  ),
+                  child: _buildRankedAvatar(avatarUrl),
                 ),
                 const SizedBox(height: 16),
                 // Display Name
@@ -521,6 +496,109 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRankedAvatar(String? avatarUrl) {
+    // Get user rank from GamificationViewModel
+    final gamificationVM = Get.isRegistered<GamificationViewModel>()
+        ? Get.find<GamificationViewModel>()
+        : null;
+
+    final userRank = gamificationVM?.userRank.value?.rank ?? 0;
+    final isTopRank = userRank > 0 && userRank <= 3;
+
+    Color? frameColor;
+    Color? glowColor;
+
+    if (userRank == 1) {
+      frameColor = Color(0xFFFFD700); // Gold
+      glowColor = Color(0xFFFFD700);
+    } else if (userRank == 2) {
+      frameColor = Color(0xFFC0C0C0); // Silver
+      glowColor = Color(0xFFC0C0C0);
+    } else if (userRank == 3) {
+      frameColor = Color(0xFFCD7F32); // Bronze
+      glowColor = Color(0xFFCD7F32);
+    }
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: isTopRank
+                ? LinearGradient(
+                    colors: [frameColor!, frameColor.withAlpha(200)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: isTopRank
+                    ? glowColor!.withAlpha(100)
+                    : Colors.black.withAlpha(25),
+                blurRadius: isTopRank ? 20 : 15,
+                spreadRadius: isTopRank ? 3 : 2,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          padding: isTopRank ? const EdgeInsets.all(5) : EdgeInsets.zero,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+            ),
+            padding: isTopRank ? const EdgeInsets.all(4) : EdgeInsets.zero,
+            child: CircleAvatar(
+              radius: 60,
+              backgroundColor: Colors.grey.shade100,
+              backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                  ? NetworkImage(avatarUrl)
+                  : null,
+              child: (avatarUrl == null || avatarUrl.isEmpty)
+                  ? Icon(
+                      CupertinoIcons.person_fill,
+                      color: Colors.grey.shade400,
+                      size: 50,
+                    )
+                  : null,
+            ),
+          ),
+        ),
+        if (isTopRank)
+          Positioned(
+            top: -5,
+            right: -5,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [frameColor!, frameColor.withAlpha(220)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: glowColor!.withAlpha(150),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.emoji_events,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
