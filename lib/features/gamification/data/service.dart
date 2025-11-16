@@ -41,10 +41,11 @@ class GamificationService implements IGamificationRepository {
   @override
   Future<bool> updateDailyGoal(int dailyXpGoal) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('https://f-learn.app/api/gamification/me/daily-goal');
+    final languageId = GetStorage().read('selectedLanguageId') as String? ?? '00faa1ba-f715-431d-a9b2-2572729fccb2';
+    final url = Uri.parse('https://f-learn.app/api/gamification/me/daily-goal?languageId=$languageId');
 
     try {
-      print('[GamificationService] updateDailyGoal: Updating to $dailyXpGoal XP');
+      print('[GamificationService] updateDailyGoal: Updating to $dailyXpGoal XP for languageId: $languageId');
       final response = await http.put(
         url,
         headers: {
@@ -56,19 +57,17 @@ class GamificationService implements IGamificationRepository {
         }),
       );
 
-      print('[GamificationService] updateDailyGoal status: ${response.statusCode}');
+      print('[GamificationService] updateDailyGoal status: [32m${response.statusCode}[0m');
       print('[GamificationService] updateDailyGoal body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final jsonBody = jsonDecode(response.body);
-        return jsonBody['status'] == 'success' || jsonBody['success'] == true;
+        return true;
       } else {
-        print('[GamificationService] updateDailyGoal failed: ${response.body}');
         return false;
       }
     } catch (e) {
       print('[GamificationService] updateDailyGoal Exception: $e');
-      return false;
+      rethrow;
     }
   }
 
@@ -153,4 +152,3 @@ class GamificationService implements IGamificationRepository {
     }
   }
 }
-
