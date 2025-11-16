@@ -20,4 +20,17 @@ abstract class IScheduleRepository {
     String? signature,
     String? description,
   });
+
+
+  Future<Map<String, dynamic>> submitRefundRequest({
+    required String enrollmentID,
+    required String classID,
+    required String className,
+    required int requestType,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+    required String reason,
+  });
+
 }

@@ -132,4 +132,48 @@ class ScheduleService implements IScheduleRepository {
     }
   }
 
+  @override
+  Future<Map<String, dynamic>> submitRefundRequest({
+    required String enrollmentID,
+    required String classID,
+    required String className,
+    required int requestType,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+    required String reason,
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/Refund/submit');
+    final body = {
+      "enrollmentID": enrollmentID,
+      "classID": classID,
+      "className": className,
+      "requestType": requestType,
+      "bankName": bankName,
+      "bankAccountNumber": bankAccountNumber,
+      "bankAccountHolderName": bankAccountHolderName,
+      "reason": reason,
+    };
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Authorization": "Bearer $accessToken",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode(body),
+      );
+      final jsonBody = jsonDecode(response.body);
+      if (response.statusCode == 200 && jsonBody['success'] == true) {
+        return jsonBody['data'] as Map<String, dynamic>;
+      } else {
+        throw Exception(jsonBody['message'] ?? 'Gửi đơn hoàn tiền thất bại');
+      }
+    } catch (e) {
+      print('[ScheduleService] submitRefundRequest Exception: $e');
+      rethrow;
+    }
+  }
+
 }

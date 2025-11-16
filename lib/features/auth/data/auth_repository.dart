@@ -49,4 +49,6 @@ abstract class IAuthRepository {
     int pageSize = 10,
     String sortBy = 'newest',
   });
+
+  Future<List<Map<String, dynamic>>> fetchRefundRequests();
 }

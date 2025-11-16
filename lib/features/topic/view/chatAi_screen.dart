@@ -89,6 +89,10 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isSendingVoice = false; // Thêm biến trạng thái gửi voice
   Timer? _aiResponseTimeout; // Timeout cho AI response từ SignalR
 
+  // NEW: cờ theo dõi AI reply cho voice
+  bool _awaitingVoiceAi = false;
+  bool _voiceAiReceived = false;
+
   // TTS state
   int? _speakingMessageIndex;
   bool _isTtsInitialized = false;
@@ -232,20 +236,28 @@ class _ChatScreenState extends State<ChatScreen> {
     await _topicViewModel.initSignalR();
     print('SignalR connected in ChatScreen');
 
-
     _aiSub = _topicViewModel.aiMessageStream.listen((aiMsg) {
       print('[AI STREAM] payload: $aiMsg');
       if (!mounted) return;
-      setState(() => _isTyping = false);
 
+      // Chuẩn hóa field
       final content = aiMsg['content'] ?? aiMsg['messageContent'] ?? '';
       final ts = DateTime.tryParse(aiMsg['timestamp'] ?? aiMsg['sentAt'] ?? '') ?? DateTime.now();
-      final sender = aiMsg['sender'];
+      final senderRaw = aiMsg['sender'];
+      final senderStr = senderRaw?.toString().toLowerCase();
+      final isAi = senderStr == 'ai' || senderRaw == 2;
+      final isUserSender = senderStr == 'user' || senderRaw == 1;
+      final messageTypeRaw = aiMsg['messageType'];
+      final messageTypeStr = messageTypeRaw?.toString().toLowerCase();
+      final audioUrl = aiMsg['audioUrl'];
+      final audioDuration = aiMsg['audioDuration'] ?? 0;
+      final transcript = aiMsg['transcript'];
       final synonymSuggestions = aiMsg['synonymSuggestions'];
+      final hasAudio = audioUrl != null && audioUrl.toString().isNotEmpty;
+      final isVoiceMsg = hasAudio || messageTypeStr == 'voice' || messageTypeRaw == 2 || aiMsg['isVoiceMessage'] == true;
 
-      // Kiểm tra nếu có synonymSuggestions, cập nhật lại message cuối cùng của user
-      // synonymSuggestions thường được trả về cho tin nhắn user (để gợi ý cải thiện)
-      if (synonymSuggestions != null) {
+      // 1) Cập nhật synonymSuggestions cho user TEXT (nếu hub đính kèm)
+      if (synonymSuggestions != null && !isVoiceMsg && isUserSender) {
         print('[AI STREAM] Found synonymSuggestions: $synonymSuggestions');
         final idx = _messages.lastIndexWhere((m) => m.isUser && !m.isVoice);
         if (idx != -1) {
@@ -264,25 +276,56 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
 
-      // Kiểm tra xem AI có trả về voice hay text
-      final audioUrl = aiMsg['audioUrl'];
-      final audioDuration = aiMsg['audioDuration'] ?? 0;
-      final transcript = aiMsg['transcript'];
+      // 2) VoiceMessageReceived từ User: cập nhật transcript/synonyms cho bubble voice của user
+      if (isUserSender && isVoiceMsg) {
+        if (transcript != null || synonymSuggestions != null) {
+          final idx = _messages.lastIndexWhere(
+                (m) => m.isUser && m.isVoice && (m.transcript == null || m.transcript!.isEmpty),
+          );
+          if (idx != -1) {
+            setState(() {
+              _messages[idx] = ChatMessage(
+                text: _messages[idx].text,
+                isUser: true,
+                timestamp: _messages[idx].timestamp,
+                isVoice: true,
+                audioUrl: _messages[idx].audioUrl,
+                duration: _messages[idx].duration,
+                transcript: transcript?.toString() ?? _messages[idx].transcript,
+                synonymSuggestions: synonymSuggestions ?? _messages[idx].synonymSuggestions,
+              );
+            });
+            print('[AI STREAM] Updated user voice transcript/synonyms via hub');
+          }
+        }
+        return; // Không thêm bubble mới
+      }
 
-      if (audioUrl != null && audioUrl.toString().isNotEmpty) {
-        // AI trả về voice message
+      // 3) AI trả về (ưu tiên hiển thị từ hub)
+      if (isAi && isVoiceMsg) {
+        // AI voice
         _addMessage(ChatMessage(
           text: content,
           isUser: false,
           timestamp: ts,
           isVoice: true,
-          audioUrl: audioUrl.toString(),
+          audioUrl: audioUrl?.toString(),
           duration: audioDuration is int ? audioDuration : int.tryParse(audioDuration.toString()) ?? 0,
           transcript: transcript?.toString(),
-          synonymSuggestions: null, // AI message không cần synonymSuggestions
+          synonymSuggestions: null,
         ));
-      } else {
-        // AI trả về text message
+        setState(() => _isTyping = false);
+        if (_awaitingVoiceAi) {
+          _voiceAiReceived = true;
+          _aiResponseTimeout?.cancel();
+          _aiResponseTimeout = null;
+          print('[VOICE][HUB] AI voice received');
+        }
+        return;
+      }
+
+      if (isAi && !isVoiceMsg) {
+        // AI text
         _addMessage(ChatMessage(
           text: content,
           isUser: false,
@@ -291,8 +334,16 @@ class _ChatScreenState extends State<ChatScreen> {
           audioUrl: null,
           duration: null,
           transcript: null,
-          synonymSuggestions: null, // AI message không cần synonymSuggestions
+          synonymSuggestions: null,
         ));
+        setState(() => _isTyping = false);
+        if (_awaitingVoiceAi) {
+          _voiceAiReceived = true;
+          _aiResponseTimeout?.cancel();
+          _aiResponseTimeout = null;
+          print('[VOICE][HUB] AI text received');
+        }
+        return;
       }
     }, onError: (e) {
       print('[AI STREAM] error: $e');
@@ -358,7 +409,7 @@ class _ChatScreenState extends State<ChatScreen> {
         messageType: 1, // 1 = Text
       );
 
-      // Nếu có synonymSuggestions trong response, cập nhật lại user message cuối cùng
+
       if (httpResp != null && httpResp['data'] != null) {
         final synonymSuggestions = httpResp['data']['synonymSuggestions'];
         if (synonymSuggestions != null) {
@@ -514,6 +565,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _aiSub?.cancel();
+    _aiResponseTimeout?.cancel(); // NEW
     _messageController.dispose();
     _scrollController.dispose();
     _recorder.dispose();
@@ -1037,10 +1089,10 @@ class _ChatScreenState extends State<ChatScreen> {
       children: [
         // --- HIỂN THỊ BUBBLE VOICE HOẶC BUBBLE DỊCH ---
         if (isVoice && isVoiceTranslated)
-          // Hiển thị bubble text đã dịch với menu ở góc
+        // Hiển thị bubble text đã dịch với menu ở góc
           _buildTranslatedVoiceBubble(msgIndex, message, isUser)
         else if (isUser && isVoice && message.transcript != null && message.transcript!.isNotEmpty)
-          // Hiển thị bubble voice user với menu ở góc dưới trái + bóng đèn ở góc trên phải
+        // Hiển thị bubble voice user với menu ở góc dưới trái + bóng đèn ở góc trên phải
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -1093,103 +1145,103 @@ class _ChatScreenState extends State<ChatScreen> {
           )
         else if (!isUser && isVoice && message.transcript != null && message.transcript!.isNotEmpty)
           // Hiển thị bubble voice AI với menu ở góc dưới PHẢI
-          Stack(
-            children: [
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 5),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                constraints: BoxConstraints(maxWidth: Get.width * 0.75),
-                decoration: BoxDecoration(color: color, borderRadius: radius),
-                child: _buildVoiceMessageContent(message, textColor),
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: _buildVoiceContextMenu(message, msgIndex, isUser),
-              ),
-            ],
-          )
-        else if (!isUser && !isVoice)
-          // Hiển thị bubble text AI với menu dịch + đọc ở góc dưới phải (KHÔNG có bóng đèn)
-          Stack(
-            children: [
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 5),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                constraints: BoxConstraints(maxWidth: Get.width * 0.75),
-                decoration: BoxDecoration(color: color, borderRadius: radius),
-                child: _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: _buildTextContextMenu(message, msgIndex),
-              ),
-            ],
-          )
-        else if (isUser && !isVoice)
-          // Hiển thị bubble text User với menu dịch ở góc dưới trái và bóng đèn ở góc trên phải
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 5),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                constraints: BoxConstraints(maxWidth: Get.width * 0.75),
-                decoration: BoxDecoration(color: color, borderRadius: radius),
-                child: _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
-              ),
-              // Menu context ở góc dưới trái
-              Positioned(
-                bottom: 0,
-                left: 0,
-                child: _buildUserTextContextMenu(message, msgIndex),
-              ),
-              // Bóng đèn gợi ý ở góc trên phải
-              if (message.synonymSuggestions != null)
+            Stack(
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+                  decoration: BoxDecoration(color: color, borderRadius: radius),
+                  child: _buildVoiceMessageContent(message, textColor),
+                ),
                 Positioned(
-                  top: -8,
-                  right: -8,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _showSynonymSuggestions(message.synonymSuggestions!),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.amber,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.amber.withOpacity(0.3),
-                              blurRadius: 8,
-                              spreadRadius: 1,
+                  bottom: 0,
+                  right: 0,
+                  child: _buildVoiceContextMenu(message, msgIndex, isUser),
+                ),
+              ],
+            )
+          else if (!isUser && !isVoice)
+            // Hiển thị bubble text AI với menu dịch + đọc ở góc dưới phải (KHÔNG có bóng đèn)
+              Stack(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+                    decoration: BoxDecoration(color: color, borderRadius: radius),
+                    child: _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: _buildTextContextMenu(message, msgIndex),
+                  ),
+                ],
+              )
+            else if (isUser && !isVoice)
+              // Hiển thị bubble text User với menu dịch ở góc dưới trái và bóng đèn ở góc trên phải
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+                      decoration: BoxDecoration(color: color, borderRadius: radius),
+                      child: _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
+                    ),
+                    // Menu context ở góc dưới trái
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      child: _buildUserTextContextMenu(message, msgIndex),
+                    ),
+                    // Bóng đèn gợi ý ở góc trên phải
+                    if (message.synonymSuggestions != null)
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _showSynonymSuggestions(message.synonymSuggestions!),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.amber,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.amber.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.lightbulb,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.lightbulb,
-                          color: Colors.white,
-                          size: 20,
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
+                )
+              else
+              // Hiển thị bubble gốc (voice không có transcript hoặc trường hợp đặc biệt)
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  constraints: BoxConstraints(maxWidth: Get.width * 0.75),
+                  decoration: BoxDecoration(color: color, borderRadius: radius),
+                  child: isVoice
+                      ? _buildVoiceMessageContent(message, textColor)
+                      : _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
                 ),
-            ],
-          )
-        else
-          // Hiển thị bubble gốc (voice không có transcript hoặc trường hợp đặc biệt)
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 5),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            constraints: BoxConstraints(maxWidth: Get.width * 0.75),
-            decoration: BoxDecoration(color: color, borderRadius: radius),
-            child: isVoice
-                ? _buildVoiceMessageContent(message, textColor)
-                : _buildTextMessageContent(message, isTranslated, hasTranslation, textColor),
-          ),
 
 
         // Hiển thị transcript inline nếu được chọn và chưa bị dịch thay thế
@@ -1258,16 +1310,16 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Row(
               children: [
                 Icon(
-                  isSpeaking ? Icons.stop_circle : Icons.volume_up,
-                  color: isSpeaking ? Colors.red.shade700 : Colors.blue.shade700,
-                  size: 20
+                    isSpeaking ? Icons.stop_circle : Icons.volume_up,
+                    color: isSpeaking ? Colors.red.shade700 : Colors.blue.shade700,
+                    size: 20
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  isSpeaking ? 'Dừng đọc' : 'Đọc',
-                  style: TextStyle(
-                    color: isSpeaking ? Colors.red.shade700 : Colors.blue.shade700
-                  )
+                    isSpeaking ? 'Dừng đọc' : 'Đọc',
+                    style: TextStyle(
+                        color: isSpeaking ? Colors.red.shade700 : Colors.blue.shade700
+                    )
                 ),
               ],
             ),
@@ -1534,25 +1586,25 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         child: isTranslating
             ? const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green),
-                  ),
-                  SizedBox(width: 8),
-                  Text('Đang dịch...', style: TextStyle(color: Colors.green, fontSize: 14)),
-                ],
-              )
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green),
+            ),
+            SizedBox(width: 8),
+            Text('Đang dịch...', style: TextStyle(color: Colors.green, fontSize: 14)),
+          ],
+        )
             : Text(
-                translatedText ?? '',
-                style: TextStyle(
-                  color: Colors.green.shade800,
-                  fontStyle: FontStyle.italic,
-                  fontSize: 15,
-                ),
-              ),
+          translatedText ?? '',
+          style: TextStyle(
+            color: Colors.green.shade800,
+            fontStyle: FontStyle.italic,
+            fontSize: 15,
+          ),
+        ),
       ),
     );
   }
@@ -2294,23 +2346,25 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     final file = File(_pausedRecordingPath!);
-    if (!await file.exists() || await file.length() <= 100) return;
+    if (!await file.exists() || await file.length() <= 100) {
+      _isSendingVoice = false;
+      return;
+    }
 
     final seconds = _recordingDuration.inSeconds;
 
     // Copy file sang thư mục persistent để giữ lại cho việc phát lại
     final dir = await getApplicationDocumentsDirectory();
     final persistentPath = '${dir.path}/user_voice_${DateTime.now().millisecondsSinceEpoch}.wav';
-    await file.copy(persistentPath); // Copy file để tránh bị xóa
+    await file.copy(persistentPath);
 
     // 1) Hiển thị bubble voice của user với file persistent
-    // Tạm thời chưa có transcript, sẽ cập nhật sau khi nhận từ API
     final voiceMsg = ChatMessage(
       text: '',
       isUser: true,
       timestamp: DateTime.now(),
       isVoice: true,
-      audioUrl: persistentPath, // Dùng đường dẫn persistent
+      audioUrl: persistentPath,
       duration: seconds,
       transcript: null,
     );
@@ -2318,9 +2372,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _isTyping = true);
 
-    // 2) Upload HTTP để lấy transcript, synonymSuggestions VÀ AI response
-    // Backend trả về đầy đủ trong HTTP response, lấy ngay để nhanh
+    // NEW: chuẩn bị chờ AI từ hub
+    _awaitingVoiceAi = true;
+    _voiceAiReceived = false;
+
     try {
+      // 2) Upload HTTP để hệ thống nhận voice (đồng thời backend sẽ bắn hub)
       final resp = await _topicViewModel.sendVoiceMessage(
         sessionId: _sessionId!,
         audioFilePath: _pausedRecordingPath!,
@@ -2329,7 +2386,6 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       print('[VOICE][HTTP] resp: $resp');
 
-      // Lấy transcript, synonymSuggestions và AI response từ HTTP
       final transcript = resp?['data']?['transcript'];
       final aiResponse = resp?['data']?['aiResponse'];
       final synonymSuggestions = aiResponse?['synonymSuggestions'];
@@ -2354,13 +2410,11 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
 
-      // Lấy ngay AI response từ HTTP (backend đã trả về đầy đủ)
-      if (aiResponse != null) {
+      // Fallback: chỉ thêm AI từ HTTP nếu hub KHÔNG gửi
+      if (!_voiceAiReceived && aiResponse != null) {
         final content = aiResponse['messageContent'] ?? '';
         final ts = DateTime.tryParse(aiResponse['sentAt'] ?? '') ?? DateTime.now();
-
         setState(() => _isTyping = false);
-
         _addMessage(ChatMessage(
           text: content,
           isUser: false,
@@ -2370,16 +2424,20 @@ class _ChatScreenState extends State<ChatScreen> {
           duration: null,
           synonymSuggestions: null,
         ));
-        print('[VOICE][HTTP] Added AI response from HTTP');
+        print('[VOICE][HTTP] Added AI response (fallback) because hub not received');
       } else {
         setState(() => _isTyping = false);
+        if (_voiceAiReceived) print('[VOICE] Skipped HTTP AI response (already from hub)');
       }
-
     } catch (e) {
       print('[VOICE][HTTP] upload error: $e');
       setState(() => _isTyping = false);
       Get.snackbar("Lỗi", "Không gửi được voice: $e");
     } finally {
+      _awaitingVoiceAi = false;
+      _voiceAiReceived = false;
+      _aiResponseTimeout?.cancel();
+      _aiResponseTimeout = null;
       _isSendingVoice = false;
     }
 
@@ -2388,7 +2446,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _recordingState = RecordingState.idle;
       _pausedRecordingPath = null; // Có thể xóa file gốc sau khi copy
     });
-
 
     try {
       await file.delete();

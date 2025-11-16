@@ -19,6 +19,7 @@ import 'features/auth/data/auth_repository.dart';
 import 'features/auth/data/auth_service.dart';
 import 'features/course_progress/data/course_progress_repository.dart';
 import 'features/course_progress/data/course_progress_service.dart';
+import 'features/schedule/viewmodel/schedule_viewmodel.dart';
 import 'features/survey/viewmodel/survey_viewmodel.dart';
 import 'features/topic/data/service.dart';
 import 'features/gamification/data/repository.dart';
@@ -41,6 +42,7 @@ void setupDI() {
   Get.lazyPut<ICourseRepository>(() => CourseService(), fenix: true);
   Get.lazyPut<ISurveyRepository>(() => serviceSurvey(), fenix: true);
   Get.lazyPut<IScheduleRepository>(() => ScheduleService(), fenix: true);
+
   Get.lazyPut<ITeacherRepository>(() => TeacherService(Get.find<Dio>()), fenix: true);
   Get.lazyPut<IGamificationRepository>(() => GamificationService(), fenix: true);
   Get.lazyPut<SurveyViewModel>(() => SurveyViewModel(Get.find<ISurveyRepository>()), fenix: true);
@@ -48,6 +50,11 @@ void setupDI() {
   Get.lazyPut<TeacherViewModel>(() => TeacherViewModel(Get.find<ITeacherRepository>()), fenix: true);
   Get.lazyPut<GamificationViewModel>(() => GamificationViewModel(repository: Get.find<IGamificationRepository>()), fenix: true);
   Get.lazyPut<ICourseProgressRepository>(() => CourseProgressService(), fenix: true);
+
+  Get.lazyPut<ScheduleViewModel>(
+        () => ScheduleViewModel(service: Get.find<IScheduleRepository>()),
+    fenix: true,
+  );
   Get.lazyPut(() => NavigationController(), fenix: true);
 
 }

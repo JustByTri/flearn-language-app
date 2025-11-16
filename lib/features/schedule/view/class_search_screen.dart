@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:flearn_app/features/schedule/viewmodel/teacher_schedule_viewmodel.dart';
@@ -20,6 +21,12 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> {
   @override
   void initState() {
     super.initState();
+    final box = GetStorage();
+    final userLangId = box.read('user')?['languageId'];
+    if (box.read('selectedLanguageId') == null && userLangId != null) {
+      box.write('selectedLanguageId', userLangId);
+      debugPrint('[ClassSearchScreen] Set selectedLanguageId = $userLangId');
+    }
     _viewModel = Get.put(TeacherScheduleViewModel(service: Get.find()));
     _viewModel.fetchSchedules();
   }
