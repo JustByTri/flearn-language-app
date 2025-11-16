@@ -138,101 +138,47 @@ class ScheduleService implements IScheduleRepository {
   }
 
   @override
-  Future<List<ClassSearchResult>> searchClasses({
-    required String languageId,
-    String? teacherId,
-    String? programId,
-    String? keyword,
-    String? status,
-    String? from,
-    String? to,
-    int page = 1,
-    int pageSize = 10,
+  Future<Map<String, dynamic>> submitRefundRequest({
+    required String enrollmentID,
+    required String classID,
+    required String className,
+    required int requestType,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+    required String reason,
   }) async {
-    final queryParameters = <String, String>{
-      'languageId': languageId,
-      'page': page.toString(),
-      'pageSize': pageSize.toString(),
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/Refund/submit');
+    final body = {
+      "enrollmentID": enrollmentID,
+      "classID": classID,
+      "className": className,
+      "requestType": requestType,
+      "bankName": bankName,
+      "bankAccountNumber": bankAccountNumber,
+      "bankAccountHolderName": bankAccountHolderName,
+      "reason": reason,
     };
-
-    if (teacherId != null && teacherId.isNotEmpty) {
-      queryParameters['teacherId'] = teacherId;
-    }
-    if (programId != null && programId.isNotEmpty) {
-      queryParameters['programId'] = programId;
-    }
-    if (keyword != null && keyword.isNotEmpty) {
-      queryParameters['keyword'] = keyword;
-    }
-    if (status != null && status.isNotEmpty) {
-      queryParameters['status'] = status;
-    }
-    if (from != null && from.isNotEmpty) {
-      queryParameters['from'] = from;
-    }
-    if (to != null && to.isNotEmpty) {
-      queryParameters['to'] = to;
-    }
-
-    final uri = Uri.parse('https://f-learn.app/api/classes/public/search').replace(queryParameters: queryParameters);
-    print('[ScheduleService] searchClasses URI: $uri');
     try {
-      final response = await http.get(uri);
-      if (response.statusCode == 200) {
-        final jsonBody = jsonDecode(response.body);
-        final data = jsonBody['data'] as List<dynamic>? ?? [];
-        return data.map((item) => ClassSearchResult.fromJson(item)).toList();
-      } else {
-        throw Exception('Failed to search classes: ${response.body}');
-      }
-    } catch (e) {
-      print('[ScheduleService] searchClasses Exception: $e');
-      rethrow;
-    }
-  }
-
-  @override
-  Future<List<Teacher>> getAllTeachers() async {
-    final url = Uri.parse('https://f-learn.app/api/teachers/all');
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final jsonBody = jsonDecode(response.body);
-        final data = jsonBody['data'] as List<dynamic>? ?? [];
-        return data.map((item) => Teacher.fromJson(item)).toList();
-      } else {
-        throw Exception('Failed to load teachers: ${response.body}');
-      }
-    } catch (e) {
-      print('[ScheduleService] getAllTeachers Exception: $e');
-      rethrow;
-    }
-  }
-
-  @override
-  Future<List<Program>> getPrograms(String languageId) async {
-    final accessToken = _getToken();
-    final url = Uri.parse('https://f-learn.app/api/VoiceAssessment/programs/$languageId');
-    try {
-      final response = await http.get(
+      final response = await http.post(
         url,
-        headers: accessToken != null
-            ? {
-                'Authorization': 'Bearer $accessToken',
-                'Content-Type': 'application/json',
-              }
-            : null,
+        headers: {
+          "Authorization": "Bearer $accessToken",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode(body),
       );
-      if (response.statusCode == 200) {
-        final jsonBody = jsonDecode(response.body);
-        final data = jsonBody['data'] as List<dynamic>? ?? [];
-        return data.map((item) => Program.fromJson(item)).toList();
+      final jsonBody = jsonDecode(response.body);
+      if (response.statusCode == 200 && jsonBody['success'] == true) {
+        return jsonBody['data'] as Map<String, dynamic>;
       } else {
-        throw Exception('Failed to load programs: ${response.body}');
+        throw Exception(jsonBody['message'] ?? 'Gửi đơn hoàn tiền thất bại');
       }
     } catch (e) {
-      print('[ScheduleService] getPrograms Exception: $e');
+      print('[ScheduleService] submitRefundRequest Exception: $e');
       rethrow;
     }
   }
+
 }

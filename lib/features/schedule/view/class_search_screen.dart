@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:flearn_app/features/schedule/viewmodel/class_search_viewmodel.dart';
@@ -23,9 +24,14 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _viewModel = Get.put(ClassSearchViewModel(service: Get.find()));
-    _searchController.addListener(_onSearchChanged);
-    _pulseController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
+    final box = GetStorage();
+    final userLangId = box.read('user')?['languageId'];
+    if (box.read('selectedLanguageId') == null && userLangId != null) {
+      box.write('selectedLanguageId', userLangId);
+      debugPrint('[ClassSearchScreen] Set selectedLanguageId = $userLangId');
+    }
+    _viewModel = Get.put(TeacherScheduleViewModel(service: Get.find()));
+    _viewModel.fetchSchedules();
   }
 
   @override
