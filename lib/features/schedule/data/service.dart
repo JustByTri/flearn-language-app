@@ -6,9 +6,14 @@ import '../model/enrollment_model.dart';
 import 'repository.dart';
 
 class ScheduleService implements IScheduleRepository {
+  String? _getToken() {
+    final box = GetStorage();
+    return box.read('accessToken') as String? ?? box.read('token') as String?;
+  }
+
   @override
   Future<List<TeacherClass>> getTeacherSchedules({String? languageId}) async {
-    final accessToken = GetStorage().read('accessToken');
+    final accessToken = _getToken();
     final query = languageId != null ? '?languageId=$languageId' : '';
     final url = Uri.parse('https://f-learn.app/api/student/classes/available$query');
 
@@ -35,7 +40,7 @@ class ScheduleService implements IScheduleRepository {
 
   @override
   Future<Map<String, dynamic>> bookClass(String classId) async {
-    final accessToken = GetStorage().read('accessToken');
+    final accessToken = _getToken();
     final url = Uri.parse('https://f-learn.app/api/student/classes/$classId/enroll');
     try {
       final response = await http.post(
@@ -62,7 +67,7 @@ class ScheduleService implements IScheduleRepository {
 
   @override
   Future<List<Enrollment>> getMyEnrollments() async {
-    final accessToken = GetStorage().read('accessToken');
+    final accessToken = _getToken();
     final url = Uri.parse('https://f-learn.app/api/student/classes/my-enrollments?page=1&pageSize=10');
     try {
       final response = await http.get(
@@ -97,7 +102,7 @@ class ScheduleService implements IScheduleRepository {
     String? signature,
     String? description,
   }) async {
-    final accessToken = GetStorage().read('accessToken');
+    final accessToken = _getToken();
     final url = Uri.parse('https://f-learn.app/api/student/classes/payment-callback');
     try {
       final body = {
