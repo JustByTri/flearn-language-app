@@ -8,6 +8,7 @@ import '../../../core/constants/colors.dart';
 import '../viewmodel/course_viewmodel.dart';
 import 'course_exercise_screen.dart';
 import 'course_lesson_drawer.dart';
+import 'pdf_view_screen.dart';
 
 import '../model/course_exercise.dart';
 import 'exercise_repeat_after_me_screen.dart';
@@ -546,15 +547,15 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
           ),
         ],
         const SizedBox(height: 24),
-        Container(
-
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
+        SizedBox(
+          width: double.infinity,
           child: Html(
             data: activity.content.resourceUrl ?? '',
+            style: {
+              'body': Style(margin: Margins.zero, padding: HtmlPaddings.zero), // Loại bỏ margin/padding mặc định
+              'table': Style(width: Width(MediaQuery.of(context).size.width)), // Table full width
+              'th, td': Style(padding: HtmlPaddings.all(8), border: Border.all(color: Colors.grey.shade300)), // Style cho table cells
+            },
           ),
         ),
         const SizedBox(height: 16),
@@ -692,15 +693,15 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () {
-                  // TODO: mở PDF
-                  Get.snackbar(
-                    'Thông báo',
-                    'Chức năng xem PDF đang được phát triển',
-                    snackPosition: SnackPosition.BOTTOM,
-                  );
+                  final url = activity.document.resourceUrl;
+                  if (url != null && url.isNotEmpty) {
+                    Get.to(() => PdfViewScreen(pdfUrl: url, title: detail.lessonTitle));
+                  } else {
+                    Get.snackbar('Lỗi', 'Không tìm thấy tài liệu PDF');
+                  }
                 },
-                icon: const Icon(Icons.download),
-                label: const Text('Tải tài liệu'),
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text('Xem tài liệu'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
