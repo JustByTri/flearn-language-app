@@ -181,4 +181,100 @@ class ScheduleService implements IScheduleRepository {
     }
   }
 
+  @override
+  Future<List<Teacher>> getAllTeachers() async {
+    final accessToken = _getToken();
+    final url = Uri.parse('https://f-learn.app/api/teachers/all');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $accessToken",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        final jsonBody = jsonDecode(response.body);
+        final data = jsonBody['data'] as List<dynamic>? ?? [];
+        return data.map((e) => Teacher.fromJson(e as Map<String, dynamic>)).toList();
+      } else {
+        throw Exception('Failed to load teachers: ${response.body}');
+      }
+    } catch (e) {
+      print('[ScheduleService] getAllTeachers Exception: $e');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<Program>> getPrograms(String languageId) async {
+    final accessToken = _getToken();
+    final url = Uri.parse('https://f-learn.app/api/VoiceAssessment/programs/$languageId');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          "Authorization": "Bearer $accessToken",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        final jsonBody = jsonDecode(response.body);
+        final data = jsonBody['data'] as List<dynamic>? ?? [];
+        return data.map((e) => Program.fromJson(e as Map<String, dynamic>)).toList();
+      } else {
+        throw Exception('Failed to load programs: ${response.body}');
+      }
+    } catch (e) {
+      print('[ScheduleService] getPrograms Exception: $e');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<ClassSearchResult>> searchClasses({
+    required String languageId,
+    String? teacherId,
+    String? programId,
+    String? keyword,
+    String? status,
+    int? page,
+    int? pageSize,
+    String? from,
+    String? to,
+  }) async {
+    final accessToken = _getToken();
+    final params = <String, String>{
+      if (languageId.isNotEmpty) 'languageId': languageId,
+      if (teacherId != null && teacherId.isNotEmpty) 'teacherId': teacherId,
+      if (programId != null && programId.isNotEmpty) 'programId': programId,
+      if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
+      if (status != null && status.isNotEmpty) 'status': status,
+      if (page != null) 'page': page.toString(),
+      if (pageSize != null) 'pageSize': pageSize.toString(),
+      if (from != null) 'from': from,
+      if (to != null) 'to': to,
+    };
+    final uri = Uri.https('f-learn.app', '/api/classes/public/search', params);
+    try {
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $accessToken",
+          "Content-Type": "application/json",
+        },
+      );
+      if (response.statusCode == 200) {
+        final jsonBody = jsonDecode(response.body);
+        final data = jsonBody['data'] as List<dynamic>? ?? [];
+        return data.map((e) => ClassSearchResult.fromJson(e as Map<String, dynamic>)).toList();
+      } else {
+        throw Exception('Failed to search classes: ${response.body}');
+      }
+    } catch (e) {
+      print('[ScheduleService] searchClasses Exception: $e');
+      rethrow;
+    }
+  }
+
 }
