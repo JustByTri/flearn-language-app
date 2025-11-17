@@ -1,9 +1,12 @@
+// lib/features/auth/view/edit_profile_screen.dart
+
 import 'dart:io';
 import 'package:flearn_app/features/auth/model/user.dart';
 import 'package:flearn_app/features/auth/view/change_password_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/colors.dart';
@@ -16,7 +19,8 @@ class EditProfileScreen extends StatefulWidget {
   State<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
+class _EditProfileScreenState extends State<EditProfileScreen>
+    with TickerProviderStateMixin {
   final userViewModel = Get.find<UserViewModel>();
   User? _localUser;
   TextEditingController? _fullNameController;
@@ -31,7 +35,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Try to get user from arguments first
+
     _localUser = Get.arguments as User?;
     if (_localUser != null) {
       _initControllers(_localUser!);
@@ -42,45 +46,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _fetchUserIfNeeded();
     }
 
-    // Keep local copy in sync with ViewModel
     ever(userViewModel.user, (user) {
-      if (user != null) {
-        setState(() {
-          _localUser = user;
-        });
+      if (user != null && mounted) {
+        setState(() => _localUser = user);
         _initControllers(user);
       }
     });
   }
 
   void _initControllers(User user) {
-    // Initialize lazily
     _fullNameController ??= TextEditingController(text: user.fullname ?? '');
     _userNameController ??= TextEditingController(text: user.username ?? '');
 
-    // Attach listeners once to validate username in realtime
     if (!_listenersAttached) {
       _userNameController?.addListener(() {
         final err = _validateUsername(_userNameController?.text ?? '');
         if (err != _usernameError) {
-          setState(() {
-            _usernameError = err;
-          });
+          setState(() => _usernameError = err);
         }
       });
-      // full name listener to ensure not empty (allows Vietnamese)
       _fullNameController?.addListener(() {
         final isEmpty = (_fullNameController?.text ?? '').trim().isEmpty;
         if (isEmpty != _fullNameError) {
-          setState(() {
-            _fullNameError = isEmpty;
-          });
+          setState(() => _fullNameError = isEmpty);
         }
       });
       _listenersAttached = true;
     }
 
-    // Always update text to latest
     _fullNameController?.text = user.fullname ?? '';
     _userNameController?.text = user.username ?? '';
   }
@@ -90,16 +83,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (v.isEmpty) return 'Tên người dùng không được để trống';
     if (RegExp(r'\s').hasMatch(value)) return 'Tên không được chứa khoảng trắng';
     if (v.length < 3) return 'Tên phải có ít nhất 3 ký tự';
-    // you can add more checks (allowed characters) here
     return null;
   }
 
   void _fetchUserIfNeeded() {
     if (!_fetchingUser) {
       _fetchingUser = true;
-      userViewModel.fetchUserInfo().then((_) {
-        _fetchingUser = false;
-      });
+      userViewModel.fetchUserInfo().then((_) => _fetchingUser = false);
     }
   }
 
@@ -113,49 +103,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _pickImage() async {
     final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
-      setState(() {
-        _avatarImage = File(pickedFile.path);
-      });
+      setState(() => _avatarImage = File(pickedFile.path));
     }
   }
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-
-    // Validate before submit
-    final usernameVal = _userNameController?.text ?? '';
-    final usernameErr = _validateUsername(usernameVal);
+    final usernameErr = _validateUsername(_userNameController?.text ?? '');
     if (usernameErr != null) {
       setState(() => _usernameError = usernameErr);
-      Get.snackbar('Lỗi', usernameErr, snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar('Lỗi', usernameErr, backgroundColor: Colors.red, colorText: Colors.white);
       return;
     }
 
     final success = await userViewModel.updateProfile(
       _fullNameController?.text ?? '',
-      usernameVal,
+      _userNameController?.text ?? '',
       _avatarImage,
     );
 
     if (success) {
       Get.back();
-      Get.snackbar('Thành công', 'Hồ sơ đã được cập nhật.', snackPosition: SnackPosition.BOTTOM);
+      Get.snackbar('Thành công', 'Hồ sơ đã được cập nhật.', backgroundColor: Colors.green, colorText: Colors.white);
     } else {
-      Get.snackbar('Lỗi', userViewModel.errorMessage.value ?? 'Không thể cập nhật hồ sơ.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar('Lỗi', userViewModel.errorMessage.value ?? 'Cập nhật thất bại', backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 
-  void _goToChangePassword() {
-    Get.to(() => const ChangePasswordScreen());
-  }
+  void _goToChangePassword() => Get.to(() => const ChangePasswordScreen());
 
   bool _isFormValid() {
     final username = _userNameController?.text ?? '';
     final full = _fullNameController?.text ?? '';
-    final usernameErr = _validateUsername(username);
-    if (usernameErr != null) return false;
-    if (full.trim().isEmpty) return false;
-    return true;
+    return _validateUsername(username) == null && full.trim().isNotEmpty;
   }
 
   @override
@@ -166,348 +146,171 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: Color(0xFF1A1A1A)),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black54),
           onPressed: () => Get.back(),
         ),
-        title: const Text(
+        title: Text(
           'Thông tin cá nhân',
-          style: TextStyle(
-            color: Color(0xFF1A1A1A),
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-          ),
+          style: GoogleFonts.quicksand(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.black87),
         ),
         centerTitle: true,
-      ),
-      body: Builder(builder: (context) {
-        final user = _localUser;
-        // If user is not yet loaded, show loading
-        if (user == null) {
-          return const Center(child: CupertinoActivityIndicator());
-        }
-
-        // Lazily initialize controllers if they are null when user becomes available
-        _fullNameController ??= TextEditingController(text: user.fullname ?? '');
-        _userNameController ??= TextEditingController(text: user.username ?? '');
-
-        return SingleChildScrollView(
-          child: Column(
-            children: [
-              // Header with avatar
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.primary.withAlpha(25),
-                      Colors.white,
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Column(
-                  children: [
-                    _buildAvatar(user.avatar),
-                    const SizedBox(height: 16),
-                    Text(
-                      user.email,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    if (user.roles != null && user.roles!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withAlpha(25),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            user.roles!.join(', '),
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+        actions: [
+          TextButton(
+            onPressed: _isFormValid() ? _submit : null,
+            child: Text(
+              'Lưu',
+              style: GoogleFonts.quicksand(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: _isFormValid() ? AppColors.primary : Colors.grey,
               ),
-
-              // Form fields
-              Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Thông tin tài khoản',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Username field
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Tên người dùng',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _userNameController,
-                          decoration: InputDecoration(
-                            hintText: 'Nhập tên người dùng',
-                            errorText: _usernameError,
-                            prefixIcon: const Icon(
-                              CupertinoIcons.person,
-                              color: AppColors.primary,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF8F9FA),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: AppColors.primary,
-                                width: 2,
-                              ),
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Colors.red,
-                                width: 1,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.deny(RegExp(r'\s'))
-                          ],
-                          keyboardType: TextInputType.text,
-                          textCapitalization: TextCapitalization.none,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Full name field
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Họ và tên',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _fullNameController,
-                          decoration: InputDecoration(
-                            hintText: 'Nhập họ và tên',
-                            prefixIcon: const Icon(
-                              CupertinoIcons.person_fill,
-                              color: AppColors.primary,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF8F9FA),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: AppColors.primary,
-                                width: 2,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
-                          ),
-                          keyboardType: TextInputType.name,
-                          textCapitalization: TextCapitalization.words,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Save button
-                    StreamBuilder<bool>(
-                      stream: userViewModel.isLoading.stream,
-                      initialData: userViewModel.isLoading.value,
-                      builder: (context, snapshot) {
-                        final loading = snapshot.data ?? false;
-                        return SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              disabledBackgroundColor: Colors.grey.shade300,
-                            ),
-                            onPressed: (loading || !_isFormValid())
-                                ? null
-                                : _submit,
-                            child: loading
-                                ? const CupertinoActivityIndicator(
-                                    color: Colors.white)
-                                : const Text(
-                                    'Lưu thay đổi',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Change password button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.teal,
-                          side: const BorderSide(color: Colors.teal, width: 1.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        icon: const Icon(CupertinoIcons.lock_shield),
-                        label: const Text(
-                          'Đổi mật khẩu',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        onPressed: _goToChangePassword,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildAvatar(String? currentAvatarUrl) {
-    return Stack(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.primary.withAlpha(51),
-              width: 4,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withAlpha(25),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
           ),
-          child: CircleAvatar(
-            radius: 60,
-            backgroundColor: Colors.grey.shade100,
-            backgroundImage: _avatarImage != null
-                ? FileImage(_avatarImage!)
-                : (currentAvatarUrl != null && currentAvatarUrl.isNotEmpty
-                    ? NetworkImage(currentAvatarUrl)
-                    : null) as ImageProvider?,
-            child: (_avatarImage == null &&
-                    (currentAvatarUrl == null || currentAvatarUrl.isEmpty))
-                ? Icon(
-                    CupertinoIcons.person_fill,
-                    size: 50,
-                    color: Colors.grey.shade400,
-                  )
-                : null,
-          ),
-        ),
-        Positioned(
-          bottom: 4,
-          right: 4,
-          child: GestureDetector(
-            onTap: _pickImage,
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white,
-                  width: 3,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+        ],
+      ),
+      body: _localUser == null
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Column(
+          children: [
+            // Avatar + Upload Photo
+            Center(
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: _avatarImage != null
+                        ? FileImage(_avatarImage!)
+                        : (_localUser!.avatar != null && _localUser!.avatar!.isNotEmpty
+                        ? NetworkImage(_localUser!.avatar!)
+                        : null),
+                    child: _avatarImage == null && (_localUser!.avatar == null || _localUser!.avatar!.isEmpty)
+                        ? Icon(CupertinoIcons.person, size: 60, color: Colors.grey.shade400)
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: GestureDetector(
+                      onTap: _pickImage,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                      ),
+                    ),
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.camera_alt,
-                color: Colors.white,
-                size: 18,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Thay đổi avatar',
+              style: GoogleFonts.quicksand(
+                fontSize: 16,
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
               ),
             ),
+            const SizedBox(height: 40),
+
+            // Name
+            _buildInfoRow('Họ và Tên', _fullNameController!, CupertinoIcons.person_fill),
+            const SizedBox(height: 24),
+
+            // Username (nếu có)
+            if (_userNameController != null)
+              _buildInfoRow('Tên tài khoản', _userNameController!, CupertinoIcons.at, errorText: _usernameError),
+            const SizedBox(height: 24),
+
+            // Email - chỉ đọc
+            _buildReadOnlyRow('Email', _localUser!.email, CupertinoIcons.mail, hasCheck: true),
+            const SizedBox(height: 19),
+
+
+
+            // Nút đổi mật khẩu
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _goToChangePassword,
+                icon: const Icon(CupertinoIcons.lock_shield, color: AppColors.primary),
+                label: Text(
+                  'Đổi mật khẩu',
+                  style: GoogleFonts.quicksand(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, TextEditingController controller, IconData icon, {String? errorText}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.quicksand(fontSize: 14, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          inputFormatters: label == 'Username' ? [FilteringTextInputFormatter.deny(RegExp(r'\s'))] : null,
+          decoration: InputDecoration(
+            errorText: errorText,
+            prefixIcon: Icon(icon, color: Colors.grey.shade600),
+            border: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary, width: 2)),
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildReadOnlyRow(String label, String? value, IconData icon, {bool hasCheck = false, bool hasDot = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.quicksand(fontSize: 14, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(icon, color: Colors.grey.shade600, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                value ?? '-',
+                style: GoogleFonts.quicksand(fontSize: 17, fontWeight: FontWeight.w500),
+              ),
+            ),
+            if (hasCheck)
+              const Icon(Icons.check_circle, color: Colors.green, size: 20)
+            else if (hasDot)
+              Container(width: 10, height: 10, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle))
+            else if (label == 'Zip Code')
+                const Icon(Icons.sync, color: Colors.grey),
+          ],
+        ),
+        const Divider(height: 32),
       ],
     );
   }

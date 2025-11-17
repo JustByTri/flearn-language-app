@@ -11,8 +11,18 @@ import 'di.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'features/auth/viewmodel/login_viewmodel.dart';
+import 'package:flutter/services.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+  ));
+
+  SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.edgeToEdge,
+  );
   await GetStorage.init();
   await dotenv.load();
   Get.put(NavigationController());
