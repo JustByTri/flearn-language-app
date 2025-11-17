@@ -21,6 +21,7 @@ class _ExerciseFillInBlankScreenState extends State<ExerciseFillInBlankScreen> {
   String? _recordedPath;
   String? _submissionId;
   bool _submitted = false;
+  bool _isGrading = false; // NEW: biến kiểm soát loading toàn màn
 
   @override
   void initState() {
@@ -162,7 +163,21 @@ class _ExerciseFillInBlankScreenState extends State<ExerciseFillInBlankScreen> {
         ),
         centerTitle: true,
       ),
-      body: Obx(() {
+      body: _isGrading // NEW: nếu đang grading, hiển thị loading toàn màn
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: AppColors.primary),
+            const SizedBox(height: 16),
+            const Text(
+              'Hệ thống đang chấm điểm cho bạn',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+            ),
+          ],
+        ),
+      )
+          : Obx(() { // NEW: wrap trong _isGrading check
         final loading = vm.isLoadingExerciseDetail.value;
         final Exercise ex = vm.exerciseDetail.value ?? widget.exercise;
         if (loading && vm.exerciseDetail.value == null) {
@@ -241,7 +256,7 @@ class _ExerciseFillInBlankScreenState extends State<ExerciseFillInBlankScreen> {
           ),
         );
       }),
-      bottomNavigationBar: Obx(() {
+      bottomNavigationBar: _isGrading ? null : Obx(() { // NEW: ẩn bottomNavigationBar khi grading
         final submitting = vm.isSubmittingExercise.value;
         final Exercise ex = vm.exerciseDetail.value ?? widget.exercise;
         return Container(
@@ -277,8 +292,16 @@ class _ExerciseFillInBlankScreenState extends State<ExerciseFillInBlankScreen> {
                   if (submissionId != null) {
                     setState(() {
                       _submissionId = submissionId;
-                      _submitted = true;
+                      _isGrading = true; // NEW: bật loading toàn màn
                     });
+                    // NEW: delay 3 giây
+                    await Future.delayed(const Duration(seconds: 3));
+                    if (mounted) {
+                      setState(() {
+                        _isGrading = false; // NEW: tắt loading
+                        _submitted = true; // NEW: cho phép xem kết quả
+                      });
+                    }
                     Get.snackbar('Thành công', 'Nộp bài thành công! Bấm xem kết quả.', snackPosition: SnackPosition.TOP, backgroundColor: Colors.green, colorText: Colors.white);
                   } else {
                     Get.snackbar('Lỗi', 'Nộp bài thất bại.', snackPosition: SnackPosition.TOP, backgroundColor: Colors.red, colorText: Colors.white);

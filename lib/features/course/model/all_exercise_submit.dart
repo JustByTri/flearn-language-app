@@ -24,13 +24,21 @@ class ExerciseSubmission {
   });
 
   factory ExerciseSubmission.fromJson(Map<String, dynamic> json) {
+    int parseInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
     return ExerciseSubmission(
       exerciseSubmissionId: json['exerciseSubmissionId'] ?? '',
-      aiScore: json['aiScore'] ?? 0,
+      aiScore: parseInt(json['aiScore']),
       aiFeedback: json['aiFeedback'] ?? '',
-      teacherScore: json['teacherScore'] ?? 0,
+      teacherScore: parseInt(json['teacherScore']),
       teacherFeedback: json['teacherFeedback'] ?? '',
-      finalScore: json['finalScore'] ?? 0,
+      finalScore: parseInt(json['finalScore']),
       isPassed: json['isPassed'] ?? false,
       status: json['status'] ?? '',
       audioUrl: json['audioUrl'] ?? '',

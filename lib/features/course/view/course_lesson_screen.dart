@@ -9,7 +9,6 @@ import '../viewmodel/course_viewmodel.dart';
 import 'course_exercise_screen.dart';
 import 'course_lesson_drawer.dart';
 
-// NEW: import các màn chi tiết bài tập
 import '../model/course_exercise.dart';
 import 'exercise_repeat_after_me_screen.dart';
 import 'exercise_picture_description_screen.dart';
@@ -28,13 +27,14 @@ class CourseLessonScreen extends StatefulWidget {
 }
 
 class _CourseLessonScreenState extends State<CourseLessonScreen> {
+  final ScrollController _scrollController = ScrollController(); // Thêm controller
   final CourseProgressViewModel progressViewModel = Get.find<CourseProgressViewModel>();
+  final CourseViewModel courseViewModel = Get.find<CourseViewModel>();
   int _currentStep = 0;
   List<LessonStep> _availableSteps = [];
   List<bool> _stepChecked = [];
   final Set<LessonStep> _loggedSteps = {};
   bool _isLogging = false;
-  final CourseViewModel courseViewModel = Get.find<CourseViewModel>();
   String? _initedForLessonId;
 
 
@@ -102,6 +102,14 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         });
       }
     });
+
+    // NEW: Tìm step đầu tiên chưa hoàn thành và set _currentStep
+    int firstIncompleteIndex = _stepChecked.indexWhere((checked) => !checked);
+    if (firstIncompleteIndex != -1) {
+      _currentStep = firstIncompleteIndex;
+    } else {
+      _currentStep = _availableSteps.length - 1; // Nếu tất cả hoàn thành, ở step cuối (thường là exercise)
+    }
 
     if (_currentStep >= _availableSteps.length) _currentStep = _availableSteps.length - 1;
     if (_currentStep < 0) _currentStep = 0;
@@ -203,6 +211,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
             _buildProgressIndicator(),
             Expanded(
               child: SingleChildScrollView(
+                controller: _scrollController,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: _buildCurrentStepContent(detail),
@@ -343,9 +352,9 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
       Color _typeColor(String t) {
         switch (t) {
           case 'RepeatAfterMe': return Colors.blue;
-          case 'PictureDescription': return Colors.deepPurple;
-          case 'Debate': return Colors.brown;
-          case 'StoryTelling': return Colors.teal;
+          case 'PictureDescription': return Colors.green;
+          case 'Debate': return Colors.orange;
+          case 'StoryTelling': return Colors.purple;
 
           default: return AppColors.primary;
         }

@@ -46,6 +46,14 @@ class CourseProgress {
   });
 
   factory CourseProgress.fromJson(Map<String, dynamic> json) {
+    int parseInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
     return CourseProgress(
       enrollmentId: json['enrollmentId'] ?? '',
       courseId: json['courseId'] ?? '',
@@ -55,14 +63,14 @@ class CourseProgress {
       level: json['level'] ?? '',
       teacherName: json['teacherName'] ?? '',
       teacherAvatar: json['teacherAvatar'] ?? '',
-      progressPercent: json['progressPercent'] ?? 0,
+      progressPercent: parseInt(json['progressPercent']),
       status: json['status'] ?? '',
       lastAccessedAt: json['lastAccessedAt'] ?? '',
       enrolledAt: json['enrolledAt'] ?? '',
-      totalLessons: json['totalLessons'] ?? 0,
-      completedLessons: json['completedLessons'] ?? 0,
-      totalUnits: json['totalUnits'] ?? 0,
-      completedUnits: json['completedUnits'] ?? 0,
+      totalLessons: parseInt(json['totalLessons']),
+      completedLessons: parseInt(json['completedLessons']),
+      totalUnits: parseInt(json['totalUnits']),
+      completedUnits: parseInt(json['completedUnits']),
       currentUnit: json['currentUnit'] ?? '',
       currentLesson: json['currentLesson'] ?? '',
       nextLesson: json['nextLesson'] ?? '',

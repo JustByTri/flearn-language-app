@@ -17,9 +17,11 @@ class CourseProgressService implements ICourseProgressRepository {
         "Authorization": "Bearer $accessToken",
       },
     );
+    print('getMyCourses: ${response.statusCode} ${response.body}');
     if (response.statusCode == 200) {
       final jsonBody = jsonDecode(response.body);
       final data = jsonBody['data'] as List<dynamic>? ?? [];
+
       return data.map((item) => CourseProgress.fromJson(item)).toList();
     } else {
       throw Exception('getMyCourses failed: ${response.statusCode} ${response.body}');
