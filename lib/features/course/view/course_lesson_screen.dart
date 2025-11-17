@@ -9,7 +9,15 @@ import '../viewmodel/course_viewmodel.dart';
 import 'course_exercise_screen.dart';
 import 'course_lesson_drawer.dart';
 
-enum LessonStep { content, video, document }
+// NEW: import các màn chi tiết bài tập
+import '../model/course_exercise.dart';
+import 'exercise_repeat_after_me_screen.dart';
+import 'exercise_picture_description_screen.dart';
+import 'exercise_debate_screen.dart';
+import 'exercise_story_telling_screen.dart';
+import 'exercise_submission_list_screen.dart';
+
+enum LessonStep { content, video, document, exercise } // NEW
 
 class CourseLessonScreen extends StatefulWidget {
   final String lessonId;
@@ -56,7 +64,6 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
   void _initSteps(LessonProgressDetail detail) {
     final activity = detail.activityStatus;
 
-
     final steps = <LessonStep>[];
     if (activity.content.isAvailable) steps.add(LessonStep.content);
     if (activity.video.isAvailable) steps.add(LessonStep.video);
@@ -73,12 +80,28 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         LessonStep.content => activity.content.isCompleted,
         LessonStep.video => activity.video.isCompleted,
         LessonStep.document => activity.document.isCompleted,
+        LessonStep.exercise => false, // exercise không có checkbox
       };
       _stepChecked.add(completed);
-      if (completed) {
+      if (completed && s != LessonStep.exercise) {
         _loggedSteps.add(s);
       }
     }
+
+    // Prefetch bài tập và chèn step Exercise nếu có dữ liệu
+    courseViewModel.fetchLessonExercises(detail.lessonId).then((_) {
+      if (!mounted) return;
+      if (courseViewModel.exercises.isNotEmpty &&
+          !_availableSteps.contains(LessonStep.exercise)) {
+        setState(() {
+          _availableSteps.add(LessonStep.exercise);
+          _stepChecked.add(false); // không tính vào checkbox
+          if (_currentStep >= _availableSteps.length) {
+            _currentStep = _availableSteps.length - 1;
+          }
+        });
+      }
+    });
 
     if (_currentStep >= _availableSteps.length) _currentStep = _availableSteps.length - 1;
     if (_currentStep < 0) _currentStep = 0;
@@ -93,6 +116,8 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         return 'Video';
       case LessonStep.document:
         return 'Tài liệu';
+      case LessonStep.exercise:
+        return 'Bài tập'; // NEW
     }
   }
 
@@ -104,6 +129,8 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         return 2;
       case LessonStep.document:
         return 3;
+      case LessonStep.exercise:
+        return 0; // không log
     }
   }
 
@@ -284,7 +311,185 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         return _buildVideoStep(detail, activity);
       case LessonStep.document:
         return _buildDocumentStep(detail, activity);
+      case LessonStep.exercise:
+        return _buildExerciseStep(detail.lessonId); // NEW
     }
+  }
+
+// NEW: danh sách bài tập nhúng ngay trong trang bài học
+  Widget _buildExerciseStep(String lessonId) {
+    return Obx(() {
+      final loading = courseViewModel.isLoadingExercises.value;
+      final list = courseViewModel.exercises;
+
+      if (loading && list.isEmpty) {
+        return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+      }
+      if (list.isEmpty) {
+        return _buildEmptyState(icon: Icons.assignment_outlined, message: 'Không có bài tập cho bài học này');
+      }
+
+      Color _difficultyColor(String diff) {
+        switch (diff.toLowerCase()) {
+          case 'easy': return Colors.green;
+          case 'medium': return Colors.orange;
+          case 'hard': return Colors.red;
+          case 'advanced': return Colors.purple;
+          default: return Colors.grey;
+        }
+      }
+
+
+      Color _typeColor(String t) {
+        switch (t) {
+          case 'RepeatAfterMe': return Colors.blue;
+          case 'PictureDescription': return Colors.deepPurple;
+          case 'Debate': return Colors.brown;
+          case 'StoryTelling': return Colors.teal;
+
+          default: return AppColors.primary;
+        }
+      }
+
+      String _typeLabel(String t) {
+        switch (t) {
+          case 'RepeatAfterMe': return 'Lặp lại theo mẫu';
+          case 'PictureDescription': return 'Mô tả tranh';
+          case 'Debate': return 'Tranh luận';
+          case 'StoryTelling': return 'Kể chuyện';
+          default: return 'Bài tập';
+        }
+      }
+
+      void _openExercise(Exercise ex) {
+        switch (ex.exerciseType) {
+          case 'RepeatAfterMe':
+            Get.to(() => ExerciseRepeatAfterMeScreen(exercise: ex));
+            break;
+          case 'PictureDescription':
+            Get.to(() => ExerciseMultipleChoiceScreen(exercise: ex));
+            break;
+          case 'Debate':
+            Get.to(() => ExerciseDebateScreen(exercise: ex));
+            break;
+          case 'StoryTelling':
+            Get.to(() => ExerciseFillInBlankScreen(exercise: ex));
+            break;
+          default:
+            Get.to(() => ExerciseRepeatAfterMeScreen(exercise: ex));
+        }
+      }
+
+      void _viewScore(Exercise ex) {
+        Get.to(() => ExerciseSubmissionListScreen(
+          exerciseId: ex.exerciseID,
+          exerciseTitle: ex.title,
+        ));
+
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Bài tập', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+          const SizedBox(height: 12),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: list.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, i) {
+              final ex = list[i];
+              final typeColor = _typeColor(ex.exerciseType); // Lấy màu cho loại bài tập
+              return InkWell(
+                onTap: () => _openExercise(ex),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                    boxShadow: [BoxShadow(color: Colors.grey.shade100, blurRadius: 8, offset: const Offset(0, 2))],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Center(child: Text('${i + 1}', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12))),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(ex.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(color: typeColor.withOpacity(0.1), borderRadius: BorderRadius.circular(999)), // Áp dụng màu nền
+                                      child: Text(_typeLabel(ex.exerciseType), style: TextStyle(fontSize: 12, color: typeColor, fontWeight: FontWeight.w600)), // Áp dụng màu chữ
+                                    ),
+                                    if (ex.difficulty.isNotEmpty)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: _difficultyColor(ex.difficulty).withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(999),
+                                          border: Border.all(color: _difficultyColor(ex.difficulty).withOpacity(0.5)),
+                                        ),
+                                        child: Text(ex.difficulty, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _difficultyColor(ex.difficulty))),
+                                      ),
+                                  ],
+                                ),
+                                if (ex.prompt.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(ex.prompt, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _viewScore(ex),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: AppColors.primary),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              child: const Text('Xem điểm', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+      );
+    });
   }
 
   Widget _buildContentStep(LessonProgressDetail detail, ActivityStatus activity) {
@@ -333,7 +538,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         ],
         const SizedBox(height: 24),
         Container(
-          padding: const EdgeInsets.all(16),
+
           decoration: BoxDecoration(
             color: Colors.grey.shade50,
             borderRadius: BorderRadius.circular(12),
@@ -558,7 +763,9 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
   }
 
   Widget _buildBottomNavigation(LessonProgressDetail detail) {
-    final allCompleted = _stepChecked.isNotEmpty && _stepChecked.every((c) => c);
+    // NEW: bỏ qua step Exercise khi tính hoàn thành
+    final allCompleted = _stepChecked.isNotEmpty &&
+        List.generate(_availableSteps.length, (i) => _availableSteps[i] == LessonStep.exercise ? true : _stepChecked[i]).every((c) => c);
     final isLastStep = _currentStep == _availableSteps.length - 1;
 
     return Container(
@@ -610,7 +817,6 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                     return;
                   }
 
-
                   if (!allCompleted) {
                     Get.snackbar(
                       'Thông báo',
@@ -622,24 +828,14 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                     return;
                   }
 
-                  Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
-                  await courseViewModel.fetchLessonExercises(detail.lessonId);
-                  if (Get.isDialogOpen ?? false) Get.back();
-
-                  if (courseViewModel.exercises.isNotEmpty) {
-                    Get.to(() => LessonExerciseScreen(
-                      lessonId: detail.lessonId,
-                      lessonTitle: detail.lessonTitle,
-                    ));
-                  } else {
-                    Get.snackbar(
-                      'Hoàn thành',
-                      'Bạn đã hoàn thành bài học ${detail.lessonTitle}!',
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.green,
-                      colorText: Colors.white,
-                    );
-                  }
+                  // NEW: không chuyển trang nữa ở bước cuối
+                  Get.snackbar(
+                    'Hoàn thành',
+                    'Bạn đã hoàn thành bài học ${detail.lessonTitle}!',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: Colors.green,
+                    colorText: Colors.white,
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,

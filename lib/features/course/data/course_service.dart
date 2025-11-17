@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../../../config/api_config.dart';
 import '../../auth/model/course_popular.dart';
+import '../model/all_exercise_submit.dart';
 import '../model/course.dart';
 import '../model/course_access.dart';
 import '../model/course_detail.dart';
@@ -11,6 +13,7 @@ import '../model/course_exercise.dart';
 import '../model/course_unit.dart';
 import '../model/course_lesson.dart';
 import '../model/curriculum.dart';
+import '../model/exercise_submission_detail.dart';
 import '../model/lesson_tracking.dart';
 import 'course_repository.dart';
 import 'package:get_storage/get_storage.dart';
@@ -254,6 +257,30 @@ class CourseService implements ICourseRepository {
   }
 
   @override
+  Future<Exercise> getExerciseDetail(String exerciseId) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/exercises/$exerciseId');
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        if (accessToken != null && accessToken.toString().isNotEmpty)
+          "Authorization": "Bearer $accessToken",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final jsonBody = jsonDecode(response.body);
+      final data = jsonBody['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw Exception('getExerciseDetail: data null');
+      }
+      return Exercise.fromJson(data);
+    }
+    throw Exception('getExerciseDetail failed ${response.statusCode}: ${response.body}');
+  }
+
+  @override
   Future<void> trackLessonActivity({
     required String lessonId,
     required int logType,
@@ -303,36 +330,80 @@ class CourseService implements ICourseRepository {
   }
 
   @override
-  Future<bool> submitExercise({
+  Future<String?> submitExercise({
     required String exerciseId,
     required String audioFilePath,
   }) async {
     final accessToken = GetStorage().read('accessToken');
     final url = Uri.parse('${ApiConfig.baseUrl}/progress-tracking/submit-exercise');
-
     final req = http.MultipartRequest('POST', url);
     if (accessToken != null && accessToken.toString().isNotEmpty) {
       req.headers['Authorization'] = 'Bearer $accessToken';
     }
-
-
     req.fields['ExerciseId'] = exerciseId;
-    if (audioFilePath.isNotEmpty) {
-      req.files.add(await http.MultipartFile.fromPath(
-        'Audio',
-        audioFilePath,
-        contentType: MediaType('audio', 'wav'),
-      ));
-    }
-
+    final file = File(audioFilePath);
+    if (!await file.exists()) return null;
+    req.files.add(await http.MultipartFile.fromPath('Audio', audioFilePath, contentType: MediaType('audio', 'wav')));
     final streamed = await req.send();
     final res = await http.Response.fromStream(streamed);
-    print('submitExercise response: ${res.statusCode} ${res.body}');
     if (res.statusCode == 200) {
-      return true;
+      final body = jsonDecode(res.body);
+      final data = body['data'];
+      return data?['exerciseSubmissionId'] as String?;
+    }
+    return null;
+  }
+
+  @override
+  Future<ExerciseSubmissionDetail?> fetchSubmissionDetail(String submissionId) async {
+    final accessToken = GetStorage().read('accessToken');
+    final detailUrl = Uri.parse(
+        '${ApiConfig.baseUrl}/exercise-submission/submissions/$submissionId');
+    final detailRes = await http.get(
+      detailUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null && accessToken
+            .toString()
+            .isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      },
+    );
+    print('fetchSubmissionDetail: ${detailRes.statusCode} ${detailRes.body}');
+    if (detailRes.statusCode != 200) return null;
+
+    try {
+      final body = jsonDecode(detailRes.body);
+      final data = body['data'] as Map<String, dynamic>?;
+      if (data == null) return null;
+      return ExerciseSubmissionDetail.fromJson(data);
+    } catch (e) {
+      print('parse ExerciseSubmissionDetail error: $e');
+      return null;
+    }
+  }
+
+  Future<List<ExerciseSubmission>> getExerciseSubmissions({
+    required String exerciseId,
+    int pageNumber = 1,
+    int pageSize = 10,
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse(
+      'https://f-learn.app/api/exercise-submission/exercises/$exerciseId/submissions?pageNumber=$pageNumber&pageSize=$pageSize',
+    );
+    final response = await http.get(url, headers: {
+      'accept': '*/*',
+      if (accessToken != null && accessToken.toString().isNotEmpty)
+        'Authorization': 'Bearer $accessToken',
+    });
+
+    if (response.statusCode == 200) {
+      final body = json.decode(response.body);
+      final List data = body['data'] ?? [];
+      return data.map((e) => ExerciseSubmission.fromJson(e)).toList();
     } else {
-      print('submitExercise failed: ${res.statusCode} ${res.body}');
-      return false;
+      throw Exception('Failed to load submissions');
     }
   }
 
