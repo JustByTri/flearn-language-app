@@ -109,3 +109,136 @@ class Pagination {
     );
   }
 }
+
+class ClassSearchResult {
+  final String classID;
+  final String title;
+  final String description;
+  final String languageID;
+  final String languageName;
+  final DateTime startDateTime;
+  final DateTime endDateTime;
+  final int capacity;
+  final double pricePerStudent;
+  final String googleMeetLink;
+  final String status;
+  final int currentEnrollments;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String? teacherName;
+  final String? teacherAvatar;
+  final String? programName;
+
+  ClassSearchResult({
+    required this.classID,
+    required this.title,
+    required this.description,
+    required this.languageID,
+    required this.languageName,
+    required this.startDateTime,
+    required this.endDateTime,
+    required this.capacity,
+    required this.pricePerStudent,
+    required this.googleMeetLink,
+    required this.status,
+    required this.currentEnrollments,
+    required this.createdAt,
+    required this.updatedAt,
+    this.teacherName,
+    this.teacherAvatar,
+    this.programName,
+  });
+
+  factory ClassSearchResult.fromJson(Map<String, dynamic> json) {
+    return ClassSearchResult(
+      classID: json['classID'] ?? '',
+      title: json['title'] ?? '',
+      description: json['description'] ?? '',
+      languageID: json['languageID'] ?? '',
+      languageName: json['languageName'] ?? '',
+      startDateTime: DateTime.parse(json['startDateTime']),
+      endDateTime: DateTime.parse(json['endDateTime']),
+      capacity: json['capacity'] ?? 0,
+      pricePerStudent: (json['pricePerStudent'] as num).toDouble(),
+      googleMeetLink: json['googleMeetLink'] ?? '',
+      status: json['status'] ?? '',
+      currentEnrollments: json['currentEnrollments'] ?? 0,
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt: DateTime.parse(json['updatedAt']),
+      teacherName: json['teacherName'],
+      teacherAvatar: json['teacherAvatar'],
+      programName: json['programName'],
+    );
+  }
+
+  bool get isFull => currentEnrollments >= capacity;
+  bool get isAlmostFull => !isFull && capacity > 0 && (currentEnrollments / capacity) >= 0.8;
+  int get durationInMinutes => endDateTime.difference(startDateTime).inMinutes;
+}
+
+class Teacher {
+  final String teacherId;
+  final String language;
+  final String fullName;
+  final String dateOfBirth;
+  final String bio;
+  final String avatar;
+  final String email;
+  final String phoneNumber;
+  final String proficiencyCode;
+  final double averageRating;
+  final int reviewCount;
+  final String meetingUrl;
+
+  Teacher({
+    required this.teacherId,
+    required this.language,
+    required this.fullName,
+    required this.dateOfBirth,
+    required this.bio,
+    required this.avatar,
+    required this.email,
+    required this.phoneNumber,
+    required this.proficiencyCode,
+    required this.averageRating,
+    required this.reviewCount,
+    required this.meetingUrl,
+  });
+
+  factory Teacher.fromJson(Map<String, dynamic> json) {
+    return Teacher(
+      teacherId: json['teacherId'] ?? '',
+      language: json['language'] ?? '',
+      fullName: json['fullName'] ?? '',
+      dateOfBirth: json['dateOfBirth'] ?? '',
+      bio: json['bio'] ?? '',
+      avatar: json['avatar'] ?? '',
+      email: json['email'] ?? '',
+      phoneNumber: json['phoneNumber'] ?? '',
+      proficiencyCode: json['proficiencyCode'] ?? '',
+      averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0.0,
+      reviewCount: json['reviewCount'] ?? 0,
+      meetingUrl: json['meetingUrl'] ?? '',
+    );
+  }
+}
+
+class Program {
+  final String programId;
+  final String name;
+  final String description;
+
+  Program({
+    required this.programId,
+    required this.name,
+    required this.description,
+  });
+
+  factory Program.fromJson(Map<String, dynamic> json) {
+    return Program(
+      programId: json['programId'] ?? '',
+      name: json['name'] ?? '',
+      description: json['description'] ?? '',
+    );
+  }
+}

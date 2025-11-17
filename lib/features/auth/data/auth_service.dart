@@ -243,7 +243,28 @@ class AuthService implements IAuthRepository {
             (json) => json, // Nếu không có model cụ thể, trả về json
       );
     } on DioException catch (e) {
-      throw Exception('Failed to change password: '+e.message!);
+      // If server responded with body, convert it to ResponseModel so caller can read message
+      if (e.response != null && e.response!.data != null && e.response!.data is Map<String, dynamic>) {
+        try {
+          return ResponseModel.fromJson(e.response!.data as Map<String, dynamic>, (json) => json);
+        } catch (err) {
+          // fallback
+          return ResponseModel<dynamic>(
+            statusCode: e.response?.statusCode ?? 0,
+            message: e.response?.data['message']?.toString() ?? e.message ?? 'Đã có lỗi xảy ra',
+            isSuccess: false,
+            result: null,
+          );
+        }
+      }
+
+      // No server body: return a generic failed ResponseModel
+      return ResponseModel<dynamic>(
+        statusCode: e.response?.statusCode ?? 0,
+        message: e.message ?? 'Đã có lỗi xảy ra',
+        isSuccess: false,
+        result: null,
+      );
     }
   }
 
