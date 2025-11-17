@@ -27,7 +27,7 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
   final Set<LessonStep> _loggedSteps = {};
   bool _isLogging = false;
   final CourseViewModel courseViewModel = Get.find<CourseViewModel>();
-  String? _initedForLessonId; // NEW: đánh dấu lesson đã init
+  String? _initedForLessonId;
 
 
   late String _lessonId;

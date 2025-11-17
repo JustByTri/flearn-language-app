@@ -44,6 +44,14 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
     return CupertinoIcons.circle_fill;
   }
 
+  /// 🔥 Map status sang tiếng Việt
+  String getVietnameseStatus(String s) {
+    final v = s.toLowerCase();
+    if (v == 'completed') return 'Hoàn thành';
+    if (v == 'failed') return 'Thất bại';
+    return s;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -69,7 +77,13 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
         if (userVM.isLoadingPurchases.value) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (userVM.purchaseHistory.isEmpty) {
+
+        /// 🔥 LỌC BỎ CÁC ITEM PENDING
+        final filteredList = userVM.purchaseHistory
+            .where((p) => p.purchaseStatus.toLowerCase() != 'pending')
+            .toList();
+
+        if (filteredList.isEmpty) {
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -93,10 +107,10 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
           onRefresh: () => userVM.fetchPurchaseHistory(),
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            itemCount: userVM.purchaseHistory.length,
+            itemCount: filteredList.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              final p = userVM.purchaseHistory[index];
+              final p = filteredList[index];
               return _buildPurchaseItem(p);
             },
           ),
@@ -125,14 +139,12 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
-
-          },
+          onTap: () {},
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // Icon status
+                // Icon
                 Container(
                   width: 48,
                   height: 48,
@@ -140,20 +152,16 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                     color: statusCol.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    icon,
-                    color: statusCol,
-                    size: 24,
-                  ),
+                  child: Icon(icon, color: statusCol, size: 24),
                 ),
+
                 const SizedBox(width: 14),
 
-                // Content
+                // Nội dung
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Course name
                       Text(
                         p.courseName,
                         style: const TextStyle(
@@ -166,7 +174,6 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                       ),
                       const SizedBox(height: 4),
 
-                      // Payment method + Date
                       Row(
                         children: [
                           Container(
@@ -194,9 +201,9 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                           ),
                         ],
                       ),
+
                       const SizedBox(height: 4),
 
-                      // Enrollment status
                       Text(
                         p.enrollmentStatus,
                         style: TextStyle(
@@ -210,7 +217,7 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
 
                 const SizedBox(width: 12),
 
-                // Price
+                // Giá + Trạng thái
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -225,8 +232,10 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
+
+
                     Text(
-                      p.purchaseStatus,
+                      getVietnameseStatus(p.purchaseStatus),
                       style: TextStyle(
                         fontSize: 11,
                         color: statusCol,

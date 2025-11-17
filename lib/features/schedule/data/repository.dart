@@ -21,19 +21,16 @@ abstract class IScheduleRepository {
     String? description,
   });
 
-  Future<List<ClassSearchResult>> searchClasses({
-    required String languageId,
-    String? teacherId,
-    String? programId,
-    String? keyword,
-    String? status,
-    String? from,
-    String? to,
-    int page = 1,
-    int pageSize = 10,
+
+  Future<Map<String, dynamic>> submitRefundRequest({
+    required String enrollmentID,
+    required String classID,
+    required String className,
+    required int requestType,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+    required String reason,
   });
 
-  Future<List<Teacher>> getAllTeachers();
-
-  Future<List<Program>> getPrograms(String languageId);
 }

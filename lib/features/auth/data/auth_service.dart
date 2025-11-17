@@ -328,4 +328,25 @@ class AuthService implements IAuthRepository {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  @override
+  Future<List<Map<String, dynamic>>> fetchRefundRequests() async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/Refund/my-requests');
+    final res = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Content-Type': 'application/json',
+      },
+    );
+    if (res.statusCode == 200) {
+      final body = jsonDecode(res.body);
+      if (body['status'] == 'success' && body['data'] != null) {
+        return List<Map<String, dynamic>>.from(body['data']);
+      }
+    }
+    return [];
+  }
+
+
 }
