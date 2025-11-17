@@ -33,4 +33,21 @@ abstract class IScheduleRepository {
     required String reason,
   });
 
+  // Added APIs used by ClassSearchViewModel
+  Future<List<Teacher>> getAllTeachers();
+
+  Future<List<Program>> getPrograms(String languageId);
+
+  Future<List<ClassSearchResult>> searchClasses({
+    required String languageId,
+    String? teacherId,
+    String? programId,
+    String? keyword,
+    String? status,
+    int? page,
+    int? pageSize,
+    String? from,
+    String? to,
+  });
+
 }
