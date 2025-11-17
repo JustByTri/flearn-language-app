@@ -148,6 +148,18 @@ class _HomeScreenState extends State<HomeScreen>
     _hasLoadedOnce = true;
   }
 
+  Future<Set<String>> _getEnrolledCourseIds(List<Course> courses) async {
+    final vm = Get.find<CourseViewModel>();
+    final results = await Future.wait(
+      courses.map((c) async {
+        await vm.fetchCourseAccess(c.courseID);
+        final access = vm.courseAccess.value;
+        return access != null && access.hasAccess ? c.courseID : null;
+      }),
+    );
+    return results.whereType<String>().toSet();
+  }
+
   Future<void> _fetchOtherData() async {
     try {
       debugPrint('HomeScreen: _fetchOtherData called');
@@ -990,119 +1002,97 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
   Widget _buildPopularCoursesHorizontal() {
-    return Obx(() {
-      if (courseViewModel.isLoadingCourse.value) {
-        return const SizedBox(
-          height: 220,
-          child: Center(child: CupertinoActivityIndicator()),
-        );
-      }
+    return FutureBuilder<Set<String>>(
+      future: _getEnrolledCourseIds(courseViewModel.courses.toList()),
+      builder: (context, snapshot) {
+        if (courseViewModel.isLoadingCourse.value || snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 220,
+            child: Center(child: CupertinoActivityIndicator()),
+          );
+        }
 
-      var popularCourses = courseViewModel.courses.take(5).toList();
+        final enrolledIds = snapshot.data ?? {};
+        final popularCourses = courseViewModel.courses
+            .where((c) => !enrolledIds.contains(c.courseID))
+            .take(5)
+            .toList();
 
-      if (popularCourses.isEmpty) {
+        if (popularCourses.isEmpty) {
+          return SizedBox(
+            height: 220,
+            child: Center(
+              child: Text('Không có khóa học phổ biến chưa đăng ký'),
+            ),
+          );
+        }
+
         return SizedBox(
           height: 220,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.school_outlined, size: 60, color: Colors.grey.shade300),
-                const SizedBox(height: 12),
-                Text(
-                  'Chưa có khóa học nào',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: popularCourses.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 16),
+            itemBuilder: (context, index) {
+              final course = popularCourses[index];
+              return SizedBox(
+                width: MediaQuery.of(context).size.width * 0.65,
+                child: PopularCourseCard(course: course),
+              );
+            },
           ),
         );
-      }
-
-      return SizedBox(
-        height: 220,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: popularCourses.length,
-          separatorBuilder: (context, index) => const SizedBox(width: 16),
-          itemBuilder: (context, index) {
-            final course = popularCourses[index];
-            return SizedBox(
-              width: MediaQuery.of(context).size.width * 0.65,
-              child: PopularCourseCard(course: course),
-            );
-          },
-        ),
-      );
-    });
+      },
+    );
   }
 
   Widget _buildDiscoverCoursesVertical() {
-    return Obx(() {
-      if (courseViewModel.isLoadingCourse.value) {
-        return const Center(child: CupertinoActivityIndicator());
-      }
+    return FutureBuilder<Set<String>>(
+      future: _getEnrolledCourseIds(courseViewModel.courses.toList()),
+      builder: (context, snapshot) {
+        if (courseViewModel.isLoadingCourse.value || snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CupertinoActivityIndicator());
+        }
 
-      var discoverCourses = courseViewModel.courses;
+        final enrolledIds = snapshot.data ?? {};
+        var discoverCourses = courseViewModel.courses
+            .where((c) => !enrolledIds.contains(c.courseID))
+            .toList()
+            .obs;
 
-      // Filter by selected topic if any
-      if (_selectedTopicName != null) {
-        discoverCourses = discoverCourses.where((course) {
-          return course.topics.any((topic) => topic.topicName == _selectedTopicName);
-        }).toList().obs;
-      }
+        // Filter by selected topic if any
+        if (_selectedTopicName != null) {
+          discoverCourses = discoverCourses.where((course) {
+            return course.topics.any((topic) => topic.topicName == _selectedTopicName);
+          }).toList().obs;
+        }
 
-      if (discoverCourses.isEmpty) {
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.school_outlined, size: 80, color: Colors.grey.shade300),
-                const SizedBox(height: 16),
-                Text(
-                  'Chưa có khóa học nào',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Ngôn ngữ này chưa có khóa học. Vui lòng chọn ngôn ngữ khác.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-              ],
+        if (discoverCourses.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Text('Không có khóa học khám phá chưa đăng ký'),
             ),
-          ),
-        );
-      }
+          );
+        }
 
-      return Column(
-        children: [
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: discoverCourses.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              final course = discoverCourses[index];
-              return DiscoverCourseCard(course: course);
-            },
-          ),
-          const SizedBox(height: 100),
-        ],
-      );
-    });
+        return Column(
+          children: [
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: discoverCourses.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                final course = discoverCourses[index];
+                return DiscoverCourseCard(course: course);
+              },
+            ),
+            const SizedBox(height: 100),
+          ],
+        );
+      },
+    );
   }
 }
 

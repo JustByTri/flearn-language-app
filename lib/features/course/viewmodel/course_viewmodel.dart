@@ -2,12 +2,14 @@ import 'package:flearn_app/features/course/data/course_repository.dart';
 import 'package:flearn_app/features/course/model/course.dart';
 import 'package:get/get.dart';
 import '../../auth/model/course_popular.dart';
+import '../model/all_exercise_submit.dart';
 import '../model/course_access.dart';
 import '../model/course_detail.dart';
 import '../model/course_exercise.dart';
 import '../model/course_lesson.dart';
 import '../model/course_unit.dart';
 import '../model/curriculum.dart';
+import '../model/exercise_submission_detail.dart';
 import '../model/lesson_tracking.dart';
 
 class CourseViewModel extends GetxController {
@@ -307,21 +309,70 @@ class CourseViewModel extends GetxController {
 
   var isSubmittingExercise = false.obs;
 
-  Future<bool> submitExercise({
+  Future<String?> submitExercise({
     required String exerciseId,
     required String audioFilePath,
   }) async {
     try {
       isSubmittingExercise.value = true;
+      // Gọi repository, nhận về exerciseSubmissionId
       return await _courseRepository.submitExercise(
         exerciseId: exerciseId,
         audioFilePath: audioFilePath,
       );
     } catch (e) {
       print('submitExercise error: $e');
-      return false;
+      return null;
     } finally {
       isSubmittingExercise.value = false;
+    }
+  }
+
+  var exerciseDetail = Rxn<Exercise>();
+  var isLoadingExerciseDetail = false.obs;
+
+  Future<Exercise?> fetchExerciseDetail(String exerciseId) async {
+    try {
+      isLoadingExerciseDetail.value = true;
+      final ex = await _courseRepository.getExerciseDetail(exerciseId);
+      exerciseDetail.value = ex;
+      return ex;
+    } catch (e) {
+      exerciseDetail.value = null;
+      return null;
+    } finally {
+      isLoadingExerciseDetail.value = false;
+    }
+  }
+
+  var lastSubmissionDetail = Rxn<ExerciseSubmissionDetail>();
+
+
+  Future<ExerciseSubmissionDetail?> fetchSubmissionDetail(String submissionId) async {
+    try {
+      return await _courseRepository.fetchSubmissionDetail(submissionId);
+    } catch (e) {
+      print('fetchSubmissionDetail error: $e');
+      return null;
+    }
+  }
+
+  final RxList<ExerciseSubmission> exerciseSubmissions = <ExerciseSubmission>[].obs;
+  final RxBool isLoadingSubmissions = false.obs;
+
+  Future<void> fetchExerciseSubmissions(String exerciseId, {int pageNumber = 1, int pageSize = 10}) async {
+    isLoadingSubmissions.value = true;
+    try {
+      final submissions = await _courseRepository.getExerciseSubmissions(
+        exerciseId: exerciseId,
+        pageNumber: pageNumber,
+        pageSize: pageSize,
+      );
+      exerciseSubmissions.assignAll(submissions);
+    } catch (e) {
+      exerciseSubmissions.clear();
+    } finally {
+      isLoadingSubmissions.value = false;
     }
   }
 }

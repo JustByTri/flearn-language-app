@@ -1,5 +1,6 @@
 
 import '../../auth/model/course_popular.dart';
+import '../model/all_exercise_submit.dart';
 import '../model/course.dart';
 import '../model/course_access.dart';
 import '../model/course_detail.dart';
@@ -7,6 +8,7 @@ import '../model/course_exercise.dart';
 import '../model/course_lesson.dart';
 import '../model/course_unit.dart';
 import '../model/curriculum.dart';
+import '../model/exercise_submission_detail.dart';
 import '../model/lesson_tracking.dart';
 
 
@@ -58,8 +60,18 @@ abstract class ICourseRepository{
 
   Future<List<CoursePopular>> getCoursePopular({int count});
 
-  Future<bool> submitExercise({
+  Future<String?> submitExercise({
     required String exerciseId,
     required String audioFilePath,
+  });
+
+  Future<Exercise> getExerciseDetail(String exerciseId);
+
+  Future<ExerciseSubmissionDetail?> fetchSubmissionDetail(String submissionId);
+
+  Future<List<ExerciseSubmission>> getExerciseSubmissions({
+    required String exerciseId,
+    int pageNumber,
+    int pageSize,
   });
 }
