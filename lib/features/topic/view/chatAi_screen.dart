@@ -101,6 +101,14 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _autoSpeakOnStart = true; // bật/tắt tự đọc khi bắt đầu chat
   bool _hasAutoSpokenInitial = false; // đảm bảo chỉ đọc 1 lần
 
+  // NEW: id đang stream
+  String? _streamingMessageId;
+  int? _streamingIndex;             // NEW: index bubble tạm
+  bool _isStreaming = false;        // NEW: cờ streaming
+
+  // NEW: tránh thêm trùng tin nhắn AI cuối cùng
+  final Set<String> _processedMessageIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -240,8 +248,170 @@ class _ChatScreenState extends State<ChatScreen> {
       print('[AI STREAM] payload: $aiMsg');
       if (!mounted) return;
 
-      // Chuẩn hóa field
+      final rawEvent = aiMsg['event'] as String?;
+      final evt = rawEvent?.trim();
+
+      // --- STREAM START ---
+      if (evt == 'StreamStart') {
+        // Reset nếu đang stream dở
+        if (_isStreaming) {
+          _isStreaming = false;
+          _streamingIndex = null;
+        }
+
+        setState(() {
+          _isTyping = true;
+          _isStreaming = true;
+          _streamingMessageId = aiMsg['messageId']?.toString(); // Có thể là null với voice
+
+          // Thêm bubble rỗng trực tiếp vào list
+          _messages.add(ChatMessage(
+            text: '',
+            isUser: false,
+            timestamp: DateTime.now(),
+            isVoice: false,
+          ));
+          _streamingIndex = _messages.length - 1;
+        });
+        _scrollToBottom();
+        return;
+      }
+
+      // --- STREAM CHUNK ---
+      if (evt == 'StreamChunk') {
+        final msgId = aiMsg['messageId']?.toString();
+        if (_isStreaming && _streamingIndex != null && msgId == _streamingMessageId) {
+          final full = aiMsg['fullText']?.toString() ?? aiMsg['chunk']?.toString() ?? '';
+
+          setState(() {
+            if (_streamingIndex! < _messages.length) {
+              final old = _messages[_streamingIndex!];
+              _messages[_streamingIndex!] = ChatMessage(
+                text: full,
+                isUser: false,
+                timestamp: old.timestamp,
+                isVoice: false,
+              );
+            }
+          });
+          if (full.length % 10 == 0) _scrollToBottom();
+        }
+        return;
+      }
+
+      // --- MESSAGE PROCESSED ---
+      if (evt == 'MessageProcessed') {
+        final ai = aiMsg['aiMessage'];
+        final user = aiMsg['userMessage'];
+
+        // Tắt typing ngay lập tức
+        if (mounted) setState(() => _isTyping = false);
+
+        if (ai == null) return;
+
+        final finalId = ai['messageId']?.toString() ?? '';
+        final finalText = (ai['messageContent'] ?? ai['content'] ?? '').toString();
+
+        // --- FIX DUPLICATE: Kiểm tra nếu ID này đã được xử lý (do AIMessageReceived đến trước) ---
+        if (_processedMessageIds.contains(finalId)) {
+          // Nếu đã có rồi, thì bubble đang stream (nếu có) là thừa -> Xóa nó đi để tránh hiện 2 tin
+          if (_streamingIndex != null && _streamingIndex! < _messages.length) {
+            setState(() {
+              _messages.removeAt(_streamingIndex!);
+              _isStreaming = false;
+              _streamingIndex = null;
+              _streamingMessageId = null;
+            });
+          }
+          return;
+        }
+
+        // Thay bubble tạm bằng bubble chính thức
+        if (_streamingIndex != null) {
+          setState(() {
+            if (_streamingIndex! < _messages.length) {
+              _messages[_streamingIndex!] = ChatMessage(
+                text: finalText,
+                isUser: false,
+                timestamp: DateTime.tryParse(ai['sentAt']?.toString() ?? '') ?? DateTime.now(),
+                isVoice: (ai['isVoiceMessage'] == true) ||
+                    (ai['messageType']?.toString().toLowerCase() == 'voice') ||
+                    ((ai['audioUrl'] ?? '') as String).isNotEmpty,
+                audioUrl: (ai['audioUrl'] as String?)?.isNotEmpty == true ? ai['audioUrl'] : null,
+                duration: ai['audioDuration'] is int ? ai['audioDuration'] : int.tryParse('${ai['audioDuration']}'),
+                transcript: ai['transcript']?.toString(),
+                synonymSuggestions: ai['synonymSuggestions'] is Map
+                    ? (ai['synonymSuggestions'] as Map<String, dynamic>)
+                    : null,
+              );
+            }
+            _processedMessageIds.add(finalId);
+            _isStreaming = false;
+            _streamingIndex = null;
+            _streamingMessageId = null;
+            _awaitingVoiceAi = false;
+            _voiceAiReceived = true;
+          });
+        } else {
+          // Trường hợp không có stream trước đó (fallback)
+          if (!_processedMessageIds.contains(finalId)) {
+            _processedMessageIds.add(finalId);
+            _addMessage(ChatMessage(
+              text: finalText,
+              isUser: false,
+              timestamp: DateTime.tryParse(ai['sentAt']?.toString() ?? '') ?? DateTime.now(),
+              isVoice: (ai['isVoiceMessage'] == true) ||
+                  (ai['messageType']?.toString().toLowerCase() == 'voice') ||
+                  ((ai['audioUrl'] ?? '') as String).isNotEmpty,
+              audioUrl: (ai['audioUrl'] as String?)?.isNotEmpty == true ? ai['audioUrl'] : null,
+              duration: ai['audioDuration'] is int ? ai['audioDuration'] : int.tryParse('${ai['audioDuration']}'),
+              transcript: ai['transcript']?.toString(),
+              synonymSuggestions: ai['synonymSuggestions'] is Map
+                  ? (ai['synonymSuggestions'] as Map<String, dynamic>)
+                  : null,
+            ));
+          }
+        }
+
+        // Cập nhật synonym cho user (nếu có)
+        if (user != null && user['synonymSuggestions'] != null) {
+          final originalText = user['messageContent']?.toString();
+          final idxUser = _messages.lastIndexWhere((m) => m.isUser && (m.text == originalText || m.isVoice));
+          if (idxUser != -1) {
+            setState(() {
+              _messages[idxUser] = ChatMessage(
+                text: _messages[idxUser].text,
+                isUser: true,
+                timestamp: _messages[idxUser].timestamp,
+                isVoice: _messages[idxUser].isVoice,
+                audioUrl: _messages[idxUser].audioUrl,
+                duration: _messages[idxUser].duration,
+                transcript: _messages[idxUser].transcript,
+                synonymSuggestions: user['synonymSuggestions'] as Map<String, dynamic>,
+              );
+            });
+          }
+        }
+        return;
+      }
+
+      // --- BỎ QUA nếu đã xử lý ---
+      final mid = aiMsg['messageId']?.toString();
+      if (mid != null && _processedMessageIds.contains(mid)) {
+        return;
+      }
+
+      // --- BỎ QUA CÁC EVENT STREAM ĐỂ TRÁNH LẶP ---
+      if (evt == 'StreamStart' || evt == 'StreamChunk' || evt == 'MessageProcessed') {
+        return;
+      }
+
+      // --- LOGIC CŨ (Fallback cho các event khác) ---
       final content = aiMsg['content'] ?? aiMsg['messageContent'] ?? '';
+      if (content.toString().trim().isEmpty && aiMsg['audioUrl'] == null && aiMsg['isVoiceMessage'] != true) {
+        return;
+      }
+
       final ts = DateTime.tryParse(aiMsg['timestamp'] ?? aiMsg['sentAt'] ?? '') ?? DateTime.now();
       final senderRaw = aiMsg['sender'];
       final senderStr = senderRaw?.toString().toLowerCase();
@@ -256,9 +426,8 @@ class _ChatScreenState extends State<ChatScreen> {
       final hasAudio = audioUrl != null && audioUrl.toString().isNotEmpty;
       final isVoiceMsg = hasAudio || messageTypeStr == 'voice' || messageTypeRaw == 2 || aiMsg['isVoiceMessage'] == true;
 
-      // 1) Cập nhật synonymSuggestions cho user TEXT (nếu hub đính kèm)
+      // Synonym cho user text
       if (synonymSuggestions != null && !isVoiceMsg && isUserSender) {
-        print('[AI STREAM] Found synonymSuggestions: $synonymSuggestions');
         final idx = _messages.lastIndexWhere((m) => m.isUser && !m.isVoice);
         if (idx != -1) {
           setState(() {
@@ -266,17 +435,13 @@ class _ChatScreenState extends State<ChatScreen> {
               text: _messages[idx].text,
               isUser: true,
               timestamp: _messages[idx].timestamp,
-              isVoice: false,
-              audioUrl: null,
-              duration: null,
               synonymSuggestions: synonymSuggestions,
             );
           });
-          print('[AI STREAM] Updated user message at index $idx with synonymSuggestions');
         }
       }
 
-      // 2) VoiceMessageReceived từ User: cập nhật transcript/synonyms cho bubble voice của user
+      // User voice update transcript
       if (isUserSender && isVoiceMsg) {
         if (transcript != null || synonymSuggestions != null) {
           final idx = _messages.lastIndexWhere(
@@ -295,15 +460,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 synonymSuggestions: synonymSuggestions ?? _messages[idx].synonymSuggestions,
               );
             });
-            print('[AI STREAM] Updated user voice transcript/synonyms via hub');
           }
         }
-        return; // Không thêm bubble mới
+        return;
       }
 
-      // 3) AI trả về (ưu tiên hiển thị từ hub)
+      // AI voice
       if (isAi && isVoiceMsg) {
-        // AI voice
+        _processedMessageIds.add(mid ?? '');
         _addMessage(ChatMessage(
           text: content,
           isUser: false,
@@ -312,37 +476,23 @@ class _ChatScreenState extends State<ChatScreen> {
           audioUrl: audioUrl?.toString(),
           duration: audioDuration is int ? audioDuration : int.tryParse(audioDuration.toString()) ?? 0,
           transcript: transcript?.toString(),
-          synonymSuggestions: null,
         ));
         setState(() => _isTyping = false);
-        if (_awaitingVoiceAi) {
-          _voiceAiReceived = true;
-          _aiResponseTimeout?.cancel();
-          _aiResponseTimeout = null;
-          print('[VOICE][HUB] AI voice received');
-        }
+        if (_awaitingVoiceAi) _voiceAiReceived = true;
         return;
       }
 
+      // AI text
       if (isAi && !isVoiceMsg) {
-        // AI text
+        _processedMessageIds.add(mid ?? '');
         _addMessage(ChatMessage(
           text: content,
           isUser: false,
           timestamp: ts,
           isVoice: false,
-          audioUrl: null,
-          duration: null,
-          transcript: null,
-          synonymSuggestions: null,
         ));
         setState(() => _isTyping = false);
-        if (_awaitingVoiceAi) {
-          _voiceAiReceived = true;
-          _aiResponseTimeout?.cancel();
-          _aiResponseTimeout = null;
-          print('[VOICE][HUB] AI text received');
-        }
+        if (_awaitingVoiceAi) _voiceAiReceived = true;
         return;
       }
     }, onError: (e) {
@@ -390,47 +540,25 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty || _sessionId == null) return;
 
+    // Thêm tin nhắn user vào list ngay lập tức
     _addMessage(ChatMessage(text: text, isUser: true, timestamp: DateTime.now()));
     _messageController.clear();
+
+    // Bật typing indicator
     setState(() => _isTyping = true);
 
     try {
-      // Gọi SignalR để gửi realtime
+      // 1. Gọi SignalR để kích hoạt luồng xử lý bên server (StreamStart -> StreamChunk -> MessageProcessed)
+      // CHỈ DÙNG SIGNALR, KHÔNG GỌI HTTP ĐỂ TRÁNH DUPLICATE RESPONSE
       await _topicViewModel.sendConversationMessageSignalR(
         sessionId: _sessionId!,
         messageContent: text,
         messageType: "Text",
       );
 
-      // Gọi HTTP API để lấy synonymSuggestions
-      final httpResp = await _topicViewModel.sendConversationMessage(
-        sessionId: _sessionId!,
-        messageContent: text,
-        messageType: 1, // 1 = Text
-      );
+      // Đã xóa đoạn gọi HTTP _topicViewModel.sendConversationMessage(...)
+      // vì nó gây ra việc server xử lý 2 lần (1 lần do SignalR, 1 lần do HTTP trigger).
 
-
-      if (httpResp != null && httpResp['data'] != null) {
-        final synonymSuggestions = httpResp['data']['synonymSuggestions'];
-        if (synonymSuggestions != null) {
-          print('[HTTP] Found synonymSuggestions: $synonymSuggestions');
-          final idx = _messages.lastIndexWhere((m) => m.isUser && !m.isVoice && m.text == text);
-          if (idx != -1) {
-            setState(() {
-              _messages[idx] = ChatMessage(
-                text: text,
-                isUser: true,
-                timestamp: _messages[idx].timestamp,
-                isVoice: false,
-                audioUrl: null,
-                duration: null,
-                synonymSuggestions: synonymSuggestions,
-              );
-            });
-            print('[HTTP] Updated user message at index $idx with synonymSuggestions');
-          }
-        }
-      }
     } catch (e) {
       setState(() => _isTyping = false);
       Get.snackbar("Lỗi", "Không thể gửi tin nhắn: $e");
@@ -1416,12 +1544,12 @@ class _ChatScreenState extends State<ChatScreen> {
         if (isTranslated) {
           return [
             PopupMenuItem<String>(
-              value: 'hide_translation',
+              value: 'undo_translate',
               child: Row(
                 children: [
-                  Icon(Icons.close, color: Colors.orange.shade700, size: 20),
+                  Icon(Icons.undo, color: Colors.orange.shade700, size: 20),
                   const SizedBox(width: 12),
-                  Text('Ẩn dịch', style: TextStyle(color: Colors.orange.shade700)),
+                  Text('Hiện lại voice', style: TextStyle(color: Colors.orange.shade700)),
                 ],
               ),
             ),
@@ -2083,6 +2211,7 @@ class _ChatScreenState extends State<ChatScreen> {
     Duration currentPosition = Duration.zero;
     StreamSubscription? completionSub;
 
+
     Get.bottomSheet(
       StatefulBuilder(
         builder: (context, setSheetState) {
@@ -2128,6 +2257,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 const SizedBox(height: 24),
 
+
                 // Waveform + Play button
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -2145,6 +2275,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               // Pause
                               await _audioPlayer.pause();
                               playbackTimer?.cancel();
+
                               setSheetState(() {
                                 isPlaying = false;
                               });
@@ -2412,6 +2543,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // Fallback: chỉ thêm AI từ HTTP nếu hub KHÔNG gửi
       if (!_voiceAiReceived && aiResponse != null) {
+        // Fallback giữ nguyên
         final content = aiResponse['messageContent'] ?? '';
         final ts = DateTime.tryParse(aiResponse['sentAt'] ?? '') ?? DateTime.now();
         setState(() => _isTyping = false);

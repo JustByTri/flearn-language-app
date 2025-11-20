@@ -48,13 +48,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
+
   List<Language> _languages = [];
-  Set<String> _switchedLanguages = {};
+  // Xóa hoặc giữ nhưng không dùng để chặn gọi API nữa
+  // Set<String> _switchedLanguages = {};
   String? _selectedLanguageId;
   bool _isLoadingLanguages = true;
   String? _selectedTopicName;
   bool _hasLoadedOnce = false;
   bool _isVisible = true;
+
+
+  // NEW: trạng thái chống spam
+  bool _isSwitchingLanguage = false;
+  CancelToken? _languageSwitchCancelToken;
+  bool _isLoadingScreenOpen = false;
 
   late CourseViewModel courseViewModel;
   late TeacherScheduleViewModel teacherScheduleViewModel;
@@ -81,9 +89,10 @@ class _HomeScreenState extends State<HomeScreen>
 
     courseProgressViewModel = Get.put(CourseProgressViewModel(Get.find()));
     courseProgressViewModel.fetchMyCourses();
-    if (_selectedLanguageId != null) {
-      _switchedLanguages.add(_selectedLanguageId!);
-    }
+    // Bỏ auto add vào set (không cần nữa)
+    // if (_selectedLanguageId != null) {
+    //   _switchedLanguages.add(_selectedLanguageId!);
+    // }
   }
 
   @override
@@ -232,42 +241,25 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _handleLanguageChange(String languageId) async {
+    if (_isSwitchingLanguage) return;
     if (languageId == _selectedLanguageId) {
       Get.dialog(
         AlertDialog(
           title: const Text('Thông báo'),
           content: const Text('Bạn đang ở ngôn ngữ này rồi.'),
-          actions: [
-            TextButton(
-              onPressed: () => Get.back(),
-              child: const Text('OK'),
-            ),
-          ],
+          actions: [TextButton(onPressed: () => Get.back(), child: const Text('OK'))],
         ),
       );
       return;
     }
 
-    if (_switchedLanguages.contains(languageId)) {
-      final selectedLanguage = _languages.firstWhere((lang) => lang.id == languageId, orElse: () => Language(id: '', langName: '', langCode: ''));
-      await Get.dialog(
-        AlertDialog(
-          title: const Text('Thông báo'),
-          content: Text('Chào mừng trở lại, bạn đã sẵn sàng học ngôn ngữ ${selectedLanguage.langName}.'),
-          actions: [
-            TextButton(
-              onPressed: () => Get.back(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-     // return;
-    }
     final box = GetStorage();
     final token = box.read('accessToken');
 
-    // Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+    _isSwitchingLanguage = true;
+    _languageSwitchCancelToken?.cancel('Cancelled previous switch');
+    _languageSwitchCancelToken = CancelToken();
+
     try {
       final response = await _dio.post(
         'https://f-learn.app/api/VoiceAssessment/switch-language/$languageId',
@@ -275,25 +267,23 @@ class _HomeScreenState extends State<HomeScreen>
           headers: {'Authorization': 'Bearer $token'},
           validateStatus: (status) => status != null && status < 500,
         ),
+        cancelToken: _languageSwitchCancelToken,
       );
-      Get.back();
 
       final respData = response.data;
       final action = respData?['action'];
       final message = respData?['message'] ?? 'Có lỗi xảy ra, vui lòng thử lại.';
 
       if (action == "REQUIRE_ASSESSMENT") {
-        // Hiện popup, nếu đồng ý thì chuyển sang Survey với languageId
         await Get.dialog(
           AlertDialog(
-            title: const Text('Thông báo'),
+            title: const Text('Đánh giá'),
             content: Text(message),
             actions: [
               TextButton(onPressed: () => Get.back(), child: const Text('Huỷ')),
               TextButton(
                 onPressed: () {
                   Get.back();
-
                   box.write('selectedLanguageId', languageId);
                   Get.offAll(
                         () => const SurveyScreen(),
@@ -305,48 +295,65 @@ class _HomeScreenState extends State<HomeScreen>
                     arguments: {'languageId': languageId},
                   );
                 },
-                child: const Text('Đồng ý'),
+                child: const Text('Bắt đầu'),
               ),
             ],
           ),
         );
-        return;
-      }
-
-      if (action == "PROCEED_TO_HOME") {
-        // Cập nhật lại ngôn ngữ và reload trang Home
-        final user = box.read('user');
-        if (user != null) {
-          user['languageId'] = languageId;
-          box.write('user', user);
-        } else {
-          box.write('user', {'languageId': languageId});
+      } else if (action == "PROCEED_TO_HOME") {
+        // Hiển thị loading overlay (dialog không đóng thủ công được)
+        if (!_isLoadingScreenOpen) {
+          _isLoadingScreenOpen = true;
+          Get.dialog(
+            const LanguageSwitchLoadingScreen(),
+            barrierDismissible: false,
+          );
         }
+
+        final user = box.read('user') ?? {};
+        user['languageId'] = languageId;
+        box.write('user', user);
         box.write('selectedLanguageId', languageId);
 
         if (mounted) {
           setState(() {
             _selectedLanguageId = languageId;
-            _switchedLanguages.add(languageId);
           });
         }
-        await _loadInitialData();
+
+        // Tải lại dữ liệu
+        await _fetchOtherData();
         await courseProgressViewModel.fetchMyCourses();
 
+        // Đóng loading sau khi hoàn tất
+        if (_isLoadingScreenOpen) {
+          Get.back(); // đóng LanguageSwitchLoadingScreen
+          _isLoadingScreenOpen = false;
+        }
+
         Get.snackbar('Thành công', message, snackPosition: SnackPosition.BOTTOM);
+      } else {
+        Get.snackbar('Thông báo', message, snackPosition: SnackPosition.BOTTOM);
       }
-    } catch (e) {
-      if (Get.isDialogOpen ?? false) {
+    } catch (e, st) {
+      if (_isLoadingScreenOpen) {
         Get.back();
+        _isLoadingScreenOpen = false;
       }
-      debugPrint('Lỗi xử lý chuyển ngôn ngữ: $e');
-      Get.snackbar('Lỗi nghiêm trọng', 'Không thể kết nối đến máy chủ.', snackPosition: SnackPosition.BOTTOM);
+      if (e is DioException && CancelToken.isCancel(e)) {
+        debugPrint('Switch language bị hủy: ${e.message}');
+      } else {
+        debugPrint('Lỗi xử lý chuyển ngôn ngữ: $e\n$st');
+        Get.snackbar('Lỗi', 'Không thể kết nối đến máy chủ.', snackPosition: SnackPosition.BOTTOM);
+      }
+    } finally {
+      _isSwitchingLanguage = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Must call super for AutomaticKeepAliveClientMixin
+    super.build(context);
     return AppScaffold(
       backgroundColor: Colors.white,
       body: RefreshIndicator(
@@ -1596,6 +1603,52 @@ class _OngoingCourseCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class LanguageSwitchLoadingScreen extends StatelessWidget {
+  const LanguageSwitchLoadingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                height: 70,
+                width: 70,
+                child: CircularProgressIndicator(
+                  strokeWidth: 6,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Đang tải nội dung theo ngôn ngữ mới...',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Vui lòng chờ trong giây lát',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
