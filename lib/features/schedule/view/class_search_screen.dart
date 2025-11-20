@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:flearn_app/features/schedule/viewmodel/class_search_viewmodel.dart';
 import 'package:flearn_app/features/schedule/model/schedule_model.dart';
+import 'package:flearn_app/features/schedule/view/student_schedule_screen.dart' // <-- thêm import
+    ;
 
 class ClassSearchScreen extends StatefulWidget {
   const ClassSearchScreen({super.key});
@@ -351,7 +353,12 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> with TickerProvid
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(_formatCurrency(cls.pricePerStudent), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.primary)),
-                  if (canEnroll) _gradientButton(cls),
+                  // Hiển thị nút nếu có thể đăng ký HOẶC là lớp vừa thanh toán
+                  Obx(() {
+                    final showView = _viewModel.shouldShowViewScheduleFor(cls.classID);
+                    final showButton = canEnroll || showView;
+                    return showButton ? _gradientButton(cls, showView) : const SizedBox.shrink();
+                  }),
                 ],
               ),
             ],
@@ -412,22 +419,32 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> with TickerProvid
     );
   }
 
-  Widget _gradientButton(ClassSearchResult cls) {
+// Đổi nút động: Đăng ký / Xem lịch
+  Widget _gradientButton(ClassSearchResult cls, bool showViewSchedule) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       child: Material(
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => _handleEnroll(cls),
+          onTap: () {
+            if (showViewSchedule) {
+              Get.to(() => const StudentScheduleScreen(), transition: Transition.cupertino);
+            } else {
+              _handleEnroll(cls);
+            }
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               gradient: const LinearGradient(colors: [Color(0xFF00D2FF), Color(0xFF3A7BD5)]),
-              boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6))],
+              boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 12, offset: Offset(0, 6))],
             ),
-            child: const Text('Đăng ký', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+            child: Text(
+              showViewSchedule ? 'Xem lịch' : 'Đăng ký',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
+            ),
           ),
         ),
       ),
