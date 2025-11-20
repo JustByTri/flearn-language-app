@@ -1,43 +1,54 @@
 import 'package:flearn_app/features/course_progress/model/lesson_progress_detail.dart';
 import 'package:flearn_app/features/course_progress/viewmodel/course_progress_viewmodel.dart';
-import 'package:flearn_app/features/course/view/video_player.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:get/get.dart';
-import '../../../core/constants/colors.dart';
-import '../viewmodel/course_viewmodel.dart';
-import 'course_exercise_screen.dart';
-import 'course_lesson_drawer.dart';
-import 'pdf_view_screen.dart';
 
+import '../../../core/constants/colors.dart';
+import '../../../shared/widgets/simple_video_player.dart';
 import '../model/course_exercise.dart';
-import 'exercise_repeat_after_me_screen.dart';
-import 'exercise_picture_description_screen.dart';
+import '../viewmodel/course_viewmodel.dart';
+import 'course_lesson_drawer.dart';
 import 'exercise_debate_screen.dart';
+import 'exercise_picture_description_screen.dart';
+import 'exercise_repeat_after_me_screen.dart';
 import 'exercise_story_telling_screen.dart';
 import 'exercise_submission_list_screen.dart';
+import 'pdf_view_screen.dart';
 
-enum LessonStep { content, video, document, exercise } // NEW
+enum LessonStep {
+  content,
+  video,
+  document,
+  exercise,
+} // NEW
 
 class CourseLessonScreen extends StatefulWidget {
   final String lessonId;
-  const CourseLessonScreen({super.key, required this.lessonId});
+  const CourseLessonScreen({
+    super.key,
+    required this.lessonId,
+  });
 
   @override
-  State<CourseLessonScreen> createState() => _CourseLessonScreenState();
+  State<CourseLessonScreen> createState() =>
+      _CourseLessonScreenState();
 }
 
-class _CourseLessonScreenState extends State<CourseLessonScreen> {
-  final ScrollController _scrollController = ScrollController(); // Thêm controller
-  final CourseProgressViewModel progressViewModel = Get.find<CourseProgressViewModel>();
-  final CourseViewModel courseViewModel = Get.find<CourseViewModel>();
+class _CourseLessonScreenState
+    extends State<CourseLessonScreen> {
+  final ScrollController _scrollController =
+      ScrollController(); // Thêm controller
+  final CourseProgressViewModel progressViewModel =
+      Get.find<CourseProgressViewModel>();
+  final CourseViewModel courseViewModel =
+      Get.find<CourseViewModel>();
   int _currentStep = 0;
   List<LessonStep> _availableSteps = [];
   List<bool> _stepChecked = [];
   final Set<LessonStep> _loggedSteps = {};
   bool _isLogging = false;
   String? _initedForLessonId;
-
 
   late String _lessonId;
 
@@ -49,12 +60,17 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
   }
 
   @override
-  void didUpdateWidget(covariant CourseLessonScreen oldWidget) {
+  void didUpdateWidget(
+    covariant CourseLessonScreen oldWidget,
+  ) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.lessonId != widget.lessonId) {
       _lessonId = widget.lessonId;
-      _initedForLessonId = null; // NEW: reset để init lại cho bài mới
-      progressViewModel.fetchLessonProgressDetail(_lessonId);
+      _initedForLessonId =
+          null; // NEW: reset để init lại cho bài mới
+      progressViewModel.fetchLessonProgressDetail(
+        _lessonId,
+      );
       setState(() {
         _currentStep = 0;
         _loggedSteps.clear();
@@ -66,9 +82,12 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     final activity = detail.activityStatus;
 
     final steps = <LessonStep>[];
-    if (activity.content.isAvailable) steps.add(LessonStep.content);
-    if (activity.video.isAvailable) steps.add(LessonStep.video);
-    if (activity.document.isAvailable) steps.add(LessonStep.document);
+    if (activity.content.isAvailable)
+      steps.add(LessonStep.content);
+    if (activity.video.isAvailable)
+      steps.add(LessonStep.video);
+    if (activity.document.isAvailable)
+      steps.add(LessonStep.document);
     if (steps.isEmpty) steps.add(LessonStep.content);
 
     _availableSteps = steps;
@@ -80,8 +99,10 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
       bool completed = switch (s) {
         LessonStep.content => activity.content.isCompleted,
         LessonStep.video => activity.video.isCompleted,
-        LessonStep.document => activity.document.isCompleted,
-        LessonStep.exercise => false, // exercise không có checkbox
+        LessonStep.document =>
+          activity.document.isCompleted,
+        LessonStep.exercise =>
+          false, // exercise không có checkbox
       };
       _stepChecked.add(completed);
       if (completed && s != LessonStep.exercise) {
@@ -90,33 +111,45 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     }
 
     // Prefetch bài tập và chèn step Exercise nếu có dữ liệu
-    courseViewModel.fetchLessonExercises(detail.lessonId).then((_) {
-      if (!mounted) return;
-      if (courseViewModel.exercises.isNotEmpty &&
-          !_availableSteps.contains(LessonStep.exercise)) {
-        setState(() {
-          _availableSteps.add(LessonStep.exercise);
-          _stepChecked.add(false); // không tính vào checkbox
-          if (_currentStep >= _availableSteps.length) {
-            _currentStep = _availableSteps.length - 1;
+    courseViewModel
+        .fetchLessonExercises(detail.lessonId)
+        .then((_) {
+          if (!mounted) return;
+          if (courseViewModel.exercises.isNotEmpty &&
+              !_availableSteps.contains(
+                LessonStep.exercise,
+              )) {
+            setState(() {
+              _availableSteps.add(LessonStep.exercise);
+              _stepChecked.add(
+                false,
+              ); // không tính vào checkbox
+              if (_currentStep >= _availableSteps.length) {
+                _currentStep = _availableSteps.length - 1;
+              }
+            });
           }
         });
-      }
-    });
 
     // NEW: Tìm step đầu tiên chưa hoàn thành và set _currentStep
-    int firstIncompleteIndex = _stepChecked.indexWhere((checked) => !checked);
+    int firstIncompleteIndex = _stepChecked.indexWhere(
+      (checked) => !checked,
+    );
     if (firstIncompleteIndex != -1) {
       _currentStep = firstIncompleteIndex;
     } else {
-      _currentStep = _availableSteps.length - 1; // Nếu tất cả hoàn thành, ở step cuối (thường là exercise)
+      _currentStep =
+          _availableSteps.length -
+          1; // Nếu tất cả hoàn thành, ở step cuối (thường là exercise)
     }
 
-    if (_currentStep >= _availableSteps.length) _currentStep = _availableSteps.length - 1;
+    if (_currentStep >= _availableSteps.length)
+      _currentStep = _availableSteps.length - 1;
     if (_currentStep < 0) _currentStep = 0;
   }
 
-  int _indexOf(LessonStep step) => _availableSteps.indexOf(step);
+  int _indexOf(LessonStep step) =>
+      _availableSteps.indexOf(step);
   String _labelOf(LessonStep step) {
     switch (step) {
       case LessonStep.content:
@@ -151,11 +184,15 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         backgroundColor: Colors.white,
         elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Get.back(),
         ),
         title: Obx(() {
-          final detail = progressViewModel.lessonProgressDetail.value;
+          final detail =
+              progressViewModel.lessonProgressDetail.value;
           return Text(
             detail?.unitTitle ?? '',
             style: const TextStyle(
@@ -169,9 +206,13 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         actions: [
           Builder(
             builder: (context) => IconButton(
-              icon: const Icon(Icons.menu, color: AppColors.primary),
+              icon: const Icon(
+                Icons.menu,
+                color: AppColors.primary,
+              ),
               tooltip: 'Danh sách bài học',
-              onPressed: () => Scaffold.of(context).openEndDrawer(),
+              onPressed: () =>
+                  Scaffold.of(context).openEndDrawer(),
             ),
           ),
         ],
@@ -189,20 +230,30 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
             _stepChecked = [];
             _initedForLessonId = null; // NEW
           });
-          progressViewModel.fetchLessonProgressDetail(newLessonId);
+          progressViewModel.fetchLessonProgressDetail(
+            newLessonId,
+          );
         },
       ),
       body: Obx(() {
-        if (progressViewModel.isLoadingLessonProgress.value) {
-          return const Center(child: CircularProgressIndicator());
+        if (progressViewModel
+            .isLoadingLessonProgress
+            .value) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
         }
-        final detail = progressViewModel.lessonProgressDetail.value;
+        final detail =
+            progressViewModel.lessonProgressDetail.value;
         if (detail == null) {
-          return const Center(child: Text('Không thể tải dữ liệu bài học'));
+          return const Center(
+            child: Text('Không thể tải dữ liệu bài học'),
+          );
         }
 
-
-        if (_initedForLessonId != detail.lessonId || _availableSteps.isEmpty || _stepChecked.isEmpty) {
+        if (_initedForLessonId != detail.lessonId ||
+            _availableSteps.isEmpty ||
+            _stepChecked.isEmpty) {
           _initSteps(detail);
           _initedForLessonId = detail.lessonId;
         }
@@ -228,7 +279,10 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
 
   Widget _buildProgressIndicator() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      padding: const EdgeInsets.symmetric(
+        vertical: 16,
+        horizontal: 16,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -241,9 +295,19 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
       ),
       child: Row(
         children: [
-          for (int i = 0; i < _availableSteps.length; i++) ...[
-            Expanded(child: _buildStepDot(i, _labelOf(_availableSteps[i]))),
-            if (i < _availableSteps.length - 1) _buildStepLine(i),
+          for (
+            int i = 0;
+            i < _availableSteps.length;
+            i++
+          ) ...[
+            Expanded(
+              child: _buildStepDot(
+                i,
+                _labelOf(_availableSteps[i]),
+              ),
+            ),
+            if (i < _availableSteps.length - 1)
+              _buildStepLine(i),
           ],
         ],
       ),
@@ -252,11 +316,11 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
 
   Widget _buildStepDot(int step, String label) {
     final isActive = _currentStep == step;
-    final isCompleted = _stepChecked.length > step && _stepChecked[step];
+    final isCompleted =
+        _stepChecked.length > step && _stepChecked[step];
 
     return InkWell(
       onTap: () {
-
         setState(() {
           _currentStep = step;
         });
@@ -270,18 +334,26 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
               shape: BoxShape.circle,
               color: isCompleted
                   ? Colors.green
-                  : (isActive ? AppColors.primary : Colors.grey.shade300),
+                  : (isActive
+                        ? AppColors.primary
+                        : Colors.grey.shade300),
             ),
             child: Center(
               child: isCompleted
-                  ? const Icon(Icons.check, color: Colors.white, size: 18)
+                  ? const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 18,
+                    )
                   : Text(
-                '${step + 1}',
-                style: TextStyle(
-                  color: isActive ? Colors.white : Colors.grey.shade600,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+                      '${step + 1}',
+                      style: TextStyle(
+                        color: isActive
+                            ? Colors.white
+                            : Colors.grey.shade600,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: 4),
@@ -289,8 +361,12 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
             label,
             style: TextStyle(
               fontSize: 11,
-              color: isActive ? AppColors.primary : Colors.grey.shade600,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              color: isActive
+                  ? AppColors.primary
+                  : Colors.grey.shade600,
+              fontWeight: isActive
+                  ? FontWeight.bold
+                  : FontWeight.normal,
             ),
             textAlign: TextAlign.center,
           ),
@@ -305,13 +381,18 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
       child: Container(
         height: 2,
         margin: const EdgeInsets.only(bottom: 20),
-        color: isCompleted ? Colors.green : Colors.grey.shade300,
+        color: isCompleted
+            ? Colors.green
+            : Colors.grey.shade300,
       ),
     );
   }
 
-  Widget _buildCurrentStepContent(LessonProgressDetail detail) {
-    if (_availableSteps.isEmpty) return const SizedBox.shrink();
+  Widget _buildCurrentStepContent(
+    LessonProgressDetail detail,
+  ) {
+    if (_availableSteps.isEmpty)
+      return const SizedBox.shrink();
     final step = _availableSteps[_currentStep];
     final activity = detail.activityStatus;
     switch (step) {
@@ -326,91 +407,138 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     }
   }
 
-// NEW: danh sách bài tập nhúng ngay trong trang bài học
+  // NEW: danh sách bài tập nhúng ngay trong trang bài học
   Widget _buildExerciseStep(String lessonId) {
     return Obx(() {
-      final loading = courseViewModel.isLoadingExercises.value;
+      final loading =
+          courseViewModel.isLoadingExercises.value;
       final list = courseViewModel.exercises;
 
       if (loading && list.isEmpty) {
-        return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+        return const Center(
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+          ),
+        );
       }
       if (list.isEmpty) {
-        return _buildEmptyState(icon: Icons.assignment_outlined, message: 'Không có bài tập cho bài học này');
+        return _buildEmptyState(
+          icon: Icons.assignment_outlined,
+          message: 'Không có bài tập cho bài học này',
+        );
       }
 
       Color _difficultyColor(String diff) {
         switch (diff.toLowerCase()) {
-          case 'easy': return Colors.green;
-          case 'medium': return Colors.orange;
-          case 'hard': return Colors.red;
-          case 'advanced': return Colors.purple;
-          default: return Colors.grey;
+          case 'easy':
+            return Colors.green;
+          case 'medium':
+            return Colors.orange;
+          case 'hard':
+            return Colors.red;
+          case 'advanced':
+            return Colors.purple;
+          default:
+            return Colors.grey;
         }
       }
 
-
       Color _typeColor(String t) {
         switch (t) {
-          case 'RepeatAfterMe': return Colors.blue;
-          case 'PictureDescription': return Colors.green;
-          case 'Debate': return Colors.orange;
-          case 'StoryTelling': return Colors.purple;
+          case 'RepeatAfterMe':
+            return Colors.blue;
+          case 'PictureDescription':
+            return Colors.green;
+          case 'Debate':
+            return Colors.orange;
+          case 'StoryTelling':
+            return Colors.purple;
 
-          default: return AppColors.primary;
+          default:
+            return AppColors.primary;
         }
       }
 
       String _typeLabel(String t) {
         switch (t) {
-          case 'RepeatAfterMe': return 'Lặp lại theo mẫu';
-          case 'PictureDescription': return 'Mô tả tranh';
-          case 'Debate': return 'Tranh luận';
-          case 'StoryTelling': return 'Kể chuyện';
-          default: return 'Bài tập';
+          case 'RepeatAfterMe':
+            return 'Lặp lại theo mẫu';
+          case 'PictureDescription':
+            return 'Mô tả tranh';
+          case 'Debate':
+            return 'Tranh luận';
+          case 'StoryTelling':
+            return 'Kể chuyện';
+          default:
+            return 'Bài tập';
         }
       }
 
       void _openExercise(Exercise ex) {
         switch (ex.exerciseType) {
           case 'RepeatAfterMe':
-            Get.to(() => ExerciseRepeatAfterMeScreen(exercise: ex));
+            Get.to(
+              () =>
+                  ExerciseRepeatAfterMeScreen(exercise: ex),
+            );
             break;
           case 'PictureDescription':
-            Get.to(() => ExerciseMultipleChoiceScreen(exercise: ex));
+            Get.to(
+              () => ExerciseMultipleChoiceScreen(
+                exercise: ex,
+              ),
+            );
             break;
           case 'Debate':
-            Get.to(() => ExerciseDebateScreen(exercise: ex));
+            Get.to(
+              () => ExerciseDebateScreen(exercise: ex),
+            );
             break;
           case 'StoryTelling':
-            Get.to(() => ExerciseFillInBlankScreen(exercise: ex));
+            Get.to(
+              () => ExerciseFillInBlankScreen(exercise: ex),
+            );
             break;
           default:
-            Get.to(() => ExerciseRepeatAfterMeScreen(exercise: ex));
+            Get.to(
+              () =>
+                  ExerciseRepeatAfterMeScreen(exercise: ex),
+            );
         }
       }
 
       void _viewScore(Exercise ex) {
-        Get.to(() => ExerciseSubmissionListScreen(
-          exerciseId: ex.exerciseID,
-          exerciseTitle: ex.title,
-        ));
-
+        Get.to(
+          () => ExerciseSubmissionListScreen(
+            exerciseId: ex.exerciseID,
+            exerciseTitle: ex.title,
+          ),
+        );
       }
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Bài tập', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+          const Text(
+            'Bài tập',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 12),
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: list.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, __) =>
+                const SizedBox(height: 12),
             itemBuilder: (context, i) {
               final ex = list[i];
-              final typeColor = _typeColor(ex.exerciseType); // Lấy màu cho loại bài tập
+              final typeColor = _typeColor(
+                ex.exerciseType,
+              ); // Lấy màu cho loại bài tập
               return InkWell(
                 onTap: () => _openExercise(ex),
                 child: Container(
@@ -418,61 +546,164 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                    boxShadow: [BoxShadow(color: Colors.grey.shade100, blurRadius: 8, offset: const Offset(0, 2))],
+                    border: Border.all(
+                      color: Colors.grey.shade200,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.shade100,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
                           Container(
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
+                              color: AppColors.primary
+                                  .withOpacity(0.1),
+                              borderRadius:
+                                  BorderRadius.circular(6),
                             ),
-                            child: Center(child: Text('${i + 1}', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12))),
+                            child: Center(
+                              child: Text(
+                                '${i + 1}',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
-                                Text(ex.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                Text(
+                                  ex.title,
+                                  maxLines: 2,
+                                  overflow:
+                                      TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight:
+                                        FontWeight.w600,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 Wrap(
                                   spacing: 6,
                                   runSpacing: 6,
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(color: typeColor.withOpacity(0.1), borderRadius: BorderRadius.circular(999)), // Áp dụng màu nền
-                                      child: Text(_typeLabel(ex.exerciseType), style: TextStyle(fontSize: 12, color: typeColor, fontWeight: FontWeight.w600)), // Áp dụng màu chữ
-                                    ),
-                                    if (ex.difficulty.isNotEmpty)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: _difficultyColor(ex.difficulty).withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(999),
-                                          border: Border.all(color: _difficultyColor(ex.difficulty).withOpacity(0.5)),
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                      decoration: BoxDecoration(
+                                        color: typeColor
+                                            .withOpacity(
+                                              0.1,
+                                            ),
+                                        borderRadius:
+                                            BorderRadius.circular(
+                                              999,
+                                            ),
+                                      ), // Áp dụng màu nền
+                                      child: Text(
+                                        _typeLabel(
+                                          ex.exerciseType,
                                         ),
-                                        child: Text(ex.difficulty, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _difficultyColor(ex.difficulty))),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: typeColor,
+                                          fontWeight:
+                                              FontWeight
+                                                  .w600,
+                                        ),
+                                      ), // Áp dụng màu chữ
+                                    ),
+                                    if (ex
+                                        .difficulty
+                                        .isNotEmpty)
+                                      Container(
+                                        padding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              _difficultyColor(
+                                                ex.difficulty,
+                                              ).withOpacity(
+                                                0.12,
+                                              ),
+                                          borderRadius:
+                                              BorderRadius.circular(
+                                                999,
+                                              ),
+                                          border: Border.all(
+                                            color: _difficultyColor(
+                                              ex.difficulty,
+                                            ).withOpacity(0.5),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          ex.difficulty,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight:
+                                                FontWeight
+                                                    .w600,
+                                            color: _difficultyColor(
+                                              ex.difficulty,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                   ],
                                 ),
-                                if (ex.prompt.isNotEmpty) ...[
+                                if (ex
+                                    .prompt
+                                    .isNotEmpty) ...[
                                   const SizedBox(height: 6),
-                                  Text(ex.prompt, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                                  Text(
+                                    ex.prompt,
+                                    maxLines: 2,
+                                    overflow: TextOverflow
+                                        .ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors
+                                          .grey
+                                          .shade700,
+                                    ),
+                                  ),
                                 ],
                               ],
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
+                          const Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -480,12 +711,27 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () => _viewScore(ex),
+                              onPressed: () =>
+                                  _viewScore(ex),
                               style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: AppColors.primary),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                side: BorderSide(
+                                  color: AppColors.primary,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                        8,
+                                      ),
+                                ),
                               ),
-                              child: const Text('Xem điểm', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+                              child: const Text(
+                                'Xem điểm',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight:
+                                      FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -502,84 +748,148 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     });
   }
 
-  Widget _buildContentStep(LessonProgressDetail detail, ActivityStatus activity) {
+  Widget _buildContentStep(
+    LessonProgressDetail detail,
+    ActivityStatus activity,
+  ) {
     final idx = _indexOf(LessonStep.content);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                'Bài ${detail.lessonTitle}',
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          detail.lessonTitle,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        if (detail.description.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text(
-            detail.description,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-              height: 1.5,
-            ),
-          ),
-        ],
-        const SizedBox(height: 24),
-        SizedBox(
+        Container(
           width: double.infinity,
-          child: Html(
-            data: activity.content.resourceUrl ?? '',
-            style: {
-              'body': Style(margin: Margins.zero, padding: HtmlPaddings.zero), // Loại bỏ margin/padding mặc định
-              'table': Style(width: Width(MediaQuery.of(context).size.width)), // Table full width
-              'th, td': Style(padding: HtmlPaddings.all(8), border: Border.all(color: Colors.grey.shade300)), // Style cho table cells
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.shade200,
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: HtmlWidget(
+            activity.content.resourceUrl ?? '',
+            textStyle: const TextStyle(
+              fontSize: 16,
+              height: 1.7,
+              color: Color(0xFF333333),
+            ),
+            customStylesBuilder: (element) {
+              if (element.localName == 'body') {
+                return {
+                  'font-family': 'Arial, sans-serif',
+                  'line-height': '1.6',
+                };
+              }
+              if (element.className == 'container') {
+                return {
+                  'max-width': '900px',
+                  'margin': 'auto',
+                };
+              }
+              if (element.localName == 'h1') {
+                return {
+                  'color': '#0056b3',
+                  'border-bottom': '2px solid #0056b3',
+                  'padding-bottom': '10px',
+                  'font-size': '28px',
+                };
+              }
+              if (element.localName == 'h2') {
+                return {
+                  'color': '#28a745',
+                  'margin-top': '25px',
+                  'font-size': '22px',
+                };
+              }
+              if (element.localName == 'h3') {
+                return {
+                  'color': '#ffc107',
+                  'margin-top': '15px',
+                  'font-size': '18px',
+                };
+              }
+              if (element.className == 'context-box') {
+                return {
+                  'background-color': '#f8f9fa',
+                  'border-left': '5px solid #007bff',
+                  'padding': '15px',
+                  'margin': '15px 0',
+                  'border-radius': '0 8px 8px 0',
+                };
+              }
+              if (element.localName == 'strong' &&
+                  element.parent?.localName == 'li') {
+                return {'color': '#dc3545'};
+              }
+              if (element.localName == 'table') {
+                return {
+                  'width': '100%',
+                  'border-collapse': 'collapse',
+                  'margin-top': '15px',
+                };
+              }
+              if (element.localName == 'th') {
+                return {
+                  'background-color': '#e9ecef',
+                  'padding': '12px',
+                  'text-align': 'left',
+                  'border': '1px solid #ddd',
+                };
+              }
+              if (element.localName == 'td') {
+                return {
+                  'padding': '12px',
+                  'border': '1px solid #ddd',
+                };
+              }
+              return null;
             },
+            enableCaching: true,
+            rebuildTriggers: [activity.content.resourceUrl],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         if (idx >= 0)
           Row(
             children: [
               Checkbox(
                 value: _stepChecked[idx],
-                onChanged: _stepChecked[idx] ? null : (val) {
-                  _onStepChecked(LessonStep.content, idx, val ?? false, detail.lessonId);
-                },
+                onChanged: _stepChecked[idx]
+                    ? null
+                    : (val) {
+                        _onStepChecked(
+                          LessonStep.content,
+                          idx,
+                          val ?? false,
+                          detail.lessonId,
+                        );
+                      },
               ),
-              const Text('Đã đọc nội dung bài học'),
+              const Text(
+                'Đã đọc nội dung bài học',
+                style: TextStyle(fontSize: 15),
+              ),
             ],
           ),
       ],
     );
   }
 
-  Widget _buildVideoStep(LessonProgressDetail detail, ActivityStatus activity) {
+  Widget _buildVideoStep(
+    LessonProgressDetail detail,
+    ActivityStatus activity,
+  ) {
     final idx = _indexOf(LessonStep.video);
     if (idx < 0) return const SizedBox.shrink();
 
-    if (!(activity.video.isAvailable && (activity.video.resourceUrl?.isNotEmpty ?? false))) {
+    if (!(activity.video.isAvailable &&
+        (activity.video.resourceUrl?.isNotEmpty ??
+            false))) {
       return _buildEmptyState(
         icon: Icons.video_library_outlined,
         message: 'Bài học này không có video',
@@ -589,62 +899,95 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Tiêu đề
         const Text(
           'Video bài học',
           style: TextStyle(
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: 16),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: VideoPlayerWidget(videoUrl: activity.video.resourceUrl!),
+        const SizedBox(height: 20),
+        SimpleVideoPlayer(
+          videoUrl: activity.video.resourceUrl!,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Container(
-          padding: const EdgeInsets.all(12),
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            borderRadius: BorderRadius.circular(8),
+            color: const Color(0xFFE3F2FD),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFF2196F3),
+              width: 1,
+            ),
           ),
           child: Row(
             children: [
-              Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
-              const SizedBox(width: 8),
+              Icon(
+                Icons.play_circle_outline,
+                color: Colors.blue.shade700,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Hãy xem kỹ video để hiểu rõ hơn về bài học này',
+                  'Hãy xem kỹ video/hướng dẫn để nắm rõ kiến thức và hoàn thành bài hiệu quả hơn nhé.',
                   style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.blue.shade700,
+                    fontSize: 14.5,
+                    color: Colors.blue.shade800,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 24),
         Row(
           children: [
             Checkbox(
               value: _stepChecked[idx],
-              onChanged: _stepChecked[idx] ? null : (val) {
-                _onStepChecked(LessonStep.video, idx, val ?? false, detail.lessonId);
-              },
+              activeColor: Colors.green,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+              onChanged: _stepChecked[idx]
+                  ? null
+                  : (val) {
+                      _onStepChecked(
+                        LessonStep.video,
+                        idx,
+                        val ?? false,
+                        detail.lessonId,
+                      );
+                    },
             ),
-            const Text('Đã xem video bài học'),
+            const Text(
+              'Đã xem xong video bài học',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildDocumentStep(LessonProgressDetail detail, ActivityStatus activity) {
+  Widget _buildDocumentStep(
+    LessonProgressDetail detail,
+    ActivityStatus activity,
+  ) {
     final idx = _indexOf(LessonStep.document);
     if (idx < 0) return const SizedBox.shrink();
 
-    if (!(activity.document.isAvailable && (activity.document.resourceUrl?.isNotEmpty ?? false))) {
+    if (!(activity.document.isAvailable &&
+        (activity.document.resourceUrl?.isNotEmpty ??
+            false))) {
       return _buildEmptyState(
         icon: Icons.description_outlined,
         message: 'Bài học này không có tài liệu PDF',
@@ -672,7 +1015,11 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
           ),
           child: Column(
             children: [
-              Icon(Icons.picture_as_pdf, size: 80, color: Colors.red.shade400),
+              Icon(
+                Icons.picture_as_pdf,
+                size: 80,
+                color: Colors.red.shade400,
+              ),
               const SizedBox(height: 16),
               Text(
                 detail.lessonTitle,
@@ -695,9 +1042,17 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                 onPressed: () {
                   final url = activity.document.resourceUrl;
                   if (url != null && url.isNotEmpty) {
-                    Get.to(() => PdfViewScreen(pdfUrl: url, title: detail.lessonTitle));
+                    Get.to(
+                      () => PdfViewScreen(
+                        pdfUrl: url,
+                        title: detail.lessonTitle,
+                      ),
+                    );
                   } else {
-                    Get.snackbar('Lỗi', 'Không tìm thấy tài liệu PDF');
+                    Get.snackbar(
+                      'Lỗi',
+                      'Không tìm thấy tài liệu PDF',
+                    );
                   }
                 },
                 icon: const Icon(Icons.picture_as_pdf),
@@ -705,7 +1060,10 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ],
@@ -720,7 +1078,11 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
           ),
           child: Row(
             children: [
-              Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+              Icon(
+                Icons.info_outline,
+                color: Colors.orange.shade700,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -738,9 +1100,16 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
           children: [
             Checkbox(
               value: _stepChecked[idx],
-              onChanged: _stepChecked[idx] ? null : (val) {
-                _onStepChecked(LessonStep.document, idx, val ?? false, detail.lessonId);
-              },
+              onChanged: _stepChecked[idx]
+                  ? null
+                  : (val) {
+                      _onStepChecked(
+                        LessonStep.document,
+                        idx,
+                        val ?? false,
+                        detail.lessonId,
+                      );
+                    },
             ),
             const Text('Đã xem tài liệu bài học'),
           ],
@@ -749,14 +1118,21 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     );
   }
 
-  Widget _buildEmptyState({required IconData icon, required String message}) {
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String message,
+  }) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 80, color: Colors.grey.shade300),
+            Icon(
+              icon,
+              size: 80,
+              color: Colors.grey.shade300,
+            ),
             const SizedBox(height: 16),
             Text(
               message,
@@ -772,11 +1148,20 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     );
   }
 
-  Widget _buildBottomNavigation(LessonProgressDetail detail) {
+  Widget _buildBottomNavigation(
+    LessonProgressDetail detail,
+  ) {
     // NEW: bỏ qua step Exercise khi tính hoàn thành
-    final allCompleted = _stepChecked.isNotEmpty &&
-        List.generate(_availableSteps.length, (i) => _availableSteps[i] == LessonStep.exercise ? true : _stepChecked[i]).every((c) => c);
-    final isLastStep = _currentStep == _availableSteps.length - 1;
+    final allCompleted =
+        _stepChecked.isNotEmpty &&
+        List.generate(
+          _availableSteps.length,
+          (i) => _availableSteps[i] == LessonStep.exercise
+              ? true
+              : _stepChecked[i],
+        ).every((c) => c);
+    final isLastStep =
+        _currentStep == _availableSteps.length - 1;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -800,10 +1185,16 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                       ? () => setState(() => _currentStep--)
                       : null,
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: AppColors.primary),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                    ),
+                    side: const BorderSide(
+                      color: AppColors.primary,
+                    ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(
+                        12,
+                      ),
                     ),
                   ),
                   child: const Text(
@@ -816,14 +1207,20 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                   ),
                 ),
               ),
-            if (_availableSteps.length > 1) const SizedBox(width: 12),
+            if (_availableSteps.length > 1)
+              const SizedBox(width: 12),
             Expanded(
               flex: 1,
               child: ElevatedButton(
                 onPressed: () async {
-
                   if (!isLastStep) {
-                    setState(() => _currentStep = (_currentStep + 1).clamp(0, _availableSteps.length - 1));
+                    setState(
+                      () => _currentStep =
+                          (_currentStep + 1).clamp(
+                            0,
+                            _availableSteps.length - 1,
+                          ),
+                    );
                     return;
                   }
 
@@ -850,17 +1247,22 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   elevation: 0,
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
                   children: [
                     Text(
-                      isLastStep ? 'Hoàn thành' : 'Tiếp theo',
+                      isLastStep
+                          ? 'Hoàn thành'
+                          : 'Tiếp theo',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -868,7 +1270,9 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
                     ),
                     const SizedBox(width: 8),
                     Icon(
-                      isLastStep ? Icons.check : Icons.arrow_forward,
+                      isLastStep
+                          ? Icons.check
+                          : Icons.arrow_forward,
                       size: 20,
                     ),
                   ],
@@ -881,17 +1285,29 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
     );
   }
 
-  Future<void> _onStepChecked(LessonStep step, int idx, bool checked, String lessonId) async {
+  Future<void> _onStepChecked(
+    LessonStep step,
+    int idx,
+    bool checked,
+    String lessonId,
+  ) async {
     // Nếu đã completed (từ server) hoặc đã log rồi ⇒ không làm lại
     if (_loggedSteps.contains(step) || _stepChecked[idx]) {
-      setState(() { _stepChecked[idx] = true; });
-      Get.snackbar('Thông báo', 'Mục này đã được hoàn thành.');
+      setState(() {
+        _stepChecked[idx] = true;
+      });
+      Get.snackbar(
+        'Thông báo',
+        'Mục này đã được hoàn thành.',
+      );
       return;
     }
     if (!checked) return;
 
     // Hiệu ứng UI ngay
-    setState(() { _stepChecked[idx] = true; });
+    setState(() {
+      _stepChecked[idx] = true;
+    });
 
     if (_isLogging) return;
     _isLogging = true;
@@ -905,10 +1321,12 @@ class _CourseLessonScreenState extends State<CourseLessonScreen> {
         metadata: '',
       );
 
-
       final curriculum = courseViewModel.curriculum.value;
-      if (curriculum != null && curriculum.enrollmentId.isNotEmpty) {
-        await courseViewModel.fetchCurriculum(curriculum.enrollmentId);
+      if (curriculum != null &&
+          curriculum.enrollmentId.isNotEmpty) {
+        await courseViewModel.fetchCurriculum(
+          curriculum.enrollmentId,
+        );
       }
     } catch (e) {
       Get.snackbar('Lỗi', 'Không thể cập nhật tiến độ.');
