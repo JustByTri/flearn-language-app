@@ -60,7 +60,7 @@ class service implements IRepository {
           }
           onAiMessageReceived?.call(payload);
         } catch (e) {
-          print('[service] on AIMessageReceived error: $e');
+          print('[service] AIMessageReceived parse error: $e');
         }
       });
 
@@ -87,6 +87,77 @@ class service implements IRepository {
       // NEW: nhận lỗi từ hub
       _hubConnection?.on('Error', (args) {
         print('🔹 Hub Error: $args');
+      });
+
+      // NEW: streaming events
+      _hubConnection?.on('StreamStart', (args) {
+        print('🔹 StreamStart: $args');
+        try {
+          final raw = (args != null && args.isNotEmpty) ? args[0] : null;
+          Map<String, dynamic> data;
+          if (raw is Map) {
+            data = raw.map((k, v) => MapEntry(k.toString(), v));
+          } else if (raw is String) {
+            data = jsonDecode(raw) as Map<String, dynamic>;
+          } else {
+            return;
+          }
+          onAiMessageReceived?.call({
+            'event': 'StreamStart',
+            'messageId': data['messageId'],
+            'messageType': data['messageType'],
+            'sender': 'AI',
+          });
+        } catch (e) {
+          print('[service] StreamStart parse error: $e');
+        }
+      });
+      _hubConnection?.on('StreamChunk', (args) {
+        try {
+          final raw = (args != null && args.isNotEmpty) ? args[0] : null;
+          Map<String, dynamic> data;
+          if (raw is Map) {
+            data = raw.map((k, v) => MapEntry(k.toString(), v));
+          } else if (raw is String) {
+            data = jsonDecode(raw) as Map<String, dynamic>;
+          } else {
+            return;
+          }
+          // data: {chunk: "...", fullTextSoFar: "...", messageId: "..."}
+          onAiMessageReceived?.call({
+            'event': 'StreamChunk',
+            'messageId': data['messageId'],
+            'chunk': data['chunk'],
+            'fullText': data['fullTextSoFar'],
+            'sender': 'AI',
+          });
+        } catch (e) {
+          print('[service] StreamChunk parse error: $e');
+        }
+      });
+      _hubConnection?.on('MessageProcessed', (args) {
+        print('🔹 MessageProcessed: $args');
+        try {
+          final raw = (args != null && args.isNotEmpty) ? args[0] : null;
+          Map<String, dynamic> data;
+          if (raw is Map) {
+            data = raw.map((k, v) => MapEntry(k.toString(), v));
+          } else if (raw is String) {
+            data = jsonDecode(raw) as Map<String, dynamic>;
+          } else {
+            return;
+          }
+          final ai = data['aiMessage'] ?? data['ai_message'];
+          final user = data['userMessage'] ?? data['user_message'];
+
+          onAiMessageReceived?.call({
+            'event': 'MessageProcessed',
+            'aiMessage': ai,
+            'userMessage': user,
+          });
+        } catch (e) {
+          print('[service] MessageProcessed parse error: $e');
+        }
       });
 
       await _hubConnection?.start();

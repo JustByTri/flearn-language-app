@@ -3,7 +3,7 @@ import 'course_unit.dart';
 
 class CourseDetail {
   final String courseId;
-  final String templateId;
+
   final String language;
   final Program program;
   final Teacher teacher;
@@ -33,7 +33,6 @@ class CourseDetail {
 
   CourseDetail({
     required this.courseId,
-    required this.templateId,
     required this.language,
     required this.program,
     required this.teacher,
@@ -81,7 +80,6 @@ class CourseDetail {
 
     return CourseDetail(
       courseId: json['courseId'],
-      templateId: json['templateId'],
       language: json['language'],
       program: Program.fromJson(json['program']),
       teacher: Teacher.fromJson(json['teacher']),
