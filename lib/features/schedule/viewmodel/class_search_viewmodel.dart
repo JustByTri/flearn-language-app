@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../model/schedule_model.dart';
+import '../view/schedule_payment_webview_screen.dart';
 
 class ClassSearchViewModel extends GetxController {
   final IScheduleRepository service;
@@ -39,6 +40,9 @@ class ClassSearchViewModel extends GetxController {
   var totalPages = 1.obs;
   final int pageSize = 10; // can adjust later
   var isLoadingMore = false.obs;
+
+  // Lưu danh sách classId vừa thanh toán thành công
+  final recentlyPaidClassIds = <String>{}.obs;
 
   @override
   void onInit() {
@@ -201,20 +205,73 @@ class ClassSearchViewModel extends GetxController {
       final data = (response['data'] as Map?) ?? response;
       final paymentUrl = data['paymentUrl'] as String?;
       _lastTransactionId = data['transactionId']?.toString();
-      _lastAmount = (data['amount'] is int) ? data['amount'] as int : int.tryParse('${data['amount']}');
 
-      print('Payment URL: $paymentUrl');
+      // Sửa parse amount an toàn
+      final rawAmount = data['amount'];
+      int? parsedAmount;
+      if (rawAmount is int) {
+        parsedAmount = rawAmount;
+      } else if (rawAmount is double) {
+        parsedAmount = rawAmount.round();
+      } else if (rawAmount is String) {
+        parsedAmount = int.tryParse(rawAmount) ??
+            double.tryParse(rawAmount)?.round();
+      }
+      _lastAmount = parsedAmount;
+
+      debugPrint('[BOOK] paymentUrl=$paymentUrl transactionId=$_lastTransactionId rawAmount=$rawAmount parsedAmount=$_lastAmount');
 
       if (paymentUrl != null && paymentUrl.isNotEmpty) {
-        final uri = Uri.parse(paymentUrl);
-        if (await canLaunchUrl(uri)) {
-          _lastBookedClassId = classId;
-          _waitingForPayment = true;
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        _lastBookedClassId = classId;
+        _waitingForPayment = true;
+        final paid = await Get.to<bool>(() => PaymentScheduleWebViewScreen(
+          paymentUrl: paymentUrl,
+          transactionId: _lastTransactionId ?? '',
+          classId: classId,
+          amount: _lastAmount ?? 0,
+        ));
+
+        _waitingForPayment = false;
+
+        if (paid == true &&
+            _lastTransactionId != null &&
+            _lastAmount != null) {
+          await _confirmAndRefresh(classId: classId);
+        } else if (paid == true) {
+          // Trường hợp WebView trả true nhưng thiếu dữ liệu -> coi như lỗi nhẹ
+          Get.snackbar(
+            'Thông báo',
+            'Thiếu dữ liệu giao dịch. Vui lòng thử thanh toán lại.',
+            snackPosition: SnackPosition.BOTTOM,
+          );
+          _lastBookedClassId = null;
+          _lastTransactionId = null;
+          _lastAmount = null;
+        } else if (paid == false) {
+          Get.snackbar(
+            'Đã hủy',
+            'Bạn đã hủy hoặc thanh toán không thành công.',
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.orange.shade100,
+            colorText: Colors.black,
+          );
+          _lastBookedClassId = null;
+          _lastTransactionId = null;
+          _lastAmount = null;
         } else {
-          Get.snackbar('Lỗi', 'Không thể mở trang thanh toán. Vui lòng thử lại.');
+          Get.snackbar(
+            'Thông báo',
+            'Đã đóng trang thanh toán trước khi hoàn tất.',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.orange.shade100,
+            colorText: Colors.black,
+          );
+          _lastBookedClassId = null;
+          _lastTransactionId = null;
+          _lastAmount = null;
         }
       } else {
+        // Không cần thanh toán
         Get.snackbar('Thành công', 'Bạn đã đặt lớp thành công!');
         await searchClasses();
       }
@@ -231,49 +288,59 @@ class ClassSearchViewModel extends GetxController {
       } else {
         Get.snackbar('Lỗi', 'Đặt lịch thất bại. Vui lòng thử lại sau.');
       }
-      print('bookClass error: $e');
+      debugPrint('[BOOK] error: $e');
     } finally {
       isBooking.value = false;
     }
   }
 
-  void onAppResumed() {
-    if (_waitingForPayment && _lastBookedClassId != null) {
-      _waitingForPayment = false;
+  Future<void> _confirmAndRefresh({required String classId}) async {
+    try {
+      if (_lastTransactionId == null || _lastAmount == null) {
+        Get.snackbar('Lỗi', 'Thiếu dữ liệu giao dịch để xác nhận.');
+        return;
+      }
+      final user = GetStorage().read('user') as Map?;
+      final studentId = user?['userID']?.toString() ?? user?['id']?.toString() ?? '';
+      if (studentId.isEmpty) {
+        Get.snackbar('Lỗi', 'Không tìm thấy mã học viên.');
+        return;
+      }
 
-      Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+      final ok = await service.confirmPaymentCallback(
+        transactionId: _lastTransactionId!,
+        amount: _lastAmount!,
+        classId: classId,
+        studentId: studentId,
+      );
 
-      Future.delayed(const Duration(seconds: 1), () async {
-        try {
-          final user = GetStorage().read('user') as Map?;
-          final studentId = user?['userID']?.toString() ?? user?['id']?.toString() ?? '';
+      await searchClasses();
 
-          final ok = (_lastTransactionId != null && _lastAmount != null && studentId.isNotEmpty)
-              ? await service.confirmPaymentCallback(
-            transactionId: _lastTransactionId!,
-            amount: _lastAmount!,
-            classId: _lastBookedClassId!,
-            studentId: studentId,
-          )
-              : false;
-
-          await searchClasses();
-
-          Get.back();
-          if (ok) {
-            Get.snackbar('Thành công', 'Thanh toán thành công. Lịch học của bạn đã được xác nhận.');
-          } else {
-            Get.snackbar('Thông báo', 'Không xác nhận được thanh toán. Vui lòng kiểm tra đơn hàng.');
-          }
-        } catch (e) {
-          Get.back();
-          Get.snackbar('Lỗi', 'Không thể cập nhật trạng thái lịch học.');
-        } finally {
-          _lastBookedClassId = null;
-          _lastTransactionId = null;
-          _lastAmount = null;
-        }
-      });
+      if (ok) {
+        _markClassPaid(classId); // <-- đánh dấu lớp vừa thanh toán
+        Get.snackbar('Thành công', 'Thanh toán thành công. Lịch học đã được xác nhận.');
+      } else {
+        Get.snackbar('Thông báo', 'Không xác nhận được thanh toán. Vui lòng kiểm tra đơn hàng.');
+      }
+    } catch (e) {
+      Get.snackbar('Lỗi', 'Không thể cập nhật trạng thái lịch học.');
+      debugPrint('[CONFIRM] error: $e');
+    } finally {
+      _lastBookedClassId = null;
+      _lastTransactionId = null;
+      _lastAmount = null;
     }
+  }
+
+  // Vì đã dùng WebView nội bộ, không cần xác nhận lại khi resume
+  void onAppResumed() {
+    // Giữ trống hoặc bỏ hẳn nếu không còn flow mở trình duyệt ngoài
+  }
+
+  bool shouldShowViewScheduleFor(String classId) =>
+      recentlyPaidClassIds.contains(classId);
+
+  void _markClassPaid(String classId) {
+    recentlyPaidClassIds.add(classId);
   }
 }

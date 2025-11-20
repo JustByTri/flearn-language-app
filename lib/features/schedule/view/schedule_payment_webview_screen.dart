@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class PaymentScheduleWebViewScreen extends StatefulWidget {
   final String paymentUrl;
@@ -69,11 +68,11 @@ class _PaymentScheduleWebViewScreenState extends State<PaymentScheduleWebViewScr
           },
           onNavigationRequest: (req) {
             final url = req.url;
-            // Nếu là scheme ngoài (app ngân hàng, tel, intent, …) thì mở ngoài
             final uri = Uri.tryParse(url);
+            // Chỉ prevent nếu là scheme ngoài, KHÔNG gọi launchUrl
             if (uri != null &&
                 !['http','https','about','data','blob'].contains(uri.scheme)) {
-              launchUrl(uri, mode: LaunchMode.externalApplication);
+              // Có thể show thông báo hoặc ignore, KHÔNG mở ngoài app
               return NavigationDecision.prevent;
             }
             _inspect(url);
@@ -91,33 +90,32 @@ class _PaymentScheduleWebViewScreenState extends State<PaymentScheduleWebViewScr
   void _inspect(String url) {
     if (_finished) return;
     final lower = url.toLowerCase();
+
     final success = _successIndicators.any((p) => lower.contains(p.toLowerCase()));
     final cancel = _cancelIndicators.any((p) => lower.contains(p.toLowerCase()));
 
-    // Ưu tiên đọc query chính xác nếu có
     try {
       final uri = Uri.parse(url);
       final status = uri.queryParameters['status'];
       final code = uri.queryParameters['code'];
       final cancelParam = uri.queryParameters['cancel'];
-      final isSuccess = (status == 'PAID' && code == '00');
       final isCancel = (status == 'CANCELLED') || (cancelParam == 'true') || (code == '01');
+      final isSuccess = (status == 'PAID' && code == '00');
 
-      if (isSuccess || success) {
-        _finished = true;
-        Get.back(result: true);
-        return;
-      }
+      // Ưu tiên hủy nếu có dấu hiệu hủy
       if (isCancel || cancel) {
         _finished = true;
         Get.back(result: false);
         return;
       }
+      if (isSuccess || success) {
+        _finished = true;
+        Get.back(result: true);
+        return;
+      }
     } catch (_) {
-      // ignore parse error
+      // parse error -> bỏ qua
     }
-
-    // Không khớp gì thì tiếp tục
   }
 
   Future<bool> _onWillPop() async {

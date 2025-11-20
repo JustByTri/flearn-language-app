@@ -49,6 +49,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   List<Language> _languages = [];
+  Set<String> _switchedLanguages = {};
   String? _selectedLanguageId;
   bool _isLoadingLanguages = true;
   String? _selectedTopicName;
@@ -80,6 +81,9 @@ class _HomeScreenState extends State<HomeScreen>
 
     courseProgressViewModel = Get.put(CourseProgressViewModel(Get.find()));
     courseProgressViewModel.fetchMyCourses();
+    if (_selectedLanguageId != null) {
+      _switchedLanguages.add(_selectedLanguageId!);
+    }
   }
 
   @override
@@ -228,10 +232,42 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _handleLanguageChange(String languageId) async {
+    if (languageId == _selectedLanguageId) {
+      Get.dialog(
+        AlertDialog(
+          title: const Text('Thông báo'),
+          content: const Text('Bạn đang ở ngôn ngữ này rồi.'),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (_switchedLanguages.contains(languageId)) {
+      final selectedLanguage = _languages.firstWhere((lang) => lang.id == languageId, orElse: () => Language(id: '', langName: '', langCode: ''));
+      await Get.dialog(
+        AlertDialog(
+          title: const Text('Thông báo'),
+          content: Text('Chào mừng trở lại, bạn đã sẵn sàng học ngôn ngữ ${selectedLanguage.langName}.'),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+     // return;
+    }
     final box = GetStorage();
     final token = box.read('accessToken');
 
-    Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+    // Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
     try {
       final response = await _dio.post(
         'https://f-learn.app/api/VoiceAssessment/switch-language/$languageId',
@@ -291,6 +327,7 @@ class _HomeScreenState extends State<HomeScreen>
         if (mounted) {
           setState(() {
             _selectedLanguageId = languageId;
+            _switchedLanguages.add(languageId);
           });
         }
         await _loadInitialData();
