@@ -876,6 +876,7 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
       child: SafeArea(
         child: ElevatedButton(
           onPressed: () => Get.offAll(() => const NavigationMenu()),
+
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             padding: const EdgeInsets.symmetric(vertical: 16),
