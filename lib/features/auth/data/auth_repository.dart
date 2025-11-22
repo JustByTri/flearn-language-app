@@ -51,4 +51,18 @@ abstract class IAuthRepository {
   });
 
   Future<List<Map<String, dynamic>>> fetchRefundRequests();
+
+  Future<Map<String, dynamic>?> getCoursePurchaseHistory({
+    int page = 1,
+    int pageSize = 10,
+    String sortBy = 'newest',
+  });
+
+  Future<Map<String, dynamic>?> getSubscriptionPurchaseHistory({
+    int page = 1,
+    int pageSize = 10,
+    String sortBy = 'newest',
+  });
+
+  Future<Map<String, dynamic>?> getCoursePurchaseDetail(String purchaseId);
 }

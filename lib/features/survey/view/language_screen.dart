@@ -88,8 +88,10 @@ class _LanguageScreenState extends State<LanguageScreen> {
   }
 
   Widget _buildLanguageCard(String languageId, String languageName) {
-    final displayName = languageNameVi[languageName] ?? languageName;
-    final flagEmoji = flagEmojis[languageName] ?? '🏳️';
+    final trimmedName = languageName.trim();  // Trim to handle potential spaces
+    final displayName = languageNameVi[trimmedName] ?? trimmedName;
+    final flagEmoji = flagEmojis[trimmedName] ?? '🏳️';  // Simplify to direct lookup for now
+    print('Original Language Name: "$languageName", Trimmed: "$trimmedName", Map contains key: ${flagEmojis.containsKey(trimmedName)}, Flag Emoji: $flagEmoji');  // DEBUG: Add this
     return InkWell(
       onTap: () {
         final box = GetStorage();
@@ -136,14 +138,16 @@ class _LanguageScreenState extends State<LanguageScreen> {
 
   final Map<String, String> languageNameVi = {
     'English': 'Tiếng Anh',
-    'Japanese': 'Tiếng Nhật',
+    'Japan': 'Tiếng Nhật',  // Add this
+    'Japanese': 'Tiếng Nhật',  // Keep for compatibility
     'Chinese': 'Tiếng Trung',
     'Vietnamese': 'Tiếng Việt',
   };
 
   final Map<String, String> flagEmojis = {
     'English': '🇬🇧',
-    'Japanese': '🇯🇵',
+    'Japan': '🇯🇵',  // Add this
+    'Japanese': '🇯🇵',  // Keep for compatibility
     'Chinese': '🇨🇳',
     'Vietnamese': '🇻🇳',
   };

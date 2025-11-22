@@ -169,12 +169,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             setState(() => _emailError = null);
                           }
                         },
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Vui lòng nhập email';
-                          final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@gmail\.com$');
-                          if (!emailRegex.hasMatch(v)) return 'Email phải là @gmail.com';
-                          return null;
-                        },
+                        // validator: (v) {
+                        //   if (v == null || v.isEmpty) return 'Vui lòng nhập email';
+                        //   final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@gmail\.com$');
+                        //   if (!emailRegex.hasMatch(v)) return 'Email phải là @gmail.com';
+                        //   return null;
+                        // },
                       ),
                       const SizedBox(height: 20),
 

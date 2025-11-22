@@ -349,4 +349,69 @@ class AuthService implements IAuthRepository {
   }
 
 
+  @override
+  Future<Map<String, dynamic>?> getCoursePurchaseHistory({
+    int page = 1,
+    int pageSize = 10,
+    String sortBy = 'newest',
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/courses?Page=$page&PageSize=$pageSize&SortBy=$sortBy');
+    final res = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null && accessToken.toString().isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      },
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('getCoursePurchaseHistory failed ${res.statusCode}: ${res.body}');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getSubscriptionPurchaseHistory({
+    int page = 1,
+    int pageSize = 10,
+    String sortBy = 'newest',
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/subscription?Page=$page&PageSize=$pageSize&SortBy=$sortBy');
+    final res = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null && accessToken.toString().isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      },
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('getSubscriptionPurchaseHistory failed ${res.statusCode}: ${res.body}');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getCoursePurchaseDetail(String purchaseId) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/$purchaseId/details');
+    final res = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null && accessToken.toString().isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      },
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('getCoursePurchaseDetail failed ${res.statusCode}: ${res.body}');
+    }
+  }
+
 }

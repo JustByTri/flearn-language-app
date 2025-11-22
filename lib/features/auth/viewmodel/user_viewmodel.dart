@@ -5,7 +5,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
 
 import '../data/auth_repository.dart';
+import '../model/course_purchase_detail.dart';
+import '../model/course_purchase_history.dart';
 import '../model/purchase_history.dart';
+import '../model/subcription_purchase_history.dart';
 
 class UserViewModel extends GetxController {
   final IAuthRepository _authRepository;
@@ -128,6 +131,83 @@ class UserViewModel extends GetxController {
       refundRequests.clear();
     } finally {
       isLoadingRefundRequests.value = false;
+    }
+  }
+
+  var isLoadingCoursePurchases = false.obs;
+  var coursePurchases = <CoursePurchase>[].obs;
+  var coursePurchaseMeta = Rxn<CoursePurchaseMeta>();
+
+  Future<void> fetchCoursePurchaseHistory({
+    int page = 1,
+    int pageSize = 10,
+    String sortBy = 'newest',
+  }) async {
+    try {
+      isLoadingCoursePurchases.value = true;
+      final resp = await _authRepository.getCoursePurchaseHistory(
+        page: page,
+        pageSize: pageSize,
+        sortBy: sortBy,
+      );
+      final items = (resp?['data'] as List<dynamic>? ?? [])
+          .map((e) => CoursePurchase.fromJson(e as Map<String, dynamic>))
+          .toList();
+      coursePurchases.assignAll(items);
+      coursePurchaseMeta.value = CoursePurchaseMeta.fromJson(resp?['meta'] ?? {});
+    } catch (e) {
+      debugPrint('fetchCoursePurchaseHistory error: $e');
+      coursePurchases.clear();
+      coursePurchaseMeta.value = null;
+    } finally {
+      isLoadingCoursePurchases.value = false;
+    }
+  }
+
+  var isLoadingSubscriptionPurchases = false.obs;
+  var subscriptionPurchases = <SubscriptionPurchase>[].obs;
+  var subscriptionPurchaseMeta = Rxn<SubscriptionPurchaseMeta>();
+
+  Future<void> fetchSubscriptionPurchaseHistory({
+    int page = 1,
+    int pageSize = 10,
+    String sortBy = 'newest',
+  }) async {
+    try {
+      isLoadingSubscriptionPurchases.value = true;
+      final resp = await _authRepository.getSubscriptionPurchaseHistory(
+        page: page,
+        pageSize: pageSize,
+        sortBy: sortBy,
+      );
+      final items = (resp?['data'] as List<dynamic>? ?? [])
+          .map((e) => SubscriptionPurchase.fromJson(e as Map<String, dynamic>))
+          .toList();
+      subscriptionPurchases.assignAll(items);
+      subscriptionPurchaseMeta.value = SubscriptionPurchaseMeta.fromJson(resp?['meta'] ?? {});
+    } catch (e) {
+      debugPrint('fetchSubscriptionPurchaseHistory error: $e');
+      subscriptionPurchases.clear();
+      subscriptionPurchaseMeta.value = null;
+    } finally {
+      isLoadingSubscriptionPurchases.value = false;
+    }
+  }
+
+
+  var isLoadingCoursePurchaseDetail = false.obs;
+  var coursePurchaseDetail = Rxn<CoursePurchaseDetail>();
+
+  Future<void> fetchCoursePurchaseDetail(String purchaseId) async {
+    try {
+      isLoadingCoursePurchaseDetail.value = true;
+      final resp = await _authRepository.getCoursePurchaseDetail(purchaseId);
+      coursePurchaseDetail.value = CoursePurchaseDetail.fromJson(resp?['data'] ?? {});
+    } catch (e) {
+      debugPrint('fetchCoursePurchaseDetail error: $e');
+      coursePurchaseDetail.value = null;
+    } finally {
+      isLoadingCoursePurchaseDetail.value = false;
     }
   }
 
