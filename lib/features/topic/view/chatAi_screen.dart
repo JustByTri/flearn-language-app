@@ -13,14 +13,17 @@ import 'package:flearn_app/features/topic/viewmodel/topic_viewmodel.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:get_storage/get_storage.dart';
 import 'package:translator/translator.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-
+import 'package:model_viewer_plus/model_viewer_plus.dart';
 import '../../../core/constants/colors.dart';
 import '../../topic/model/topic.dart';
 import '../model/conversation_session.dart';
 import 'conversation_result_screen.dart';
-
+import 'package:openai_tts/openai_tts.dart';
+import 'package:flutter_azure_tts/flutter_azure_tts.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 class ChatScreen extends StatefulWidget {
   final TopicModel topic;
   final Map<String, dynamic> conversationData;
@@ -34,38 +37,77 @@ class ChatScreen extends StatefulWidget {
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
+
 enum RecordingState { idle, recording, paused }
 
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  final String _azureOpenAIEndpoint = dotenv.env['AZURE_OPENAI_ENDPOINT'] ?? '';
+  final String _azureOpenAIKey = dotenv.env['AZURE_OPENAI_KEY'] ?? '';
+  String _selectedVoiceId = 'alloy';
   final _messages = <ChatMessage>[];
   final _recorder = AudioRecorder();
   final _audioPlayer = AudioPlayer();
   final _topicViewModel = Get.find<TopicViewModel>();
   final FocusNode _textFocusNode = FocusNode();
   final FlutterTts _flutterTts = FlutterTts();
+  String _getReadySample() {
+    final user = GetStorage().read('user');
 
+    // Debug: In toàn bộ user ra để soi xem bên trong có gì
+    print("📦 User Storage Data: $user");
+
+
+    String lang = (user?['languageCode'] ?? 'en').toString().toLowerCase();
+
+    print("🗣️ Current Language ID: $lang");
+
+    switch (lang) {
+      case 'ja':
+        return "準備ができました。";
+      case 'zh':
+        return "我准备好了。";
+      case 'en':
+      default:
+        return "I am ready.";
+    }
+  }
+  int _lastSpokenLength = 0;
+  final List<String> _ttsQueue = []; // Hàng đợi các câu cần đọc
+  bool _isTtsProcessing = false;
   bool _isRecording = false;
   bool _isTyping = false;
   bool _isEnding = false;
+  bool _isCharacterTalking = false;
   String? _sessionId;
+
+  String _sentenceBuffer = "";
   ConversationSessionModel? _sessionModel;
 
   RecordingState _recordingState = RecordingState.idle;
   String? _pausedRecordingPath;
   Duration _recordingDuration = Duration.zero;
-
+  List<Map<String, String>> _availableVoices = [];
+  String? _selectedVoiceName;
   Timer? _recordingTimer;
   bool _showRecordingOverlay = false;
   int _waveformBarsCount = 0;
-
+  OpenaiTTSVoice _selectedOpenAiVoice = OpenaiTTSVoice.alloy;
   ChatMessage? _playingVoiceMessage;
   int _playingVoiceProgress = 0;
   Timer? _voicePlaybackTimer;
   StreamSubscription? _voiceCompletionSub;
   Duration _currentPlaybackPosition = Duration.zero;
-
+  late OpenaiTTS _openaiTTS;
+  final List<Map<String, String>> _openAiVoices = [
+    {'id': 'alloy', 'name': 'Alloy (Trung tính - Phổ biến)'},
+    {'id': 'echo', 'name': 'Echo (Nam - Trầm ấm)'},
+    {'id': 'fable', 'name': 'Fable (Giọng kể chuyện)'},
+    {'id': 'onyx', 'name': 'Onyx (Nam - Mạnh mẽ)'},
+    {'id': 'nova', 'name': 'Nova (Nữ - Vui vẻ)'},
+    {'id': 'shimmer', 'name': 'Shimmer (Nữ - Nhẹ nhàng)'},
+  ];
   final Set<ChatMessage> _translatedMessages = {};
   bool _isRoleTranslated = false;
   final GoogleTranslator _translator = GoogleTranslator();
@@ -75,8 +117,109 @@ class _ChatScreenState extends State<ChatScreen> {
   Offset _taskButtonPosition = Offset(Get.width - 80, Get.height - 250);
   Map<int, bool> _isTranslatingTask = {};
   Map<int, String?> _translatedTaskText = {};
+  Future<void> _initVoices() async {
+    try {
+      // Đợi một chút để engine khởi động trên máy thật
+      await Future.delayed(const Duration(milliseconds: 500));
 
+      List<dynamic> voices = await _flutterTts.getVoices;
+      print("🔊 Raw Voices List: $voices"); // Check log xem máy trả về gì
 
+      _availableVoices = [];
+
+      // 1. LUÔN THÊM GIỌNG MẶC ĐỊNH (Để không bao giờ bị danh sách trống)
+      _availableVoices.add({
+        'name': 'System Default',
+        'locale': 'en-US'
+      });
+
+      // 2. Lọc và thêm các giọng khác
+      for (var v in voices) {
+        Map<String, String> voiceMap = {};
+        if (v is Map) {
+          voiceMap['name'] = v['name']?.toString() ?? 'Unknown';
+          voiceMap['locale'] = (v['locale'] ?? v['language'])?.toString() ?? '';
+        }
+
+        // Lấy các giọng tiếng Anh
+        if (voiceMap['locale']!.toLowerCase().contains('en')) {
+          _availableVoices.add(voiceMap);
+        }
+      }
+
+      // 3. Xóa trùng lặp (nếu có) và Sắp xếp
+      final ids = <String>{};
+      _availableVoices.retainWhere((x) => ids.add(x['name']!));
+
+      // Sắp xếp: Default lên đầu, còn lại theo tên
+      _availableVoices.sort((a, b) {
+        if (a['name'] == 'System Default') return -1;
+        if (b['name'] == 'System Default') return 1;
+        return a['name']!.compareTo(b['name']!);
+      });
+
+      if (mounted) setState(() {});
+
+    } catch (e) {
+      print("❌ Error loading voices: $e");
+
+      _availableVoices = [{'name': 'System Default', 'locale': 'en-US'}];
+      if (mounted) setState(() {});
+    }
+  }
+  Future<void> _speakAzureOpenAI(String text, {String? previewVoiceId}) async {
+    if (text.trim().isEmpty) return;
+
+    await _audioPlayer.stop();
+
+    // Nếu là nghe thử thì không cần bật animation nhân vật cũng được,
+    // hoặc cứ bật nếu bạn muốn nhân vật nhép môi theo mẫu thử.
+    if (mounted) setState(() => _isCharacterTalking = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse(_azureOpenAIEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': _azureOpenAIKey,
+        },
+        body: jsonEncode({
+          "model": "tts-1",
+          "input": text,
+
+          // ✅ LOGIC QUAN TRỌNG: Ưu tiên giọng nghe thử, nếu không thì dùng giọng đã chọn
+          "voice": previewVoiceId ?? _selectedVoiceId,
+
+          "response_format": "mp3",
+          "speed": 1.1
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final dir = await getApplicationDocumentsDirectory();
+        final filePath = '${dir.path}/azure_tts_${DateTime.now().millisecondsSinceEpoch}.mp3';
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        await _audioPlayer.play(DeviceFileSource(filePath));
+
+        final completer = Completer<void>();
+        final sub = _audioPlayer.onPlayerComplete.listen((_) {
+          if (!completer.isCompleted) completer.complete();
+        });
+        await completer.future;
+        sub.cancel();
+
+        if (await file.exists()) await file.delete();
+      } else {
+        print("Azure Error: ${response.body}");
+      }
+    } catch (e) {
+      print("API Exception: $e");
+    } finally {
+      if (mounted) setState(() => _isCharacterTalking = false);
+    }
+  }
   bool _isHeaderVisible = true;
   bool _isTextMode = false;
 
@@ -108,14 +251,204 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // NEW: tránh thêm trùng tin nhắn AI cuối cùng
   final Set<String> _processedMessageIds = {};
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Tải trước 2 ảnh vào bộ nhớ đệm để dùng là hiện ngay, không cần load lại
+    precacheImage(const AssetImage('assets/images/s.png'), context);
+    precacheImage(const AssetImage('assets/images/m.png'), context);
+  }
+
 
   @override
   void initState() {
     super.initState();
+
     _initializeChat();
     _initializeTts();
-  }
 
+  }
+  void _showVoiceSelectionSheet() {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            const Text(
+              "Chọn giọng đọc AI",
+              style: TextStyle(fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              "Nhấn vào loa để nghe thử",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _openAiVoices.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final voice = _openAiVoices[index];
+                  final isSelected = _selectedVoiceId == voice['id'];
+
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    // Phần Icon bên trái
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primary.withOpacity(0.1)
+                            : Colors.grey[100],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        ['alloy', 'echo', 'onyx'].contains(voice['id'])
+                            ? Icons.face
+                            : Icons.face_3,
+                        color: isSelected ? AppColors.primary : Colors.grey,
+                      ),
+                    ),
+
+                    // Tên giọng
+                    title: Text(
+                      voice['name']!,
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight
+                            .normal,
+                        color: isSelected ? AppColors.primary : Colors.black87,
+                      ),
+                    ),
+
+                    // ✅ PHẦN NÚT NGHE THỬ & CHECKMARK
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Nút Loa để nghe thử (Không chọn, không đóng bảng)
+                        IconButton(
+                          icon: const Icon(Icons.volume_up_rounded, color: Colors.grey),
+                          onPressed: () {
+
+                            _speakAzureOpenAI(
+                                _getReadySample(),
+                                previewVoiceId: voice['id']
+                            );
+                          },
+                        ),
+                        // Dấu tích nếu đang chọn
+                        if (isSelected)
+                          const Icon(
+                              Icons.check_circle, color: AppColors.primary),
+                      ],
+                    ),
+
+                    // Bấm vào dòng -> Chọn giọng và đóng bảng
+                    onTap: () {
+                      setState(() => _selectedVoiceId = voice['id']!);
+
+                      Get.back();
+
+                      // ✅ CẬP NHẬT: Lấy câu mẫu theo ngôn ngữ
+                      String sampleText = _getReadySample();
+
+                      // Đọc ngay lập tức
+                      Future.delayed(const Duration(milliseconds: 200), () {
+                        _forceSpeak(sampleText, _messages.length);
+                      });
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+  Future<void> _speakChunk(String text) async {
+    if (text.trim().isEmpty) return;
+
+    // Thêm vào hàng đợi
+    _ttsQueue.add(text);
+
+    // Nếu đang rảnh thì xử lý ngay
+    if (!_isTtsProcessing) {
+      _processTtsQueue();
+    }
+  }
+  Future<void> _speakOpenAI(String text) async {
+    if (text.trim().isEmpty) return;
+
+    // Dừng audio cũ nếu có
+    await _openaiTTS.stopPlayer();
+
+    // Tạo Completer để đợi đọc xong
+    final completer = Completer<void>();
+
+    try {
+      // Lắng nghe stream trạng thái
+      final subscription = _openaiTTS.ttsStatusStream.listen((status) {
+        if (status == OpenaiTTSStatus.stopped || status == OpenaiTTSStatus.completed) {
+          if (!completer.isCompleted) completer.complete();
+        }
+      });
+
+      // Gọi hàm đọc
+      await _openaiTTS.createSpeak(
+        text, // ✅ Sửa: Text là tham số đầu tiên
+        voice: _selectedOpenAiVoice,
+        model: OpenaiTTSModel.tts1,
+        // ❌ Đã xóa 'speed' vì thư viện không hỗ trợ
+      );
+
+      // Đợi cho đến khi Stream báo là đã dừng
+      await completer.future;
+
+      // Hủy lắng nghe tạm
+      await subscription.cancel();
+
+    } catch (e) {
+      print("OpenAI TTS Error: $e");
+      if (!completer.isCompleted) completer.complete();
+    }
+  }
+    // Hàm xử lý hàng đợi (Đọc lần lượt)
+  Future<void> _processTtsQueue() async {
+    if (_isTtsProcessing || _ttsQueue.isEmpty) return;
+
+    _isTtsProcessing = true;
+
+    try {
+      while (_ttsQueue.isNotEmpty) {
+        String textToSpeak = _ttsQueue.removeAt(0);
+
+        // ✅ GỌI HÀM AZURE (Có await để đọc nối đuôi)
+        await _speakAzureOpenAI(textToSpeak);
+      }
+    } catch (e) {
+      print("Queue Error: $e");
+    } finally {
+      _isTtsProcessing = false;
+      if (mounted) setState(() => _isCharacterTalking = false);
+    }
+  }
   Future<void> _initializeTts() async {
     try {
       // Thử khởi tạo TTS với timeout
@@ -125,23 +458,34 @@ class _ChatScreenState extends State<ChatScreen> {
           throw Exception('TTS initialization timeout');
         },
       );
-
-      await _flutterTts.setSpeechRate(0.5); // Tốc độ đọc (0.0 - 1.0)
+      await _flutterTts.awaitSpeakCompletion(true);
+      await _flutterTts.setSpeechRate(1.0); // Tốc độ đọc (0.0 - 1.0)
       await _flutterTts.setVolume(1.0); // Âm lượng (0.0 - 1.0)
       await _flutterTts.setPitch(1.0); // Cao độ giọng nói
-
+      _flutterTts.setStartHandler(() {
+        if (mounted) setState(() => _isCharacterTalking = true);
+      });
       _flutterTts.setCompletionHandler(() {
         if (mounted) {
           setState(() {
+
             _speakingMessageIndex = null;
           });
         }
       });
-
+      _flutterTts.setCancelHandler(() {
+        if (mounted) {
+          setState(() {
+            _speakingMessageIndex = null;
+            _isCharacterTalking = false; // Bị dừng -> Im
+          });
+        }
+      });
       _flutterTts.setErrorHandler((msg) {
         print('[TTS] Error: $msg');
         if (mounted) {
           setState(() {
+            _isCharacterTalking = false;
             _speakingMessageIndex = null;
           });
         }
@@ -152,7 +496,9 @@ class _ChatScreenState extends State<ChatScreen> {
           _isTtsInitialized = true;
         });
       }
+      _initVoices();
       print('[TTS] Initialized successfully');
+
     } catch (e) {
       print('[TTS] Initialization error: $e');
       if (mounted) {
@@ -165,44 +511,22 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _speakText(String text, int messageIndex) async {
-    // Thử khởi tạo lại nếu chưa sẵn sàng
-    if (!_isTtsInitialized) {
-      print('[TTS] Not initialized, attempting to initialize...');
-      await _initializeTts();
-
-      if (!_isTtsInitialized) {
-        Get.snackbar('Lỗi', 'Không thể khởi tạo Text-to-Speech. Vui lòng thử lại.');
-        return;
-      }
-    }
-
-    // Nếu đang đọc message này, dừng lại
+    // Logic dừng nếu đang đọc
     if (_speakingMessageIndex == messageIndex) {
-      await _flutterTts.stop();
-      setState(() {
-        _speakingMessageIndex = null;
-      });
+      await _audioPlayer.stop();
+      try { await _openaiTTS.stopPlayer(); } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _speakingMessageIndex = null;
+          _isCharacterTalking = false;
+        });
+      }
       return;
     }
 
-    // Nếu đang đọc message khác, dừng trước khi đọc message mới
-    if (_speakingMessageIndex != null) {
-      await _flutterTts.stop();
-    }
-
-    setState(() {
-      _speakingMessageIndex = messageIndex;
-    });
-
-    try {
-      await _flutterTts.speak(text);
-    } catch (e) {
-      print('[TTS] Speak error: $e');
-      Get.snackbar('Lỗi', 'Không thể đọc văn bản');
-      setState(() {
-        _speakingMessageIndex = null;
-      });
-    }
+    // Nếu đọc mới
+    await _forceSpeak(text, messageIndex);
   }
 
   Future<bool> _waitForTtsReady({Duration timeout = const Duration(seconds: 5)}) async {
@@ -244,7 +568,7 @@ class _ChatScreenState extends State<ChatScreen> {
     await _topicViewModel.initSignalR();
     print('SignalR connected in ChatScreen');
 
-    _aiSub = _topicViewModel.aiMessageStream.listen((aiMsg) {
+    _aiSub = _topicViewModel.aiMessageStream.listen((aiMsg) async {
       print('[AI STREAM] payload: $aiMsg');
       if (!mounted) return;
 
@@ -252,8 +576,8 @@ class _ChatScreenState extends State<ChatScreen> {
       final evt = rawEvent?.trim();
 
       // --- STREAM START ---
-      if (evt == 'StreamStart') {
-        // Reset nếu đang stream dở
+      if (evt == 'StreamStart')  {
+        // 1. Xử lý Stream UI (Giữ nguyên code của bạn)
         if (_isStreaming) {
           _isStreaming = false;
           _streamingIndex = null;
@@ -262,9 +586,8 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() {
           _isTyping = true;
           _isStreaming = true;
-          _streamingMessageId = aiMsg['messageId']?.toString(); // Có thể là null với voice
+          _streamingMessageId = aiMsg['messageId']?.toString();
 
-          // Thêm bubble rỗng trực tiếp vào list
           _messages.add(ChatMessage(
             text: '',
             isUser: false,
@@ -273,10 +596,20 @@ class _ChatScreenState extends State<ChatScreen> {
           ));
           _streamingIndex = _messages.length - 1;
         });
+
         _scrollToBottom();
+
+        // 2. QUAN TRỌNG: Reset Logic Đọc (Thêm đoạn này vào)
+        _lastSpokenLength = 0; // Reset đếm ký tự
+
+
+        _sentenceBuffer = "";
+        _ttsQueue.clear();
+        _isTtsProcessing = false;
+        await _audioPlayer.stop(); // Ngắt lời câu cũ ngay
+
         return;
       }
-
       // --- STREAM CHUNK ---
       if (evt == 'StreamChunk') {
         final msgId = aiMsg['messageId']?.toString();
@@ -294,7 +627,30 @@ class _ChatScreenState extends State<ChatScreen> {
               );
             }
           });
+
+          // Auto scroll nhẹ nếu văn bản dài
           if (full.length % 10 == 0) _scrollToBottom();
+
+          // --- LOGIC TÁCH CÂU (Đã tối ưu tốc độ) ---
+          if (full.length > _lastSpokenLength) {
+            String newPart = full.substring(_lastSpokenLength);
+
+
+            RegExp sentenceEnd = RegExp(r'[.?!:,\n]');
+
+            if (sentenceEnd.hasMatch(newPart)) {
+              int matchIndex = newPart.lastIndexOf(sentenceEnd);
+
+              // Cắt ra đoạn hoàn chỉnh
+              String sentenceToSpeak = newPart.substring(0, matchIndex + 1);
+
+              // Chỉ đọc nếu đoạn văn bản đủ dài (ví dụ > 2 ký tự) để tránh đọc lắt nhắt dấu câu
+              if (sentenceToSpeak.trim().length > 1) {
+                _speakChunk(sentenceToSpeak);
+                _lastSpokenLength += sentenceToSpeak.length;
+              }
+            }
+          }
         }
         return;
       }
@@ -304,7 +660,6 @@ class _ChatScreenState extends State<ChatScreen> {
         final ai = aiMsg['aiMessage'];
         final user = aiMsg['userMessage'];
 
-        // Tắt typing ngay lập tức
         if (mounted) setState(() => _isTyping = false);
 
         if (ai == null) return;
@@ -312,9 +667,13 @@ class _ChatScreenState extends State<ChatScreen> {
         final finalId = ai['messageId']?.toString() ?? '';
         final finalText = (ai['messageContent'] ?? ai['content'] ?? '').toString();
 
-        // --- FIX DUPLICATE: Kiểm tra nếu ID này đã được xử lý (do AIMessageReceived đến trước) ---
+        // Xác định loại tin nhắn
+        final isVoice = (ai['isVoiceMessage'] == true) ||
+            (ai['messageType']?.toString().toLowerCase() == 'voice') ||
+            ((ai['audioUrl'] ?? '') as String).isNotEmpty;
+
+        // --- CẬP NHẬT UI (Giữ nguyên logic cũ) ---
         if (_processedMessageIds.contains(finalId)) {
-          // Nếu đã có rồi, thì bubble đang stream (nếu có) là thừa -> Xóa nó đi để tránh hiện 2 tin
           if (_streamingIndex != null && _streamingIndex! < _messages.length) {
             setState(() {
               _messages.removeAt(_streamingIndex!);
@@ -326,7 +685,6 @@ class _ChatScreenState extends State<ChatScreen> {
           return;
         }
 
-        // Thay bubble tạm bằng bubble chính thức
         if (_streamingIndex != null) {
           setState(() {
             if (_streamingIndex! < _messages.length) {
@@ -334,15 +692,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 text: finalText,
                 isUser: false,
                 timestamp: DateTime.tryParse(ai['sentAt']?.toString() ?? '') ?? DateTime.now(),
-                isVoice: (ai['isVoiceMessage'] == true) ||
-                    (ai['messageType']?.toString().toLowerCase() == 'voice') ||
-                    ((ai['audioUrl'] ?? '') as String).isNotEmpty,
+                isVoice: isVoice,
                 audioUrl: (ai['audioUrl'] as String?)?.isNotEmpty == true ? ai['audioUrl'] : null,
                 duration: ai['audioDuration'] is int ? ai['audioDuration'] : int.tryParse('${ai['audioDuration']}'),
                 transcript: ai['transcript']?.toString(),
-                synonymSuggestions: ai['synonymSuggestions'] is Map
-                    ? (ai['synonymSuggestions'] as Map<String, dynamic>)
-                    : null,
+                synonymSuggestions: ai['synonymSuggestions'] is Map ? (ai['synonymSuggestions'] as Map<String, dynamic>) : null,
               );
             }
             _processedMessageIds.add(finalId);
@@ -353,30 +707,55 @@ class _ChatScreenState extends State<ChatScreen> {
             _voiceAiReceived = true;
           });
         } else {
-          // Trường hợp không có stream trước đó (fallback)
           if (!_processedMessageIds.contains(finalId)) {
             _processedMessageIds.add(finalId);
             _addMessage(ChatMessage(
               text: finalText,
               isUser: false,
               timestamp: DateTime.tryParse(ai['sentAt']?.toString() ?? '') ?? DateTime.now(),
-              isVoice: (ai['isVoiceMessage'] == true) ||
-                  (ai['messageType']?.toString().toLowerCase() == 'voice') ||
-                  ((ai['audioUrl'] ?? '') as String).isNotEmpty,
+              isVoice: isVoice,
               audioUrl: (ai['audioUrl'] as String?)?.isNotEmpty == true ? ai['audioUrl'] : null,
               duration: ai['audioDuration'] is int ? ai['audioDuration'] : int.tryParse('${ai['audioDuration']}'),
               transcript: ai['transcript']?.toString(),
-              synonymSuggestions: ai['synonymSuggestions'] is Map
-                  ? (ai['synonymSuggestions'] as Map<String, dynamic>)
-                  : null,
+              synonymSuggestions: ai['synonymSuggestions'] is Map ? (ai['synonymSuggestions'] as Map<String, dynamic>) : null,
             ));
           }
         }
 
-        // Cập nhật synonym cho user (nếu có)
-        if (user != null && user['synonymSuggestions'] != null) {
-          final originalText = user['messageContent']?.toString();
-          final idxUser = _messages.lastIndexWhere((m) => m.isUser && (m.text == originalText || m.isVoice));
+        // --- 🔥 LOGIC ĐỌC (Đã sửa) 🔥 ---
+        if (mounted) {
+          // TRƯỜNG HỢP TEXT: Chỉ đọc nốt phần còn thiếu
+          if (!isVoice && finalText.isNotEmpty) {
+            // Nếu độ dài văn bản > độ dài đã đọc -> Còn sót chữ chưa đọc
+            if (finalText.length > _lastSpokenLength) {
+              String remainingText = finalText.substring(_lastSpokenLength);
+
+              // Đọc nốt đoạn cuối (dùng _speakChunk để xếp hàng)
+              if (remainingText.trim().isNotEmpty) {
+                _speakChunk(remainingText);
+              }
+            }
+
+            // ❌ ĐÃ XÓA: _forceSpeak(finalText) -> Cái này gây đọc lại từ đầu
+
+            // Reset biến đếm cho câu hỏi sau
+            _lastSpokenLength = 0;
+          }
+
+          // TRƯỜNG HỢP VOICE: Phát file ghi âm
+          if (isVoice) {
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (_messages.isNotEmpty) {
+                _playVoiceMessage(_messages.last);
+              }
+            });
+          }
+        }
+
+        // --- CẬP NHẬT GỢI Ý (Giữ nguyên) ---
+        final suggestions = user?['synonymSuggestions'] ?? ai?['synonymSuggestions'];
+        if (suggestions != null) {
+          final idxUser = _messages.lastIndexWhere((m) => m.isUser);
           if (idxUser != -1) {
             setState(() {
               _messages[idxUser] = ChatMessage(
@@ -387,7 +766,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 audioUrl: _messages[idxUser].audioUrl,
                 duration: _messages[idxUser].duration,
                 transcript: _messages[idxUser].transcript,
-                synonymSuggestions: user['synonymSuggestions'] as Map<String, dynamic>,
+                synonymSuggestions: suggestions as Map<String, dynamic>,
               );
             });
           }
@@ -479,6 +858,9 @@ class _ChatScreenState extends State<ChatScreen> {
         ));
         setState(() => _isTyping = false);
         if (_awaitingVoiceAi) _voiceAiReceived = true;
+        if (content.isNotEmpty) {
+          _speakText(content, _messages.length - 1);
+        }
         return;
       }
 
@@ -504,7 +886,30 @@ class _ChatScreenState extends State<ChatScreen> {
       await _topicViewModel.joinConversationRoom(_sessionId!);
     }
   }
+  Future<void> _forceSpeak(String text, int messageIndex) async {
+    print("🎤 Azure Speak: $text");
 
+    // Dừng mọi thứ cũ
+    await _audioPlayer.stop();
+    // await _flutterTts.stop(); // Comment lại hoặc xóa
+
+    if (mounted) {
+      setState(() {
+        _speakingMessageIndex = messageIndex;
+        _isCharacterTalking = true;
+      });
+    }
+
+    // ✅ GỌI HÀM AZURE
+    await _speakAzureOpenAI(text);
+
+    if (mounted) {
+      setState(() {
+        _speakingMessageIndex = null;
+        _isCharacterTalking = false;
+      });
+    }
+  }
   Future<void> _requestPermissions() async {
     await Permission.microphone.request();
   }
@@ -759,6 +1164,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Màn hình chờ khi đang kết thúc hội thoại
     if (_isEnding) {
       return Scaffold(
         backgroundColor: Colors.white,
@@ -782,68 +1188,78 @@ class _ChatScreenState extends State<ChatScreen> {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: () {
-
         _textFocusNode.unfocus();
       },
       child: Scaffold(
         backgroundColor: AppColors.primary,
+        // ✅ QUAN TRỌNG: Stack là cha ngoài cùng
         body: Stack(
           children: [
+            // --- LỚP 1: NỘI DUNG CHÍNH (Header + Chat) ---
             Column(
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   height: _isHeaderVisible ? null : 0,
+                  // Header chứa nhân vật 3D
                   child: _isHeaderVisible ? _buildHeader() : const SizedBox.shrink(),
                 ),
+                // Expanded này nằm trong Column -> HỢP LỆ
                 Expanded(child: _buildChatBody()),
               ],
             ),
-            if (_sessionModel?.tasks != null && _sessionModel!.tasks.isNotEmpty)
-              _buildFloatingTaskButton(),
-            if (_showRecordingOverlay) _buildRecordingOverlay(),
+
+            // --- LỚP 2: NÚT NHIỆM VỤ (Dùng Positioned) ---
+            // ✅ Phải nằm ngoài Column, trực tiếp trong Stack
+            // if (_sessionModel?.tasks != null && _sessionModel!.tasks.isNotEmpty)
+              // _buildFloatingTaskButton(),
+
+            // --- LỚP 3: GHI ÂM (Dùng Positioned) ---
+            // ✅ Phải nằm ngoài Column, trực tiếp trong Stack
+            if (_showRecordingOverlay)
+              _buildRecordingOverlay(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFloatingTaskButton() {
-    return Positioned(
-      left: _taskButtonPosition.dx,
-      top: _taskButtonPosition.dy,
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          setState(() {
-
-            _taskButtonPosition = Offset(
-              (_taskButtonPosition.dx + details.delta.dx).clamp(0.0, MediaQuery.of(context).size.width - 70),
-              (_taskButtonPosition.dy + details.delta.dy).clamp(0.0, MediaQuery.of(context).size.height - 70),
-            );
-          });
-        },
-        child: Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.assignment, color: Colors.white, size: 28),
-            onPressed: _showTasksDialog,
-          ),
-        ),
-      ),
-    );
-  }
+  // Widget _buildFloatingTaskButton() {
+  //   return Positioned(
+  //     left: _taskButtonPosition.dx,
+  //     top: _taskButtonPosition.dy,
+  //     child: GestureDetector(
+  //       onPanUpdate: (details) {
+  //         setState(() {
+  //
+  //           _taskButtonPosition = Offset(
+  //             (_taskButtonPosition.dx + details.delta.dx).clamp(0.0, MediaQuery.of(context).size.width - 70),
+  //             (_taskButtonPosition.dy + details.delta.dy).clamp(0.0, MediaQuery.of(context).size.height - 70),
+  //           );
+  //         });
+  //       },
+  //       child: Container(
+  //         width: 60,
+  //         height: 60,
+  //         decoration: BoxDecoration(
+  //           color: AppColors.primary,
+  //           shape: BoxShape.circle,
+  //           boxShadow: [
+  //             BoxShadow(
+  //               color: Colors.black.withOpacity(0.3),
+  //               blurRadius: 10,
+  //               offset: const Offset(0, 4),
+  //             ),
+  //           ],
+  //         ),
+  //         child: IconButton(
+  //           icon: const Icon(Icons.assignment, color: Colors.white, size: 28),
+  //           onPressed: _showTasksDialog,
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
 
   void _showTasksDialog() {
     List<String> taskContents = [];
@@ -996,6 +1412,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildChatBody() {
     return Container(
+      margin: const EdgeInsets.only(top: 50),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
@@ -1022,86 +1439,258 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+
   }
-
-  Widget _buildHeader() {
-    return SafeArea(
-      bottom: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 8, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(CupertinoIcons.back, color: Colors.white, size: 26),
-                  onPressed: () => Get.back(),
-                ),
-                TextButton(
-                  onPressed: _confirmEndConversation,
-                  child: const Text(
-                    "Kết thúc",
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-                  ),
-                ),
-              ],
+  Widget _build2DCharacter() {
+    // Bỏ Container bọc ngoài hoặc set height/width về null để nó theo widget cha
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // IDLE
+        Opacity(
+          opacity: _isCharacterTalking ? 0.0 : 1.0,
+          child: Image.asset(
+            'assets/images/s.png',
+            fit: BoxFit.cover, // Dùng Cover để lấp đầy hình tròn
+            gaplessPlayback: true,
+          ),
+        ),
+        // TALKING
+        if (_isCharacterTalking)
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 1.0, end: 1.1),
+            duration: const Duration(milliseconds: 200),
+            builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+            child: Image.asset(
+              'assets/images/m.png',
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          ),
+      ],
+    );
+  }
+  Future<void> _playFillerSound() async {
+    // 1. Bật trạng thái nói ngay lập tức
+    if (mounted) setState(() => _isCharacterTalking = true);
 
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          "Kịch bản: ${_sessionModel?.scenarioDescription ?? '...'}",
+    try {
+      // 2. Tạo tên file dựa trên giọng đang chọn
+      // Ví dụ: Nếu _selectedVoiceId là 'alloy' -> Tìm file 'voice/filler_alloy.mp3'
+      // Lưu ý: Nếu bạn dùng map ID kiểu 'OA001' thì nhớ đổi tên file thành filler_OA001.mp3 nhé!
+      // Hoặc map ngược lại:
+      String voiceName = _selectedVoiceId;
+      if (voiceName == 'OA001') voiceName = 'alloy'; // Map nếu cần
+
+      final String assetPath = 'voice/filler_$voiceName.mp3';
+
+      print("🔊 Đang phát filler từ assets: $assetPath");
+
+
+      await _audioPlayer.play(AssetSource(assetPath));
+
+    } catch (e) {
+      print("⚠️ Lỗi phát filler (có thể do chưa copy file cho giọng này): $e");
+
+      if (mounted) setState(() => _isCharacterTalking = false);
+    }
+  }
+  Widget _buildHeader() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // ─────────────────────────────────────
+        // 1. Nền Header + Top Bar (không có nút Back)
+        // ─────────────────────────────────────
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 12,
+            bottom: 60, // Để avatar + kịch bản thò xuống dưới
+            left: 20,
+            right: 20,
+          ),
+          decoration: BoxDecoration(
+
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(36)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ─── Row: Tên + Trạng thái + 2 nút phải ───
+              Row(
+                children: [
+                  // Tên role + trạng thái (căn trái tự động)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _sessionModel?.characterRole ?? 'Partner',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
                           ),
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              child: Icon(
+                                _isCharacterTalking ? Icons.graphic_eq_rounded : Icons.circle,
+                                color: _isCharacterTalking ? Colors.cyanAccent : Colors.greenAccent,
+                                size: _isCharacterTalking ? 16 : 10,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isCharacterTalking ? 'Đang nói...' : 'Đang lắng nghe',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ─── 2 nút bên phải ───
+                  Row(
+                    children: [
+                      // Nút đổi giọng
+                      _headerIconButton(
+                        icon: Icons.record_voice_over_rounded,
+                        onTap: _showVoiceSelectionSheet,
                       ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        icon: const Icon(Icons.description, color: Colors.white, size: 20),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _showScenarioTranslation(),
+                      const SizedBox(width: 12),
+                      // Nút kết thúc
+                      _headerIconButton(
+                        icon: Icons.stop_circle_outlined,
+                        color: Colors.redAccent.withOpacity(0.9),
+                        onTap: _confirmEndConversation,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                ],
+              ),
+            ],
+          ),
+        ),
 
-                  GestureDetector(
-                    onTap: () => setState(() => _isRoleTranslated = !_isRoleTranslated),
-                    child: Text.rich(TextSpan(children: [
-                      TextSpan(
-                        text: "Vai của bạn: ",
-                        style: TextStyle(color: Colors.white.withAlpha((0.9 * 255).toInt()), fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      TextSpan(
-                        text: _getTranslatedText(_sessionModel?.characterRole ?? '...', _isRoleTranslated),
-                        style: TextStyle(color: Colors.white.withAlpha((0.9 * 255).toInt()), fontSize: 13),
-                      )
-                    ])),
+        // ─────────────────────────────────────
+        // 2. Avatar tròn to nổi lên
+        // ─────────────────────────────────────
+        Positioned(
+          bottom: -40,
+          left: 24,
+          child: Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: _build2DCharacter(), // giữ nguyên hàm cũ của bạn
+            ),
+          ),
+        ),
+
+        // ─────────────────────────────────────
+        // 3. Card kịch bản nhỏ nằm cạnh avatar
+        // ─────────────────────────────────────
+        Positioned(
+          bottom: -22,
+          left: 136,
+          right: 20,
+          child: GestureDetector(
+            onTap: _showScenarioTranslation,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.description_outlined, color: AppColors.primary, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _sessionModel?.scenarioDescription ?? 'Nhấn để xem kịch bản',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
+// ─── Helper: Nút tròn trong header (dễ tái sử dụng) ───
+  Widget _headerIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.18),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color ?? Colors.white, size: 22),
+      ),
+    );
+  }
 
   void _showScenarioTranslation() {
     String? translatedScenario;
@@ -2013,15 +2602,26 @@ class _ChatScreenState extends State<ChatScreen> {
     final hasText = _messageController.text.isNotEmpty;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      // Tăng padding top/bottom lên để nút Mic to không bị chật
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          )
+        ],
       ),
       child: SafeArea(
         top: false,
-        child: _isTextMode
-            ? _buildTextInputMode(hasText)
-            : _buildVoiceInputMode(),
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          child: _isTextMode
+              ? _buildTextInputMode(hasText)
+              : _buildVoiceInputMode(), // Gọi hàm giao diện mic mới
+        ),
       ),
     );
   }
@@ -2081,58 +2681,96 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildVoiceInputMode() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
+    // Kích thước nút bàn phím (dùng để cân bằng)
+    const double smallButtonSize = 44.0;
 
-        const SizedBox(width: 48),
+    return SizedBox(
+      height: 100, // Chiều cao thoải mái cho nút Mic to
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween, // Đẩy các phần tử ra xa nhau
+        crossAxisAlignment: CrossAxisAlignment.center, // Căn giữa theo chiều dọc
+        children: [
+          // --- 1. DUMMY WIDGET (BÊN TRÁI) ---
+          // Cái này vô hình, chỉ để chiếm chỗ giúp Mic nằm chính giữa
+          const SizedBox(width: smallButtonSize, height: smallButtonSize),
 
-
-        GestureDetector(
-          onTap: _handleRecording,
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: _recordingState == RecordingState.recording ? Colors.red : AppColors.primary,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: (_recordingState == RecordingState.recording ? Colors.red : AppColors.primary).withAlpha((0.3 * 255).toInt()),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 4),
-                )
+          // --- 2. NÚT MIC (CHÍNH GIỮA) ---
+          GestureDetector(
+            onTap: _handleRecording,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: _recordingState == RecordingState.recording
+                        ? Colors.red
+                        : AppColors.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (_recordingState == RecordingState.recording
+                            ? Colors.red
+                            : AppColors.primary).withOpacity(0.4),
+                        blurRadius: 15,
+                        spreadRadius: 4,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    _recordingState == RecordingState.recording
+                        ? Icons.stop_rounded
+                        : Icons.mic_rounded,
+                    color: Colors.white,
+                    size: 36,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _recordingState == RecordingState.recording
+                      ? "Đang ghi âm..."
+                      : "Nhấn để nói",
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500
+                  ),
+                ),
               ],
             ),
-            child: Icon(
-              _recordingState == RecordingState.recording ? Icons.pause : Icons.mic,
-              color: Colors.white,
-              size: 40,
+          ),
+
+          // --- 3. NÚT BÀN PHÍM (BÊN PHẢI) ---
+          Tooltip(
+            message: "Chuyển sang gõ phím",
+            child: InkWell(
+              onTap: () {
+                setState(() => _isTextMode = true);
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  _textFocusNode.requestFocus();
+                });
+              },
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                width: smallButtonSize, // Kích thước 44
+                height: smallButtonSize,
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  shape: BoxShape.circle,
+
+                ),
+                child: const Icon(
+                    Icons.keyboard_alt_rounded,
+                    color: Colors.grey,
+                    size: 22
+                ),
+              ),
             ),
           ),
-        ),
-
-
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0F2F5),
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.keyboard, color: AppColors.textSecondary, size: 24),
-            onPressed: () {
-              setState(() => _isTextMode = true);
-              Future.delayed(const Duration(milliseconds: 100), () {
-                _textFocusNode.requestFocus();
-              });
-            },
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -2145,6 +2783,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _voicePlaybackTimer?.cancel();
       setState(() {
         _playingVoiceMessage = null;
+        _isCharacterTalking = false;
       });
       return;
     }
@@ -2154,7 +2793,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _audioPlayer.stop();
       _voicePlaybackTimer?.cancel();
     }
-
+    if (mounted) setState(() => _isCharacterTalking = true);
     // Play
     final src = message.audioUrl!;
     if (src.startsWith('http://') || src.startsWith('https://')) {
@@ -2195,6 +2834,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _playingVoiceMessage = null;
           _playingVoiceProgress = 0;
           _currentPlaybackPosition = Duration.zero;
+          _isCharacterTalking = false;
         });
       }
     });

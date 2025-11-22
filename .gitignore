@@ -101,7 +101,7 @@ web/favicon.png
 # ===========================
 # Environment / Secrets
 # ===========================
-
+.env
 *.db
 *.sqlite
 

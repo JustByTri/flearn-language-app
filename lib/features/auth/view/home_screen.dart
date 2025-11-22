@@ -309,11 +309,21 @@ class _HomeScreenState extends State<HomeScreen>
             barrierDismissible: false,
           );
         }
-
+        final newLang = _languages.firstWhere(
+              (l) => l.id == languageId,
+          orElse: () => Language(id: languageId, langName: '', langCode: 'en'),
+        );
         final user = box.read('user') ?? {};
         user['languageId'] = languageId;
-        box.write('user', user);
-        box.write('selectedLanguageId', languageId);
+        user['languageCode'] = newLang.langCode;
+        user['languageName'] = newLang.langName;
+        user['activeLanguage'] = {
+          'languageId': languageId,
+          'languageCode': newLang.langCode,
+          'languageName': newLang.langName,
+        };
+        await box.write('user', user);
+        await box.write('selectedLanguageId', languageId);
 
         if (mounted) {
           setState(() {

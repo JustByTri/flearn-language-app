@@ -34,6 +34,7 @@ dependencies:
   get_it: ^8.2.0
 
   get: ^4.6.6
+  model_viewer_plus: ^1.7.0
   http: ^1.2.1
   dio: ^5.5.0+1 
   get_storage: ^2.1.1
@@ -50,7 +51,9 @@ dependencies:
   firebase_core: ^2.25.4
   firebase_auth: ^4.16.0
   flutter_html: ^3.0.0
-
+  openai_tts: ^0.0.3
+  flutter_sound: ^9.2.13
+  flutter_azure_tts: ^1.0.0
   video_player: ^2.8.2
   google_nav_bar: ^5.0.7
   country_flags: ^2.1.0
@@ -103,6 +106,8 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+
+    - assets/voice/
     - .env
   uses-material-design: true
 
