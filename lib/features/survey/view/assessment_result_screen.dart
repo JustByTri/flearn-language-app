@@ -111,7 +111,9 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
           ],
           if (widget.result.weaknesses.isNotEmpty) ...[
             _buildImprovementsCard(),
-          ]
+            const SizedBox(height: 24),
+          ],
+          _buildRecommendedCoursesCard(),  // Always show
         ],
       ),
       bottomNavigationBar: _buildBottomButtons(),
@@ -180,6 +182,28 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
       title: 'Cần cải thiện',
       content: Column(
         children: widget.result.weaknesses.map((weakness) => _buildListItem(weakness, Icons.track_changes, Colors.orange)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildRecommendedCoursesCard() {
+    if (widget.result.recommendedCourses.isEmpty) {
+      return _buildInfoCard(
+        title: 'Khóa học đề xuất',
+        content: const Text(
+          'Hiện tại chưa có khóa học đề xuất nào.',
+          style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+        ),
+      );
+    }
+    return _buildInfoCard(
+      title: 'Khóa học đề xuất',
+      content: Column(
+        children: widget.result.recommendedCourses.map((course) => _buildListItem(
+          '${course.courseName} (${course.level}) - ${course.matchReason}',
+          Icons.school,
+          Colors.blue,
+        )).toList(),
       ),
     );
   }

@@ -1,3 +1,32 @@
+class RecommendedCourse {
+  final String courseId;
+  final String courseName;
+  final String level;
+  final String matchReason;
+  final String? goalName;
+  final String userId;
+
+  RecommendedCourse({
+    required this.courseId,
+    required this.courseName,
+    required this.level,
+    required this.matchReason,
+    this.goalName,
+    required this.userId,
+  });
+
+  factory RecommendedCourse.fromJson(Map<String, dynamic> json) {
+    return RecommendedCourse(
+      courseId: json['courseId'] ?? '',
+      courseName: json['courseName'] ?? '',
+      level: json['level'] ?? '',
+      matchReason: json['matchReason'] ?? '',
+      goalName: json['goalName'],
+      userId: json['userId'] ?? '',
+    );
+  }
+}
+
 class AssessmentResult {
   final String assessmentId;
   final String determinedLevel;
@@ -17,7 +46,7 @@ class AssessmentResult {
   final int vocabularyScore;
   final String detailedFeedback;
   final String nextLevelRequirements;
-  final List<dynamic> recommendedCourses;
+  final List<RecommendedCourse> recommendedCourses;
   final String completedAt;
 
   AssessmentResult({
@@ -63,7 +92,9 @@ class AssessmentResult {
       vocabularyScore: json['vocabularyScore'] ?? 0,
       detailedFeedback: json['detailedFeedback'] ?? '',
       nextLevelRequirements: json['nextLevelRequirements'] ?? '',
-      recommendedCourses: json['recommendedCourses'] ?? [],
+      recommendedCourses: (json['recommendedCourses'] as List<dynamic>? ?? [])
+          .map((e) => RecommendedCourse.fromJson(e as Map<String, dynamic>))
+          .toList(),
       completedAt: json['completedAt'] ?? '',
     );
   }
