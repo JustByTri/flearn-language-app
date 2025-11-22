@@ -23,7 +23,7 @@ import '../model/conversation_session.dart';
 import 'conversation_result_screen.dart';
 import 'package:openai_tts/openai_tts.dart';
 import 'package:flutter_azure_tts/flutter_azure_tts.dart';
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 class ChatScreen extends StatefulWidget {
   final TopicModel topic;
   final Map<String, dynamic> conversationData;
@@ -43,11 +43,8 @@ enum RecordingState { idle, recording, paused }
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
-  final String _azureOpenAIEndpoint =
-      "https://f-learnv2-resource.cognitiveservices.azure.com/openai/deployments/tts/audio/speech?api-version=2024-02-15-preview";
-
-
-  final String _azureOpenAIKey = "1ymcseFQ2IXcLRIws9YfOHF1uwvExikNqLLOsqzBUS43pFDsptUGJQQJ99BKACfhMk5XJ3w3AAAAACOGszHL";
+  final String _azureOpenAIEndpoint = dotenv.env['AZURE_OPENAI_ENDPOINT'] ?? '';
+  final String _azureOpenAIKey = dotenv.env['AZURE_OPENAI_KEY'] ?? '';
   String _selectedVoiceId = 'alloy';
   final _messages = <ChatMessage>[];
   final _recorder = AudioRecorder();
