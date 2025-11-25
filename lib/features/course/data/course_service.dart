@@ -184,7 +184,8 @@ class CourseService implements ICourseRepository {
         'Authorization': 'Bearer $accessToken',
     });
     if (res.statusCode != 200) {
-      throw Exception('getEnrollmentCurriculum failed ${res.statusCode}: ${res.body}');
+      final body = jsonDecode(res.body);
+      throw Exception(body['message'] ?? 'Lỗi tải curriculum');
     }
     final jsonBody = jsonDecode(res.body);
     return Curriculum.fromJson(jsonBody['data']);
@@ -404,6 +405,55 @@ class CourseService implements ICourseRepository {
       return data.map((e) => ExerciseSubmission.fromJson(e)).toList();
     } else {
       throw Exception('Failed to load submissions');
+    }
+  }
+
+
+  @override
+  Future<Map<String, dynamic>?> enrollFreeCourse(String courseId) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}/enrollments/free');
+    final accessToken = GetStorage().read('accessToken');
+    final res = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null && accessToken.toString().isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      },
+      body: jsonEncode({"courseId": courseId}),
+    );
+    if (res.statusCode == 200) {
+      final body = jsonDecode(res.body);
+      return body['data'] as Map<String, dynamic>?;
+    }
+    return null;
+  }
+
+  @override
+  Future<List<CoursePopular>> getCoursePopularByLang({int count = 10, String? languageId}) async {
+    final accessToken = GetStorage().read('accessToken');
+    final queryParams = {
+      'count': '$count',
+      if (languageId != null && languageId.isNotEmpty) 'languageId': languageId,
+    };
+    final url = Uri.parse('https://f-learn.app/api/courses/popular/by-language').replace(queryParameters: queryParams);
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $accessToken",
+      },
+    );
+    if (response.statusCode == 200) {
+      final jsonBody = jsonDecode(response.body);
+      final data = jsonBody['data'] as List<dynamic>? ?? [];
+      print('getCoursePopularByLang: fetched ${data.length} courses for languageId=$languageId');
+      print('response body: ${response.body}');
+      return data.map((item) => CoursePopular.fromJson(item)).toList();
+
+
+    } else {
+      throw Exception('getCoursePopular failed: ${response.body}');
     }
   }
 

@@ -65,4 +65,15 @@ abstract class IAuthRepository {
   });
 
   Future<Map<String, dynamic>?> getCoursePurchaseDetail(String purchaseId);
+
+  Future<Map<String, dynamic>?> submitCourseRefund({
+    required String purchaseId,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+    required String reason,
+    required String proofImageBase64,
+  });
+
+  Future<Map<String, dynamic>?> fetchRefundDetail(String purchaseId);
 }

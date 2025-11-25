@@ -27,77 +27,80 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Color(0xFF2196F3),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Get.back(),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light, // Chữ trắng cho nền xanh
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Color(0xFF2196F3),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          systemOverlayStyle: SystemUiOverlayStyle.light,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Get.back(),
+          ),
+          title: const Text(
+            'Bảng xếp hạng',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          centerTitle: true,
         ),
-        title: const Text(
-          'Bảng xếp hạng',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTabBar(),
-            Expanded(
-              child: Obx(() {
-                if (viewModel.isLoading.value) {
-                  return const Center(
-                    child: CupertinoActivityIndicator(radius: 15, color: Colors.blue),
-                  );
-                }
-                final leaderboard = viewModel.currentLeaderboard;
-                if (leaderboard.isEmpty) {
-                  return _buildEmptyState();
-                }
-                // Top 3 highlight
-                final top3 = leaderboard.take(3).toList();
-                final others = leaderboard.length > 3 ? leaderboard.sublist(3) : [];
-                return Column(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF2196F3), Color(0xFF42A5F5)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                      ),
-                      child: _buildTop3Section(top3),
-                    ),
-                    Expanded(
-                      child: Container(
-                        width: double.infinity,
+        body: SafeArea( // Đảm bảo không che status bar
+          child: Column(
+            children: [
+              _buildTabBar(),
+              Expanded(
+                child: Obx(() {
+                  if (viewModel.isLoading.value) {
+                    return const Center(
+                      child: CupertinoActivityIndicator(radius: 15, color: Colors.blue),
+                    );
+                  }
+                  final leaderboard = viewModel.currentLeaderboard;
+                  if (leaderboard.isEmpty) {
+                    return _buildEmptyState();
+                  }
+                  // Top 3 highlight
+                  final top3 = leaderboard.take(3).toList();
+                  final others = leaderboard.length > 3 ? leaderboard.sublist(3) : [];
+                  return Column(
+                    children: [
+                      Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                          gradient: LinearGradient(
+                            colors: [Color(0xFF2196F3), Color(0xFF42A5F5)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
                         ),
-                        child: ListView(
-                          padding: const EdgeInsets.only(top: 16, bottom: 80),
-                          children: [
-                            ...List.generate(others.length, (i) {
-                              final entry = others[i];
-                              final isCurrentUser = entry.userId == viewModel.currentUserId;
-                              return _buildLeaderboardCard(entry, isCurrentUser, rank: i + 4);
-                            }),
-                          ],
+                        child: _buildTop3Section(top3),
+                      ),
+                      Expanded(
+                        child: Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                          ),
+                          child: ListView(
+                            padding: const EdgeInsets.only(top: 16, bottom: 80),
+                            children: [
+                              ...List.generate(others.length, (i) {
+                                final entry = others[i];
+                                final isCurrentUser = entry.userId == viewModel.currentUserId;
+                                return _buildLeaderboardCard(entry, isCurrentUser, rank: i + 4);
+                              }),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                );
-              }),
-            ),
-          ],
+                    ],
+                  );
+                }),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -120,7 +123,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 child: _buildTabButton(
                   'Tuần',
                   viewModel.isLeaderboardWeekly.value,
-                  () {
+                      () {
                     if (!viewModel.isLeaderboardWeekly.value) {
                       viewModel.toggleLeaderboardPeriod();
                     }
@@ -131,7 +134,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 child: _buildTabButton(
                   'Tháng',
                   !viewModel.isLeaderboardWeekly.value,
-                  () {
+                      () {
                     if (viewModel.isLeaderboardWeekly.value) {
                       viewModel.toggleLeaderboardPeriod();
                     }
@@ -511,10 +514,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       decoration: BoxDecoration(
         gradient: isCurrentUser
             ? LinearGradient(
-                colors: [Color(0xFF2196F3).withAlpha(30), Color(0xFF42A5F5).withAlpha(30)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
+          colors: [Color(0xFF2196F3).withAlpha(30), Color(0xFF42A5F5).withAlpha(30)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        )
             : null,
         color: isCurrentUser ? null : Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -539,10 +542,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               decoration: BoxDecoration(
                 gradient: isTopRank
                     ? LinearGradient(
-                        colors: [Color(0xFF42A5F5), Color(0xFF2196F3)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
+                  colors: [Color(0xFF42A5F5), Color(0xFF2196F3)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
                     : null,
                 color: isTopRank ? null : Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(8),
@@ -696,24 +699,24 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     }
 
     return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: badgeColor,
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: icon != null
-            ? Icon(icon, color: Colors.white, size: 20)
-            : Text(
-                '$rank',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-      ));
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: badgeColor,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: icon != null
+              ? Icon(icon, color: Colors.white, size: 20)
+              : Text(
+            '$rank',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ));
   }
 
   Widget _buildAvatar(String? avatarUrl, String userName, {double size = 50}) {

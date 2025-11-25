@@ -74,4 +74,8 @@ abstract class ICourseRepository{
     int pageNumber,
     int pageSize,
   });
+
+  Future<Map<String, dynamic>?> enrollFreeCourse(String courseId);
+
+  Future<List<CoursePopular>> getCoursePopularByLang({int count = 10, String? languageId});
 }

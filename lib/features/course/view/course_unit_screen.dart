@@ -86,7 +86,13 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
             return const Center(child: CircularProgressIndicator(color: AppColors.primary));
           }
           final data = courseViewModel.curriculum.value;
-          if (data == null) return _buildEmptyState();
+          final error = courseViewModel.curriculumError.value;
+          if (data == null) {
+            if (error != null) {
+              return _buildErrorState(error); // Hiển thị error message
+            }
+            return _buildEmptyState();
+          }
           final units = data.units;
           if (units.isEmpty) return _buildEmptyState();
 
@@ -127,6 +133,35 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
           ),
         );
       }),
+    );
+  }
+
+  Widget _buildErrorState(String errorMessage) {
+    String cleanMessage = errorMessage.replaceFirst('Exception: ', '');
+
+    String translatedMessage = cleanMessage;
+    if (cleanMessage == "Enrollment has been cancelled or expired. Access to course curriculum is denied.") {
+      translatedMessage = "Đăng ký khóa học đã bị hủy hoặc hết hạn. Quyền truy cập vào chương trình học bị từ chối.";
+    }
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 80, color: Colors.red.shade300),
+          const SizedBox(height: 16),
+          Text(
+            translatedMessage,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.red),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Vui lòng liên hệ hỗ trợ nếu cần.',
+            style: TextStyle(color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 

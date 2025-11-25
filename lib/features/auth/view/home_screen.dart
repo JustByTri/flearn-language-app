@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:flearn_app/features/auth/viewmodel/login_viewmodel.dart';
 import 'package:flearn_app/features/course/model/course.dart';
+import 'package:flearn_app/features/auth/model/course_popular.dart'; // Import model CoursePopular
 
 import 'package:flearn_app/features/topic/model/topic.dart';
 import 'package:flearn_app/features/topic/viewmodel/topic_viewmodel.dart';
@@ -63,6 +64,9 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isSwitchingLanguage = false;
   CancelToken? _languageSwitchCancelToken;
   bool _isLoadingScreenOpen = false;
+  int _switchRequestId = 0;
+
+  bool _isLanguageSelectorDisabled = false;
 
   late CourseViewModel courseViewModel;
   late TeacherScheduleViewModel teacherScheduleViewModel;
@@ -161,29 +165,17 @@ class _HomeScreenState extends State<HomeScreen>
     _hasLoadedOnce = true;
   }
 
-  Future<Set<String>> _getEnrolledCourseIds(List<Course> courses) async {
-    final vm = Get.find<CourseViewModel>();
-    final results = await Future.wait(
-      courses.map((c) async {
-        await vm.fetchCourseAccess(c.courseID);
-        final access = vm.courseAccess.value;
-        return access != null && access.hasAccess ? c.courseID : null;
-      }),
-    );
-    return results.whereType<String>().toSet();
-  }
+  // Đã xóa hàm _getEnrolledCourseIds vì không còn dùng để lọc nữa
 
-  Future<void> _fetchOtherData() async {
+  Future<void> _fetchOtherData({String? overrideLangCode}) async {
     try {
       debugPrint('HomeScreen: _fetchOtherData called');
 
-      // Get user's active language
       final box = GetStorage();
       final user = box.read('user');
-      String? langCode;
+      String? langCode = overrideLangCode; // NEW: ưu tiên langCode được truyền vào
 
-      if (user != null && user['languageId'] != null) {
-
+      if (langCode == null && user != null && user['languageId'] != null) {
         final language = _languages.firstWhere(
               (lang) => lang.id == user['languageId'],
           orElse: () => Language(id: '', langName: '', langCode: ''),
@@ -193,16 +185,16 @@ class _HomeScreenState extends State<HomeScreen>
 
       debugPrint('HomeScreen: Fetching courses with langCode: $langCode');
 
-
       await courseViewModel.fetchCoursesWithLanguage(
         lang: langCode,
         searchTerm: _searchQuery.isEmpty ? null : _searchQuery,
         sortBy: _sortBy,
         isRefresh: true,
       );
+      final languageId = user?['languageId'];
+      await courseViewModel.fetchPopularCoursesByLang(count: 10, languageId: languageId);
 
       debugPrint('HomeScreen: Fetched ${courseViewModel.courses.length} courses');
-
 
       if (topicViewModel.topics.isEmpty) {
         await topicViewModel.fetchTopics();
@@ -241,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _handleLanguageChange(String languageId) async {
-    if (_isSwitchingLanguage) return;
+    if (_isSwitchingLanguage || _isLanguageSelectorDisabled) return;
     if (languageId == _selectedLanguageId) {
       Get.dialog(
         AlertDialog(
@@ -253,28 +245,51 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
+    // Disable selector ngay từ đầu
+    setState(() {
+      _isLanguageSelectorDisabled = true;
+    });
+
     final box = GetStorage();
     final token = box.read('accessToken');
 
     _isSwitchingLanguage = true;
+    final int requestId = ++_switchRequestId;
+
+    // Hủy request cũ và đóng loading cũ nếu đang mở
     _languageSwitchCancelToken?.cancel('Cancelled previous switch');
     _languageSwitchCancelToken = CancelToken();
+    if (_isLoadingScreenOpen) {
+      Get.back();
+      _isLoadingScreenOpen = false;
+    }
+    if (Get.isSnackbarOpen) {
+      Get.closeCurrentSnackbar();
+    }
 
     try {
-      final response = await _dio.post(
+      final response = await _dio
+          .post(
         'https://f-learn.app/api/VoiceAssessment/switch-language/$languageId',
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
           validateStatus: (status) => status != null && status < 500,
         ),
         cancelToken: _languageSwitchCancelToken,
-      );
+      )
+          .timeout(const Duration(seconds: 12));
 
       final respData = response.data;
       final action = respData?['action'];
       final message = respData?['message'] ?? 'Có lỗi xảy ra, vui lòng thử lại.';
 
       if (action == "REQUIRE_ASSESSMENT") {
+        if (_switchRequestId == requestId) {
+          _isSwitchingLanguage = false;
+          setState(() {
+            _isLanguageSelectorDisabled = false;
+          });
+        }
         await Get.dialog(
           AlertDialog(
             title: const Text('Đánh giá'),
@@ -301,65 +316,107 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
       } else if (action == "PROCEED_TO_HOME") {
-        // Hiển thị loading overlay (dialog không đóng thủ công được)
-        if (!_isLoadingScreenOpen) {
-          _isLoadingScreenOpen = true;
+        // Mở loading chỉ nếu chưa mở (đảm bảo duy nhất)
+        if (_switchRequestId == requestId && !_isLoadingScreenOpen) {
           Get.dialog(
             const LanguageSwitchLoadingScreen(),
             barrierDismissible: false,
           );
+          _isLoadingScreenOpen = true;
         }
-        final newLang = _languages.firstWhere(
-              (l) => l.id == languageId,
-          orElse: () => Language(id: languageId, langName: '', langCode: 'en'),
-        );
-        final user = box.read('user') ?? {};
-        user['languageId'] = languageId;
-        user['languageCode'] = newLang.langCode;
-        user['languageName'] = newLang.langName;
-        user['activeLanguage'] = {
-          'languageId': languageId,
-          'languageCode': newLang.langCode,
-          'languageName': newLang.langName,
-        };
-        await box.write('user', user);
-        await box.write('selectedLanguageId', languageId);
 
-        if (mounted) {
+        try {
+          debugPrint('HomeScreen: Bắt đầu fetch data cho ngôn ngữ mới (requestId: $requestId)');
+
+          final newLang = _languages.firstWhere(
+                (l) => l.id == languageId,
+            orElse: () => Language(id: languageId, langName: '', langCode: 'en'),
+          );
+
+          // Update storage
+          final user = box.read('user') ?? {};
+          user['languageId'] = languageId;
+          user['languageCode'] = newLang.langCode;
+          user['languageName'] = newLang.langName;
+          user['activeLanguage'] = {
+            'languageId': languageId,
+            'languageCode': newLang.langCode,
+            'languageName': newLang.langName,
+          };
+          await box.write('user', user);
+          await box.write('selectedLanguageId', languageId);
+
+          if (mounted) {
+            setState(() {
+              _selectedLanguageId = languageId;
+            });
+          }
+
+          // Fetch data với timeout dài hơn
+          await Future
+              .wait([
+            _fetchOtherData(overrideLangCode: newLang.langCode),
+            courseProgressViewModel.fetchMyCourses(),
+          ])
+              .timeout(const Duration(seconds: 10), onTimeout: () { // Tăng lên 10s
+            debugPrint('⚠️ Timeout refetch home data sau 10s (requestId: $requestId).');
+            return [];
+          });
+
+          debugPrint('HomeScreen: Fetch data hoàn thành (requestId: $requestId)');
+        } catch (e) {
+          debugPrint('Lỗi fetch data ngôn ngữ mới (requestId: $requestId): $e');
+        } finally {
+          // Đóng loading và reset flags chỉ cho request hiện tại
+          if (_switchRequestId == requestId && _isLoadingScreenOpen) {
+            try {
+              Get.back();
+            } catch (_) {}
+            _isLoadingScreenOpen = false;
+          }
+          if (_switchRequestId == requestId) {
+            _isSwitchingLanguage = false;
+            setState(() {
+              _isLanguageSelectorDisabled = false;
+            });
+            // // Hiển thị snackbar sau khi loading đóng
+            // Get.snackbar('Thành công', message, snackPosition: SnackPosition.TOP);
+          }
+        }
+      } else {
+        if (_switchRequestId == requestId) {
+          _isSwitchingLanguage = false;
           setState(() {
-            _selectedLanguageId = languageId;
+            _isLanguageSelectorDisabled = false;
           });
         }
-
-        // Tải lại dữ liệu
-        await _fetchOtherData();
-        await courseProgressViewModel.fetchMyCourses();
-
-        // Đóng loading sau khi hoàn tất
-        if (_isLoadingScreenOpen) {
-          Get.back(); // đóng LanguageSwitchLoadingScreen
-          _isLoadingScreenOpen = false;
-        }
-
-        Get.snackbar('Thành công', message, snackPosition: SnackPosition.BOTTOM);
-      } else {
         Get.snackbar('Thông báo', message, snackPosition: SnackPosition.BOTTOM);
       }
     } catch (e, st) {
-      if (_isLoadingScreenOpen) {
-        Get.back();
+      if (_switchRequestId == requestId) {
+        _isSwitchingLanguage = false;
+        setState(() {
+          _isLanguageSelectorDisabled = false;
+        });
+      }
+
+      // Đóng loading nếu mở
+      if (_switchRequestId == requestId && _isLoadingScreenOpen) {
+        try {
+          Get.back();
+        } catch (_) {}
         _isLoadingScreenOpen = false;
       }
+
       if (e is DioException && CancelToken.isCancel(e)) {
-        debugPrint('Switch language bị hủy: ${e.message}');
+        debugPrint('Switch language bị hủy (requestId: $requestId): ${e.message}');
       } else {
-        debugPrint('Lỗi xử lý chuyển ngôn ngữ: $e\n$st');
+        debugPrint('Lỗi xử lý chuyển ngôn ngữ (requestId: $requestId): $e\n$st');
         Get.snackbar('Lỗi', 'Không thể kết nối đến máy chủ.', snackPosition: SnackPosition.BOTTOM);
       }
-    } finally {
-      _isSwitchingLanguage = false;
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -974,10 +1031,11 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     return PopupMenuButton<String>(
+      enabled: !_isLanguageSelectorDisabled, // Disable khi switching
       icon: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppColors.primary.withAlpha(25),
+          color: _isLanguageSelectorDisabled ? Colors.grey.shade300 : AppColors.primary.withAlpha(25), // Visual feedback
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -989,6 +1047,7 @@ class _HomeScreenState extends State<HomeScreen>
       itemBuilder: (context) {
         return _languages.map((lang) {
           return PopupMenuItem<String>(
+            enabled: !_isLanguageSelectorDisabled, // Disable items
             value: lang.id,
             child: Row(
               children: [
@@ -1056,97 +1115,98 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
   Widget _buildPopularCoursesHorizontal() {
-    return FutureBuilder<Set<String>>(
-      future: _getEnrolledCourseIds(courseViewModel.courses.toList()),
-      builder: (context, snapshot) {
-        if (courseViewModel.isLoadingCourse.value || snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 220,
-            child: Center(child: CupertinoActivityIndicator()),
-          );
-        }
+    return Obx(() {
+      if (courseViewModel.isLoadingPopularCourses.value) {
+        return const SizedBox(
+          height: 230,
+          child: Center(child: CupertinoActivityIndicator()),
+        );
+      }
 
-        final enrolledIds = snapshot.data ?? {};
-        final popularCourses = courseViewModel.courses
-            .where((c) => !enrolledIds.contains(c.courseID))
-            .take(5)
-            .toList();
+      // Lấy danh sách courseId từ "Tiếp tục học" để lọc
+      final enrolledCourseIds = courseProgressViewModel.courses.map((c) => c.courseId).toSet();
 
-        if (popularCourses.isEmpty) {
-          return SizedBox(
-            height: 220,
-            child: Center(
-              child: Text('Không có khóa học phổ biến chưa đăng ký'),
-            ),
-          );
-        }
+      // Lọc popularCourses để loại bỏ những khóa học đã đăng ký
+      final filteredPopularCourses = courseViewModel.popularCourses
+          .where((course) => !enrolledCourseIds.contains(course.courseId))
+          .toList();
 
-        return SizedBox(
-          height: 220,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: popularCourses.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 16),
-            itemBuilder: (context, index) {
-              final course = popularCourses[index];
-              return SizedBox(
-                width: MediaQuery.of(context).size.width * 0.65,
-                child: PopularCourseCard(course: course),
-              );
-            },
+      if (filteredPopularCourses.isEmpty) {
+        return const SizedBox(
+          height: 230,
+          child: Center(
+            child: Text('Chưa có khóa học phổ biến mới'),
           ),
         );
-      },
-    );
+      }
+
+      return SizedBox(
+        height: 230,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: filteredPopularCourses.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 16),
+          itemBuilder: (context, index) {
+            final course = filteredPopularCourses[index];
+            return SizedBox(
+              width: MediaQuery.of(context).size.width * 0.65,
+              child: PopularCourseCard(course: course),
+            );
+          },
+        ),
+      );
+    });
   }
 
   Widget _buildDiscoverCoursesVertical() {
-    return FutureBuilder<Set<String>>(
-      future: _getEnrolledCourseIds(courseViewModel.courses.toList()),
-      builder: (context, snapshot) {
-        if (courseViewModel.isLoadingCourse.value || snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CupertinoActivityIndicator());
-        }
+    return Obx(() {
+      if (courseViewModel.isLoadingCourse.value) {
+        return const Center(child: CupertinoActivityIndicator());
+      }
 
-        final enrolledIds = snapshot.data ?? {};
-        var discoverCourses = courseViewModel.courses
-            .where((c) => !enrolledIds.contains(c.courseID))
-            .toList()
-            .obs;
+      // Lấy danh sách courseId từ "Tiếp tục học" để lọc
+      final enrolledCourseIds = courseProgressViewModel.courses.map((c) => c.courseId).toSet();
 
-        // Filter by selected topic if any
-        if (_selectedTopicName != null) {
-          discoverCourses = discoverCourses.where((course) {
-            return course.topics.any((topic) => topic.topicName == _selectedTopicName);
-          }).toList().obs;
-        }
+      // Lấy danh sách trực tiếp từ courses (API fetchCoursesWithLanguage)
+      var discoverCourses = courseViewModel.courses.toList();
 
-        if (discoverCourses.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Text('Không có khóa học khám phá chưa đăng ký'),
-            ),
-          );
-        }
+      // Lọc để loại bỏ những khóa học đã đăng ký (so sánh courseID với courseId)
+      discoverCourses = discoverCourses
+          .where((course) => !enrolledCourseIds.contains(course.courseID))
+          .toList();
 
-        return Column(
-          children: [
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: discoverCourses.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                final course = discoverCourses[index];
-                return DiscoverCourseCard(course: course);
-              },
-            ),
-            const SizedBox(height: 100),
-          ],
+      // Filter by selected topic if any
+      if (_selectedTopicName != null) {
+        discoverCourses = discoverCourses.where((course) {
+          return course.topics.any((topic) => topic.topicName == _selectedTopicName);
+        }).toList();
+      }
+
+      if (discoverCourses.isEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(32.0),
+            child: Text('Không có khóa học nào để khám phá'),
+          ),
         );
-      },
-    );
+      }
+
+      return Column(
+        children: [
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: discoverCourses.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final course = discoverCourses[index];
+              return DiscoverCourseCard(course: course);
+            },
+          ),
+          const SizedBox(height: 20), // Giảm từ 100 xuống 20 để tránh overflow
+        ],
+      );
+    });
   }
 }
 
@@ -1156,9 +1216,8 @@ String formatVND(int price) {
   return '${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}₫';
 }
 
-// Popular Course Card - Horizontal
 class PopularCourseCard extends StatelessWidget {
-  final Course course;
+  final CoursePopular course;
 
   const PopularCourseCard({super.key, required this.course});
 
@@ -1167,7 +1226,7 @@ class PopularCourseCard extends StatelessWidget {
     return InkWell(
       onTap: () {
         Get.to(() => CourseDetailScreen(
-          courseId: course.courseID,
+          courseId: course.courseId,
         ));
       },
       child: Card(
@@ -1179,84 +1238,115 @@ class PopularCourseCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              children: [
-                (course.imageUrl.isNotEmpty)
-                    ? Image.network(
-                  course.imageUrl,
-                  width: double.infinity,
-                  height: 120,
-                  fit: BoxFit.cover,
-                )
-                    : Container(
-                  width: double.infinity,
-                  height: 120,
-                  color: Colors.grey.shade200,
-                  child: const Icon(Icons.school, color: Colors.grey, size: 40),
-                ),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: course.courseType == 'Free' ? Colors.green.shade400 : Colors.orange.shade400,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      formatVND(course.price),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Phần ảnh - chiếm 50%
+            Expanded(
+              flex: 5,
+              child: Stack(
                 children: [
-                  Text(
-                    course.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  (course.imageUrl.isNotEmpty)
+                      ? Image.network(
+                    course.imageUrl,
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                  )
+                      : Container(
+                    width: double.infinity,
+                    height: double.infinity,
+                    color: Colors.grey.shade200,
+                    child: const Icon(Icons.school, color: Colors.grey, size: 40),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, color: Colors.orange, size: 14),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${course.averageRating}',
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: course.price == 0 ? Colors.green.shade400 : Colors.orange.shade400,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        formatVND(course.price),
                         style: const TextStyle(
-                          fontSize: 12,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
+                          fontSize: 11,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Icon(Icons.person_outline, color: Colors.grey.shade600, size: 14),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          '${course.learnerCount}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade600,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
+              ),
+            ),
+            // Phần thông tin - chiếm 50%
+            Expanded(
+              flex: 5,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withAlpha(25),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            course.programName,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          course.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.star, color: Colors.orange, size: 11),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${course.averageRating}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(Icons.person_outline, color: Colors.grey.shade600, size: 11),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            '${course.learnerCount}',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: Colors.grey.shade600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

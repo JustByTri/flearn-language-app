@@ -54,34 +54,43 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> with TickerProvid
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text(
-          'Tìm lớp học',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, color: Color(0xFF2D3436)),
+      body: SafeArea( // Thêm SafeArea bọc toàn bộ body
+        child: Column(
+          children: [
+            // AppBar tự tạo (thay thế AppBar của Scaffold)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const SizedBox(width: 40), // Placeholder để căn giữa title
+                  const Text(
+                    'Tìm lớp học',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                      color: Color(0xFF2D3436),
+                    ),
+                  ),
+                  _buildFilterButton(),
+                ],
+              ),
+            ),
+
+            // GLASSMORPHIC SEARCH
+            _buildGlassSearchBar(),
+
+            // FILTERS
+            AnimatedSize(
+              duration: const Duration(milliseconds: 350),
+              curve: Curves.easeInOutCubic,
+              child: _showFilters ? _buildNeumorphicFilters() : const SizedBox(height: 12),
+            ),
+
+            // CLASS LIST
+            Expanded(child: _buildClassList()),
+          ],
         ),
-        centerTitle: true,
-        actions: [
-          _buildFilterButton(),
-        ],
-      ),
-      body: Column(
-        children: [
-          // GLASSMORPHIC SEARCH
-          _buildGlassSearchBar(),
-
-          // FILTERS
-          AnimatedSize(
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeInOutCubic,
-            child: _showFilters ? _buildNeumorphicFilters() : const SizedBox(height: 12),
-          ),
-
-          // CLASS LIST
-          Expanded(child: _buildClassList()),
-        ],
       ),
     );
   }
