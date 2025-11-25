@@ -414,4 +414,75 @@ class AuthService implements IAuthRepository {
     }
   }
 
+
+  @override
+  Future<Map<String, dynamic>?> submitCourseRefund({
+    required String purchaseId,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+    required String reason,
+    required String proofImageBase64,
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/$purchaseId/refunds');
+
+    // Debug log to see what we are submitting
+    print('Submitting refund with data: ');
+    print('  PurchaseId: $purchaseId');
+    print('  BankName: $bankName');
+    print('  BankAccountNumber: $bankAccountNumber');
+    print('  BankAccountHolderName: $bankAccountHolderName');
+    print('  Reason: $reason');
+    print('  ProofImage: ${proofImageBase64.substring(0, 30)}...'); // Print first 30 chars of base64 string
+
+    final res = await http.post(url, headers: {
+      'Content-Type': 'application/json',
+      if (accessToken != null && accessToken.toString().isNotEmpty)
+        'Authorization': 'Bearer $accessToken',
+    }, body: jsonEncode({
+      // CHANGE: Use PascalCase keys to match API requirements
+      'BankName': bankName,
+      'BankAccountNumber': bankAccountNumber,
+      'BankAccountHolderName': bankAccountHolderName,
+      'Reason': reason,
+      'ProofImage': proofImageBase64,
+    }));
+
+    print('submitCourseRefund status: ${res.statusCode}');
+    print('submitCourseRefund body: ${res.body}');
+
+    if (res.statusCode == 200) {
+      final jsonBody = jsonDecode(res.body);
+      if (jsonBody['status'] == 'success') {
+        return jsonBody['data'];
+      }
+    } else if (res.statusCode == 400) {
+      final jsonBody = jsonDecode(res.body);
+      if (jsonBody['errors'] != null) {
+        throw Exception(jsonBody['errors'].toString());
+      }
+    }
+    return null;
+  }
+
+
+  @override
+  Future<Map<String, dynamic>?> fetchRefundDetail(String purchaseId) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/$purchaseId/refunds/me');
+    final res = await http.get(url, headers: {
+      'Content-Type': 'application/json',
+      if (accessToken != null && accessToken.toString().isNotEmpty)
+        'Authorization': 'Bearer $accessToken',
+    });
+    if (res.statusCode == 200) {
+      final jsonBody = jsonDecode(res.body);
+      if (jsonBody['status'] == 'success') {
+        return jsonBody['data'];
+      }
+    }
+    return null;
+  }
+
 }

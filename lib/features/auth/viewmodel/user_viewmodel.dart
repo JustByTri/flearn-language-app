@@ -211,4 +211,31 @@ class UserViewModel extends GetxController {
     }
   }
 
+  Future<Map<String, dynamic>?> submitCourseRefund({
+    required String purchaseId,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+    required String reason,
+    required String proofImage,
+  }) async {
+    return await _authRepository.submitCourseRefund(
+      purchaseId: purchaseId,
+      bankName: bankName,
+      bankAccountNumber: bankAccountNumber,
+      bankAccountHolderName: bankAccountHolderName,
+      reason: reason,
+      proofImageBase64: proofImage,
+    );
+  }
+
+  Future<Map<String, dynamic>?> fetchRefundDetail(String purchaseId) async {
+    try {
+      return await _authRepository.fetchRefundDetail(purchaseId);
+    } catch (e) {
+      print('fetchRefundDetail error: $e');
+      return null;
+    }
+  }
+
 }

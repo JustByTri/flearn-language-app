@@ -261,15 +261,18 @@ class CourseViewModel extends GetxController {
 
   var isLoadingCurriculum = false.obs;
   var curriculum = Rxn<Curriculum>();
+  var curriculumError = RxnString();
 
   Future<void> fetchCurriculum(String enrollmentId) async {
     try {
       isLoadingCurriculum.value = true;
+      curriculumError.value = null;
       final data = await _courseRepository.getEnrollmentCurriculum(enrollmentId);
       curriculum.value = data;
     } catch (e) {
       print('fetchCurriculum error: $e');
       curriculum.value = null;
+      curriculumError.value = e.toString();
     } finally {
       isLoadingCurriculum.value = false;
     }
@@ -373,6 +376,27 @@ class CourseViewModel extends GetxController {
       exerciseSubmissions.clear();
     } finally {
       isLoadingSubmissions.value = false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> enrollFreeCourse(String courseId) async {
+    try {
+      return await _courseRepository.enrollFreeCourse(courseId);
+    } catch (e) {
+      print('enrollFreeCourse error: $e');
+      return null;
+    }
+  }
+  Future<void> fetchPopularCoursesByLang({int count = 10, String? languageId}) async {
+    try {
+      isLoadingPopularCourses.value = true;
+      final list = await _courseRepository.getCoursePopularByLang(count: count, languageId: languageId);
+      popularCourses.assignAll(list);
+    } catch (e) {
+      popularCourses.clear();
+      print('fetchPopularCourses error: $e');
+    } finally {
+      isLoadingPopularCourses.value = false;
     }
   }
 }

@@ -1,7 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flearn_app/core/constants/colors.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../schedule/viewmodel/schedule_viewmodel.dart';
 import '../viewmodel/user_viewmodel.dart';
 
@@ -31,6 +34,16 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
   int? _selectedRequestType;
   String? _accountNumberError;
 
+  // NEW: Loại đơn hoàn tiền (null: chưa chọn, 0: lớp học, 1: khóa học)
+  int? _selectedRefundType;
+
+  // For course refund
+  String? _selectedPurchaseId;
+  String? _selectedCourseName;
+  String? _proofImageBase64;
+  File? _selectedImage;
+  String? _refundEligibleError; // New: Error for refund eligibility
+
   static const Map<int, String> _requestTypeOptions = {
     0: 'Lớp bị hủy do thiếu học viên',
     1: 'Lớp bị hủy do giáo viên bận',
@@ -43,6 +56,15 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
   @override
   void initState() {
     super.initState();
+    final args = Get.arguments as Map<String, dynamic>?;
+    if (args != null) {
+      setState(() {
+        _selectedRefundType = args['selectedRefundType'];
+        _selectedPurchaseId = args['selectedPurchaseId'];
+        _selectedCourseName = args['selectedCourseName'];
+        _tab = 0; // Chuyển sang tab "Gửi đơn"
+      });
+    }
     _scheduleVM = Get.isRegistered<ScheduleViewModel>()
         ? Get.find<ScheduleViewModel>()
         : Get.put(ScheduleViewModel(service: Get.find()), permanent: true);
@@ -50,6 +72,17 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
 
     _scheduleVM.fetchMyEnrollments();
     _userVM.fetchRefundRequests();
+    _userVM.fetchCoursePurchaseHistory().then((_) {
+      // Sau khi fetch, đảm bảo set lại nếu có args
+      if (_selectedPurchaseId != null && _selectedCourseName == null) {
+        final selected = _userVM.coursePurchases.firstWhereOrNull((p) => p.purchaseId == _selectedPurchaseId);
+        if (selected != null) {
+          setState(() {
+            _selectedCourseName = selected.courseTitle;
+          });
+        }
+      }
+    });
   }
 
   @override
@@ -61,45 +94,99 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      final bytes = await pickedFile.readAsBytes();
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+        _proofImageBase64 = base64Encode(bytes);
+      });
+    }
+  }
+
   Future<void> _submitRefund() async {
+    if (_selectedRefundType == null) {
+      Get.snackbar('Lỗi', 'Vui lòng chọn loại đơn.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+      return;
+    }
     setState(() => _accountNumberError = null);
     final accountNumber = _bankAccountNumberController.text.trim();
     if (accountNumber.length < 6 || accountNumber.length > 15) {
       setState(() => _accountNumberError = 'Số tài khoản cần lớn hơn 5 và nhỏ hơn 15');
       return;
     }
-    if (_selectedEnrollmentID == null || _selectedClassID == null || _selectedClassName == null) {
-      Get.snackbar('Lỗi', 'Vui lòng chọn lớp cần hoàn tiền.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
-      return;
+    if (_selectedRefundType == 0) { // Lớp học
+      if (_selectedEnrollmentID == null || _selectedClassID == null || _selectedClassName == null) {
+        Get.snackbar('Lỗi', 'Vui lòng chọn lớp cần hoàn tiền.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+        return;
+      }
+    } else if (_selectedRefundType == 1) { // Khóa học
+      if (_selectedPurchaseId == null || _selectedCourseName == null) {
+        Get.snackbar('Lỗi', 'Vui lòng chọn khóa học cần hoàn tiền.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+        return;
+      }
+      if (_proofImageBase64 == null || _proofImageBase64!.isEmpty) {
+        Get.snackbar('Lỗi', 'Vui lòng upload ảnh chứng minh.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+        return;
+      }
     }
     if (_selectedRequestType == null) {
       Get.snackbar('Lỗi', 'Vui lòng chọn loại đơn.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
       return;
     }
     setState(() => _isSubmitting = true);
-    final result = await _scheduleVM.submitRefundRequest(
-      enrollmentID: _selectedEnrollmentID!,
-      classID: _selectedClassID!,
-      className: _selectedClassName!,
-      requestType: _selectedRequestType!,
-      bankName: _bankNameController.text.trim(),
-      bankAccountNumber: accountNumber,
-      bankAccountHolderName: _bankAccountHolderNameController.text.trim(),
-      reason: _reasonController.text.trim(),
-    );
-    setState(() => _isSubmitting = false);
-    if (result != null) {
-      Get.snackbar('Thành công', 'Gửi đơn hoàn tiền thành công.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
-      _userVM.fetchRefundRequests(); // cập nhật danh sách bên tab xem đơn
-      _clearForm();
+    Map<String, dynamic>? result;
+    try {
+      if (_selectedRefundType == 0) {
+        result = await _scheduleVM.submitRefundRequest(
+          enrollmentID: _selectedEnrollmentID!,
+          classID: _selectedClassID!,
+          className: _selectedClassName!,
+          requestType: _selectedRequestType!,
+          bankName: _bankNameController.text.trim(),
+          bankAccountNumber: accountNumber,
+          bankAccountHolderName: _bankAccountHolderNameController.text.trim(),
+          reason: _reasonController.text.trim(),
+        );
+      } else if (_selectedRefundType == 1) {
+        result = await _userVM.submitCourseRefund(
+          purchaseId: _selectedPurchaseId!,
+          bankName: _bankNameController.text.trim(),
+          bankAccountNumber: accountNumber,
+          bankAccountHolderName: _bankAccountHolderNameController.text.trim(),
+          reason: _reasonController.text.trim(),
+          proofImage: _proofImageBase64!,
+
+        );
+      }
+      setState(() => _isSubmitting = false);
+      if (result != null) {
+        Get.snackbar('Thành công', 'Gửi đơn hoàn tiền thành công.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
+        _userVM.fetchRefundRequests();
+        _clearForm();
+        Get.back();
+      } else {
+        Get.snackbar('Lỗi', 'Gửi đơn hoàn tiền thất bại.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    } catch (e) {
+      setState(() => _isSubmitting = false);
+      Get.snackbar('Lỗi', e.toString().replaceFirst('Exception: ', ''), snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 
   void _clearForm() {
+    _selectedRefundType = null;
     _selectedEnrollmentID = null;
     _selectedClassID = null;
     _selectedClassName = null;
+    _selectedPurchaseId = null;
+    _selectedCourseName = null;
     _selectedRequestType = null;
+    _proofImageBase64 = null;
+    _selectedImage = null;
+    _refundEligibleError = null;
     _bankNameController.clear();
     _bankAccountNumberController.clear();
     _bankAccountHolderNameController.clear();
@@ -119,9 +206,9 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
           icon: const Icon(CupertinoIcons.back, color: Color(0xFF1A1A1A)),
           onPressed: () => Get.back(),
         ),
-        title: const Text(
-          'Hoàn tiền',
-          style: TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.w600, fontSize: 18),
+        title: Text(
+          _tab == 0 ? 'Gửi đơn' : 'Xem đơn',
+          style: const TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.w600, fontSize: 18),
         ),
       ),
       body: Column(
@@ -178,126 +265,327 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
   // Tab gửi đơn
   Widget _buildSubmitTab() {
     return Obx(() {
-      if (_scheduleVM.isLoading.value) {
+      if (_scheduleVM.isLoading.value || _userVM.isLoadingCoursePurchases.value) {
         return const Center(child: CircularProgressIndicator(color: AppColors.primary));
       }
       final enrollments = _scheduleVM.myEnrollments;
-      if (enrollments.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(CupertinoIcons.info_circle, size: 80, color: Colors.grey.shade300),
-              const SizedBox(height: 16),
-              Text('Bạn chưa đăng ký lớp nào', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 8),
-              Text('Vui lòng đăng ký lớp trước khi gửi đơn hoàn tiền', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
-            ],
-          ),
-        );
-      }
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Vui lòng điền đầy đủ thông tin để xử lý đơn hoàn tiền',
-                        style: TextStyle(fontSize: 13, color: Colors.orange.shade700)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-            const Text('Thông tin lớp học', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              decoration: _decoration('Chọn lớp cần hoàn tiền', 'Chọn lớp'),
-              isExpanded: true,
-              items: enrollments.map((e) => DropdownMenuItem<String>(value: e.enrollmentID, child: Text(e.title ?? 'Không rõ tên lớp'))).toList(),
-              value: _selectedEnrollmentID,
-              onChanged: (value) {
-                final selected = enrollments.firstWhereOrNull((e) => e.enrollmentID == value);
-                setState(() {
-                  _selectedEnrollmentID = selected?.enrollmentID;
-                  _selectedClassID = selected?.classID;
-                  _selectedClassName = selected?.title;
-                });
-              },
-            ),
-            const SizedBox(height: 24),
-            const Text('Loại đơn hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<int>(
-              decoration: _decoration('Chọn loại đơn', 'Chọn lý do'),
-              isExpanded: true,
-              items: _requestTypeOptions.entries.map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value))).toList(),
-              value: _selectedRequestType,
-              onChanged: (v) => setState(() => _selectedRequestType = v),
-            ),
-            const SizedBox(height: 24),
-            const Text('Thông tin ngân hàng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
-            const SizedBox(height: 16),
-            _textField(controller: _bankNameController, label: 'Tên ngân hàng', hint: 'VD: Vietcombank, Techcombank...'),
-            const SizedBox(height: 16),
-            Column(
+      final coursePurchases = _userVM.coursePurchases;
+      return Column(
+        children: [
+          // Phần dropdown fixed ở trên
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text('Số tài khoản', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1A1A1A))),
-                    const SizedBox(width: 8),
-                    const Text('Thông tin này cần chính xác', style: TextStyle(fontSize: 12, color: Colors.orange)),
+                const Text('Loại đơn hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  decoration: _decoration('Chọn loại đơn', 'Chọn loại'),
+                  isExpanded: true,
+                  items: const [
+                    DropdownMenuItem<int>(value: 0, child: Text('Lớp học')),
+                    DropdownMenuItem<int>(value: 1, child: Text('Khóa học')),
                   ],
+                  value: _selectedRefundType,
+                  onChanged: (v) => setState(() => _selectedRefundType = v),
                 ),
-                if (_accountNumberError != null) ...[
-                  const SizedBox(height: 4),
-                  Text(_accountNumberError!, style: const TextStyle(fontSize: 12, color: Colors.red)),
-                ],
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _bankAccountNumberController,
-                  keyboardType: TextInputType.number,
-                  decoration: _decoration('Nhập số tài khoản', 'Nhập số tài khoản ngân hàng'),
-                  maxLength: 15,
-                ),
+                const SizedBox(height: 32),
               ],
             ),
-            const SizedBox(height: 16),
-            _textField(controller: _bankAccountHolderNameController, label: 'Tên chủ tài khoản', hint: 'Nhập tên chủ tài khoản'),
-            const SizedBox(height: 24),
-            const Text('Lý do hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
-            const SizedBox(height: 16),
-            _textField(controller: _reasonController, label: 'Mô tả chi tiết', hint: 'Nhập lý do hoàn tiền...', maxLines: 4),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: _isSubmitting ? null : _submitRefund,
-                child: _isSubmitting
-                    ? const SizedBox(
-                  height: 24, width: 24,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                )
-                    : const Text('Gửi đơn hoàn tiền', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          ),
+          // Phần form scrollable bên dưới
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(left: 24, right: 24, top: 0, bottom: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_selectedRefundType == 0) ...[ // Lớp học
+                    if (enrollments.isEmpty) ...[
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Bạn chưa đăng ký lớp nào.',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1A1A1A)),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Vui lòng đăng ký lớp trước khi gửi đơn hoàn tiền.',
+                                style: TextStyle(fontSize: 14, color: Colors.grey),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text('Vui lòng điền đầy đủ thông tin để xử lý đơn hoàn tiền',
+                                  style: TextStyle(fontSize: 13, color: Colors.orange.shade700)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      const Text('Thông tin lớp học', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        decoration: _decoration('Chọn lớp cần hoàn tiền', 'Chọn lớp'),
+                        isExpanded: true,
+                        items: enrollments.map((e) => DropdownMenuItem<String>(value: e.enrollmentID, child: Text(e.title ?? 'Không rõ tên lớp'))).toList(),
+                        value: _selectedEnrollmentID,
+                        onChanged: (value) {
+                          final selected = enrollments.firstWhereOrNull((e) => e.enrollmentID == value);
+                          setState(() {
+                            _selectedEnrollmentID = selected?.enrollmentID;
+                            _selectedClassID = selected?.classID;
+                            _selectedClassName = selected?.title;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      const Text('Lý do hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<int>(
+                        decoration: _decoration('Chọn loại đơn', 'Chọn lý do'),
+                        isExpanded: true,
+                        items: _requestTypeOptions.entries.map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value))).toList(),
+                        value: _selectedRequestType,
+                        onChanged: (v) => setState(() => _selectedRequestType = v),
+                      ),
+                      const SizedBox(height: 24),
+                      const Text('Thông tin ngân hàng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 16),
+                      _textField(controller: _bankNameController, label: 'Tên ngân hàng', hint: 'VD: Vietcombank, Techcombank...'),
+                      const SizedBox(height: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('Số tài khoản', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1A1A1A))),
+                              const SizedBox(width: 8),
+                              const Text('Thông tin này cần chính xác', style: TextStyle(fontSize: 12, color: Colors.orange)),
+                            ],
+                          ),
+                          if (_accountNumberError != null) ...[
+                            const SizedBox(height: 4),
+                            Text(_accountNumberError!, style: const TextStyle(fontSize: 12, color: Colors.red)),
+                          ],
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _bankAccountNumberController,
+                            keyboardType: TextInputType.number,
+                            decoration: _decoration('Nhập số tài khoản', 'Nhập số tài khoản ngân hàng'),
+                            maxLength: 15,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _textField(controller: _bankAccountHolderNameController, label: 'Tên chủ tài khoản', hint: 'Nhập tên chủ tài khoản'),
+                      const SizedBox(height: 24),
+                      const Text('Lý do hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 16),
+                      _textField(controller: _reasonController, label: 'Mô tả chi tiết', hint: 'Nhập lý do hoàn tiền...', maxLines: 4),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: _isSubmitting ? null : _submitRefund,
+                          child: _isSubmitting
+                              ? const SizedBox(
+                            height: 24, width: 24,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                          )
+                              : const Text('Gửi đơn hoàn tiền', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ] else if (_selectedRefundType == 1) ...[ // Khóa học
+                    // SỬA: Kiểm tra nếu list rỗng VÀ không có khóa học được chọn sẵn từ trang trước
+                    if (coursePurchases.isEmpty && _selectedPurchaseId == null) ...[
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Bạn chưa mua khóa học nào.',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1A1A1A)),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Vui lòng mua khóa học trước khi gửi đơn hoàn tiền.',
+                                style: TextStyle(fontSize: 14, color: Colors.grey),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text('Vui lòng điền đầy đủ thông tin để xử lý đơn hoàn tiền',
+                                  style: TextStyle(fontSize: 13, color: Colors.orange.shade700)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      const Text('Thông tin khóa học', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 16),
+                      if (_refundEligibleError != null) ...[
+                        Text(_refundEligibleError!, style: const TextStyle(color: Colors.red, fontSize: 14)),
+                        const SizedBox(height: 8),
+                      ],
+                      // SỬA: Dropdown hiển thị khóa học đã chọn sẵn
+                      DropdownButtonFormField<String>(
+                        decoration: _decoration('Chọn khóa học cần hoàn tiền', 'Chọn khóa học'),
+                        isExpanded: true,
+                        items: [
+                          ...coursePurchases.map((p) => DropdownMenuItem<String>(value: p.purchaseId, child: Text(p.courseTitle))),
+                          // Thêm item thủ công nếu khóa học đã chọn không có trong list API trả về
+                          if (_selectedPurchaseId != null && !coursePurchases.any((p) => p.purchaseId == _selectedPurchaseId))
+                            DropdownMenuItem<String>(
+                              value: _selectedPurchaseId,
+                              child: Text(_selectedCourseName ?? 'Khóa học đã chọn'),
+                            ),
+                        ],
+                        value: _selectedPurchaseId,
+                        onChanged: (value) {
+                          final selected = coursePurchases.firstWhereOrNull((p) => p.purchaseId == value);
+                          setState(() {
+                            _selectedPurchaseId = value;
+                            if (selected != null) {
+                              _selectedCourseName = selected.courseTitle;
+                              _refundEligibleError = selected.isRefundEligible == false ? 'Khóa học này đã hết hạn để gửi đơn.' : null;
+                            } else {
+                              // Nếu chọn lại cái đã được pre-fill (không có trong list), reset lỗi (vì đã check ở trang trước)
+                              _refundEligibleError = null;
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      const Text('Lý do hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<int>(
+                        decoration: _decoration('Chọn loại đơn', 'Chọn lý do'),
+                        isExpanded: true,
+                        items: _requestTypeOptions.entries.map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value))).toList(),
+                        value: _selectedRequestType,
+                        onChanged: (v) => setState(() => _selectedRequestType = v),
+                      ),
+                      const SizedBox(height: 24),
+                      const Text('Thông tin ngân hàng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 16),
+                      _textField(controller: _bankNameController, label: 'Tên ngân hàng', hint: 'VD: Vietcombank, Techcombank...'),
+                      const SizedBox(height: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('Số tài khoản', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1A1A1A))),
+                              const SizedBox(width: 8),
+                              const Text('Thông tin này cần chính xác', style: TextStyle(fontSize: 12, color: Colors.orange)),
+                            ],
+                          ),
+                          if (_accountNumberError != null) ...[
+                            const SizedBox(height: 4),
+                            Text(_accountNumberError!, style: const TextStyle(fontSize: 12, color: Colors.red)),
+                          ],
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _bankAccountNumberController,
+                            keyboardType: TextInputType.number,
+                            decoration: _decoration('Nhập số tài khoản', 'Nhập số tài khoản ngân hàng'),
+                            maxLength: 15,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _textField(controller: _bankAccountHolderNameController, label: 'Tên chủ tài khoản', hint: 'Nhập tên chủ tài khoản'),
+                      const SizedBox(height: 24),
+                      const Text('Ảnh chứng minh', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 16),
+                      Column(
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _pickImage,
+                            icon: const Icon(Icons.upload),
+                            label: const Text('Upload ảnh'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey.shade100,
+                              foregroundColor: Colors.black,
+                            ),
+                          ),
+                          if (_selectedImage != null) ...[
+                            const SizedBox(height: 16),
+                            Image.file(_selectedImage!, height: 100, width: 100, fit: BoxFit.cover),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      const Text('Lý do hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 16),
+                      _textField(controller: _reasonController, label: 'Mô tả chi tiết', hint: 'Nhập lý do hoàn tiền...', maxLines: 4),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: _isSubmitting ? null : _submitRefund,
+                          child: _isSubmitting
+                              ? const SizedBox(
+                            height: 24, width: 24,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                          )
+                              : const Text('Gửi đơn hoàn tiền', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
+          ),
+        ],
       );
     });
   }
@@ -318,6 +606,8 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
         separatorBuilder: (_, __) => const SizedBox(height: 16),
         itemBuilder: (context, idx) {
           final req = data[idx];
+          final isCourseRefund = req['courseName'] != null; // Giả sử khóa học có courseName, lớp học có className
+          final displayName = req['className'] ?? req['courseName'] ?? 'Không xác định';
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -328,7 +618,13 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(req['className'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Row(
+                  children: [
+                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(width: 8),
+                    Text('(${isCourseRefund ? 'Khóa học' : 'Lớp học'})', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text('Số tiền: ${req['refundAmount']}₫', style: const TextStyle(color: AppColors.primary)),
                 const SizedBox(height: 4),

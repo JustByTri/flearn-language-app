@@ -36,9 +36,9 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
   // Update status functions to use 'status' instead of 'purchaseStatus'
   Color statusColor(String s) {
     final v = s.toLowerCase();
-    if (v == 'completed') return const Color(0xFF34C759);
-    if (v == 'refunded') return const Color(0xFFFF9500); // Add for new status
-    if (v == 'failed') return const Color(0xFFFF3B30);
+    if (v == 'completed') return const Color(0xFF228B22);
+    if (v == 'refunded') return const Color(0xFFFF9500);
+    if (v == 'failed') return const Color(0xFFFF5722);
     return Colors.blueGrey;
   }
 

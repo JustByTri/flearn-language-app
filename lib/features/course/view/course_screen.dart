@@ -1,8 +1,10 @@
+import 'package:flearn_app/shared/widgets/mainBottomNavbar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:get/get.dart';
 
+import '../../../shared/controllers/navigation_controller.dart';
 import '../../course_progress/viewmodel/course_progress_viewmodel.dart';
 import '../../course_progress/model/course_progress.dart';
 import 'course_unit_screen.dart';
@@ -36,7 +38,11 @@ class _CourseScreenState extends State<CourseScreen> {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(CupertinoIcons.back, color: Color(0xFF1A1A1A)),
-          onPressed: () => Get.back(),
+          onPressed: () {
+
+            Get.find<NavigationController>().selectedIndex.value = 0;
+            Get.back();
+          },
         ),
         title: const Text(
           'Khóa học của tôi',

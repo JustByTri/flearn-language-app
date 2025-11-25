@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:flearn_app/core/constants/colors.dart';
+import 'package:flutter/services.dart';
 
 import '../../schedule/viewmodel/schedule_viewmodel.dart';
 import '../../topic/viewmodel/topic_viewmodel.dart';
@@ -142,22 +143,25 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      backgroundColor: Colors.white,
-      body: RefreshIndicator(
-        onRefresh: _fetchUserProfile,
-        edgeOffset: 100.0,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            children: [
-              _buildHeaderWithAvatar(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
-                child: _buildFunctionList(),
-              ),
-              const SizedBox(height: kBottomNavigationBarHeight + 16),
-            ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark, // Chữ đen cho nền trắng
+      child: AppScaffold(
+        backgroundColor: Colors.white,
+        body: RefreshIndicator(
+          onRefresh: _fetchUserProfile,
+          edgeOffset: 100.0,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                _buildHeaderWithAvatar(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
+                  child: _buildFunctionList(),
+                ),
+                const SizedBox(height: kBottomNavigationBarHeight + 16),
+              ],
+            ),
           ),
         ),
       ),
@@ -408,7 +412,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             iconColor: const Color(0xFFFF9500),
             onTap: () {
               Get.to(
-                () => const DailyGoalScreen(),
+                    () => const DailyGoalScreen(),
                 transition: Transition.cupertino,
               );
             },
@@ -420,7 +424,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             iconColor: const Color(0xFFFFD700),
             onTap: () {
               Get.to(
-                () => const LeaderboardScreen(),
+                    () => const LeaderboardScreen(),
                 transition: Transition.cupertino,
               );
             },
@@ -558,10 +562,10 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             shape: BoxShape.circle,
             gradient: isTopRank
                 ? LinearGradient(
-                    colors: [frameColor!, frameColor.withAlpha(200)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
+              colors: [frameColor!, frameColor.withAlpha(200)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            )
                 : null,
             boxShadow: [
               BoxShadow(
@@ -589,10 +593,10 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                   : null,
               child: (avatarUrl == null || avatarUrl.isEmpty)
                   ? Icon(
-                      CupertinoIcons.person_fill,
-                      color: Colors.grey.shade400,
-                      size: 50,
-                    )
+                CupertinoIcons.person_fill,
+                color: Colors.grey.shade400,
+                size: 50,
+              )
                   : null,
             ),
           ),

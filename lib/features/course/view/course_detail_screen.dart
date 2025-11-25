@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:get/get.dart';
+import '../../course_progress/viewmodel/course_progress_viewmodel.dart';
 import '../model/course_detail.dart';
 import '../viewmodel/course_viewmodel.dart';
 import 'course_unit_screen.dart';
@@ -47,52 +48,80 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
 
   Future<void> _handleEnrollNow(BuildContext context) async {
     final vm = Get.find<CourseViewModel>();
-    Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
-    try {
-      if (_purchaseId == null) {
-        final data = await vm.createPurchase(courseId: widget.courseId);
-        if (data == null || data['purchaseId'] == null) {
-          if (Get.isDialogOpen ?? false) Get.back();
-          Get.snackbar('Lỗi', 'Không thể tạo đơn mua khóa học. Vui lòng thử lại.');
+    final courseProgressVM = Get.find<CourseProgressViewModel>();
+    final course = vm.courseDetail.value!;
+
+    if (course.price == 0) {
+      // Luồng miễn phí: Gọi API enroll free trực tiếp
+      Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+      try {
+        final enrollData = await vm.enrollFreeCourse(widget.courseId);
+        if (Get.isDialogOpen ?? false) Get.back();
+        if (enrollData != null) {
+          setState(() {
+            _isEnrolled = true;
+            _enrollmentId = enrollData['enrollmentId'];
+          });
+          // Thêm: Refresh danh sách khóa học đang học
+          await courseProgressVM.fetchMyCourses();
+          Get.snackbar('Thành công', 'Bạn đã đăng ký khóa học miễn phí thành công!', backgroundColor: Colors.green, colorText: Colors.white);
+        } else {
+          Get.snackbar('Lỗi', 'Không thể đăng ký khóa học miễn phí. Vui lòng thử lại.');
+        }
+      } catch (e, st) {
+        if (Get.isDialogOpen ?? false) Get.back();
+        debugPrint('[Enroll Free] Exception: $e\n$st');
+        Get.snackbar('Lỗi', 'Đã xảy ra lỗi: $e');
+      }
+    } else {
+      // Luồng trả phí: Giữ logic cũ
+      Get.dialog(const Center(child: CircularProgressIndicator()), barrierDismissible: false);
+      try {
+        if (_purchaseId == null) {
+          final data = await vm.createPurchase(courseId: widget.courseId);
+          if (data == null || data['purchaseId'] == null) {
+            if (Get.isDialogOpen ?? false) Get.back();
+            Get.snackbar('Lỗi', 'Không thể tạo đơn mua khóa học. Vui lòng thử lại.');
+            return;
+          }
+          _purchaseId = data['purchaseId'].toString();
+        }
+        final paymentData = await vm.payPurchase(_purchaseId!);
+        if (Get.isDialogOpen ?? false) Get.back();
+        if (paymentData == null || paymentData['paymentUrl'] == null) {
+          Get.snackbar('Lỗi', 'Không thể tạo thanh toán. Vui lòng thử lại.');
           return;
         }
-        _purchaseId = data['purchaseId'].toString();
-      }
-      final paymentData = await vm.payPurchase(_purchaseId!);
-      if (Get.isDialogOpen ?? false) Get.back();
-      if (paymentData == null || paymentData['paymentUrl'] == null) {
-        Get.snackbar('Lỗi', 'Không thể tạo thanh toán. Vui lòng thử lại.');
-        return;
-      }
-      final paymentUrl = paymentData['paymentUrl'].toString();
-      final transactionReference = paymentData['transactionReference']?.toString() ?? '';
-      final course = vm.courseDetail.value!;
-      final paid = await Get.to<bool>(() => PaymentCourseWebViewScreen(
-        paymentUrl: paymentUrl,
-        purchaseId: _purchaseId!,
-        transactionReference: transactionReference,
-        amount: course.discountPrice ?? course.price,
-      ));
-      if (paid == true) {
-        final enrollData = await vm.enrollCourse(widget.courseId); // nhận full data
-        final enrolled = enrollData != null;
-        setState(() {
-          _isEnrolled = enrolled;
-          _enrollmentId = enrollData?['enrollmentId'];
-        });
-        if (enrolled) {
-          Get.snackbar('Thành công', 'Bạn đã đăng ký khóa học thành công!', backgroundColor: Colors.green, colorText: Colors.white);
-        } else {
-          Get.snackbar('Lỗi', 'Thanh toán thành công nhưng ghi nhận enrollment thất bại!', backgroundColor: Colors.orange, colorText: Colors.white);
+        final paymentUrl = paymentData['paymentUrl'].toString();
+        final transactionReference = paymentData['transactionReference']?.toString() ?? '';
+        final paid = await Get.to<bool>(() => PaymentCourseWebViewScreen(
+          paymentUrl: paymentUrl,
+          purchaseId: _purchaseId!,
+          transactionReference: transactionReference,
+          amount: course.discountPrice ?? course.price,
+        ));
+        if (paid == true) {
+          final enrollData = await vm.enrollCourse(widget.courseId);
+          final enrolled = enrollData != null;
+          setState(() {
+            _isEnrolled = enrolled;
+            _enrollmentId = enrollData?['enrollmentId'];
+          });
+          if (enrolled) {
+            // Thêm: Refresh danh sách khóa học đang học
+            await courseProgressVM.fetchMyCourses();
+            Get.snackbar('Thành công', 'Bạn đã đăng ký khóa học thành công!', backgroundColor: Colors.green, colorText: Colors.white);
+          } else {
+            Get.snackbar('Lỗi', 'Thanh toán thành công nhưng ghi nhận enrollment thất bại!', backgroundColor: Colors.orange, colorText: Colors.white);
+          }
+        } else if (paid == false) {
+          Get.snackbar('Đã hủy', 'Bạn đã hủy hoặc thất bại khi thanh toán.', backgroundColor: Colors.orange, colorText: Colors.white);
         }
-      } else if (paid == false) {
-        Get.snackbar('Đã hủy', 'Bạn đã hủy hoặc thất bại khi thanh toán.',
-            backgroundColor: Colors.orange, colorText: Colors.white);
+      } catch (e, st) {
+        if (Get.isDialogOpen ?? false) Get.back();
+        debugPrint('[Enroll Paid] Exception: $e\n$st');
+        Get.snackbar('Lỗi', 'Đã xảy ra lỗi: $e');
       }
-    } catch (e, st) {
-      if (Get.isDialogOpen ?? false) Get.back();
-      debugPrint('[Enroll] Exception: $e\n$st');
-      Get.snackbar('Lỗi', 'Đã xảy ra lỗi: $e');
     }
   }
 
