@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/video_player.dart';
 import '../model/course_exercise.dart';
+import '../model/lesson_progress_exercise.dart';
 import '../viewmodel/course_viewmodel.dart';
 import 'course_lesson_drawer.dart';
 import 'exercise_debate_screen.dart';
@@ -112,10 +113,10 @@ class _CourseLessonScreenState
 
     // Prefetch bài tập và chèn step Exercise nếu có dữ liệu
     courseViewModel
-        .fetchLessonExercises(detail.lessonId)
+        .fetchLessonProgressExercises(detail.lessonId)
         .then((_) {
       if (!mounted) return;
-      if (courseViewModel.exercises.isNotEmpty &&
+      if (courseViewModel.progressExercises.isNotEmpty &&  // Dùng RxList mới
           !_availableSteps.contains(
             LessonStep.exercise,
           )) {
@@ -123,7 +124,7 @@ class _CourseLessonScreenState
           _availableSteps.add(LessonStep.exercise);
           _stepChecked.add(
             false,
-          ); // không tính vào checkbox
+          );
           if (_currentStep >= _availableSteps.length) {
             _currentStep = _availableSteps.length - 1;
           }
@@ -411,9 +412,10 @@ class _CourseLessonScreenState
   Widget _buildExerciseStep(String lessonId) {
     return Obx(() {
       final loading =
-          courseViewModel.isLoadingExercises.value;
-      final list = courseViewModel.exercises;
-
+          courseViewModel.isLoadingProgressExercises.value;  // Dùng loading mới
+      final list = courseViewModel.progressExercises;  // Dùng RxList mới
+      print('lessonId: $lessonId');
+      print('list: $list');
       if (loading && list.isEmpty) {
         return const Center(
           child: CircularProgressIndicator(
@@ -428,6 +430,7 @@ class _CourseLessonScreenState
         );
       }
 
+      // Giữ các hàm helper (có thể dùng chung vì field giống)
       Color _difficultyColor(String diff) {
         switch (diff.toLowerCase()) {
           case 'easy':
@@ -448,12 +451,11 @@ class _CourseLessonScreenState
           case 'RepeatAfterMe':
             return Colors.blue;
           case 'PictureDescription':
-            return Colors.green;
-          case 'Debate':
-            return Colors.orange;
-          case 'StoryTelling':
             return Colors.purple;
-
+          case 'Debate':
+            return Colors.brown;
+          case 'StoryTelling':
+            return Colors.teal;
           default:
             return AppColors.primary;
         }
@@ -474,40 +476,41 @@ class _CourseLessonScreenState
         }
       }
 
-      void _openExercise(Exercise ex) {
-        switch (ex.exerciseType) {
-          case 'RepeatAfterMe':
-            Get.to(
-                  () =>
-                  ExerciseRepeatAfterMeScreen(exercise: ex),
-            );
-            break;
-          case 'PictureDescription':
-            Get.to(
-                  () => ExerciseMultipleChoiceScreen(
-                exercise: ex,
-              ),
-            );
-            break;
-          case 'Debate':
-            Get.to(
-                  () => ExerciseDebateScreen(exercise: ex),
-            );
-            break;
-          case 'StoryTelling':
-            Get.to(
-                  () => ExerciseFillInBlankScreen(exercise: ex),
-            );
-            break;
+      String _difficultyLabel(String diff) {
+        switch (diff.toLowerCase()) {
+          case 'easy':
+            return 'Dễ';
+          case 'medium':
+            return 'Trung bình';
+          case 'hard':
+            return 'Khó';
+          case 'advanced':
+            return 'Nâng cao';
           default:
-            Get.to(
-                  () =>
-                  ExerciseRepeatAfterMeScreen(exercise: ex),
-            );
+            return diff;
         }
       }
 
-      void _viewScore(Exercise ex) {
+      void _openExercise(LessonProgressExercise ex) {
+        switch (ex.exerciseType) {
+          case 'RepeatAfterMe':
+            Get.to(() => ExerciseRepeatAfterMeScreen(exerciseId: ex.exerciseID));
+            break;
+          case 'PictureDescription':
+            Get.to(() => ExerciseMultipleChoiceScreen(exerciseId: ex.exerciseID));
+            break;
+          case 'Debate':
+            Get.to(() => ExerciseDebateScreen(exerciseId: ex.exerciseID));
+            break;
+          case 'StoryTelling':
+            Get.to(() => ExerciseFillInBlankScreen(exerciseId: ex.exerciseID));
+            break;
+          default:
+            Get.to(() => ExerciseRepeatAfterMeScreen(exerciseId: ex.exerciseID));
+        }
+      }
+
+      void _viewScore(LessonProgressExercise ex) {  // Thay Exercise thành LessonProgressExercise
         Get.to(
               () => ExerciseSubmissionListScreen(
             exerciseId: ex.exerciseID,
@@ -535,10 +538,10 @@ class _CourseLessonScreenState
             separatorBuilder: (_, __) =>
             const SizedBox(height: 12),
             itemBuilder: (context, i) {
-              final ex = list[i];
+              final ex = list[i];  // ex là LessonProgressExercise
               final typeColor = _typeColor(
                 ex.exerciseType,
-              ); // Lấy màu cho loại bài tập
+              );
               return InkWell(
                 onTap: () => _openExercise(ex),
                 child: Container(
@@ -592,18 +595,64 @@ class _CourseLessonScreenState
                               crossAxisAlignment:
                               CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  ex.title,
-                                  maxLines: 2,
-                                  overflow:
-                                  TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight:
-                                    FontWeight.w600,
-                                  ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        ex.title,
+                                        maxLines: 2,
+                                        overflow:
+                                        TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight:
+                                          FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    if (ex.submissionId == null || (ex.submissionId is String && ex.submissionId!.isEmpty))
+                                      SizedBox(
+                                        height: 28,
+                                        child: Chip(
+                                          label: const Text(
+                                            'Chưa bắt đầu',
+                                            style: TextStyle(fontSize: 12, color: Colors.black87),
+                                          ),
+                                          backgroundColor: Colors.grey.shade200,
+                                          labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                                          elevation: 0,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      )
+                                    else if (ex.isPassed)
+                                      SizedBox(
+                                        height: 28,
+                                        child: Chip(
+                                          label: const Text('Đạt', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                          backgroundColor: Colors.green.shade600,
+                                          avatar: const Icon(Icons.thumb_up, color: Colors.white, size: 14),
+                                          labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                                          elevation: 0,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      )
+                                    else
+                                      SizedBox(
+                                        height: 28,
+                                        child: Chip(
+                                          label: const Text('Rớt', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                          backgroundColor: Colors.red.shade600,
+                                          avatar: const Icon(Icons.thumb_down, color: Colors.white, size: 14),
+                                          labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                                          elevation: 0,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 const SizedBox(height: 6),
+                                // Hiển thị điểm nếu có
+
                                 Wrap(
                                   spacing: 6,
                                   runSpacing: 6,
@@ -623,7 +672,7 @@ class _CourseLessonScreenState
                                         BorderRadius.circular(
                                           999,
                                         ),
-                                      ), // Áp dụng màu nền
+                                      ),
                                       child: Text(
                                         _typeLabel(
                                           ex.exerciseType,
@@ -635,7 +684,7 @@ class _CourseLessonScreenState
                                           FontWeight
                                               .w600,
                                         ),
-                                      ), // Áp dụng màu chữ
+                                      ),
                                     ),
                                     if (ex
                                         .difficulty
@@ -664,7 +713,7 @@ class _CourseLessonScreenState
                                           ),
                                         ),
                                         child: Text(
-                                          ex.difficulty,
+                                          _difficultyLabel(ex.difficulty),
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight:
@@ -1235,14 +1284,8 @@ class _CourseLessonScreenState
                     return;
                   }
 
-                  // NEW: không chuyển trang nữa ở bước cuối
-                  Get.snackbar(
-                    'Hoàn thành',
-                    'Bạn đã hoàn thành bài học ${detail.lessonTitle}!',
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: Colors.green,
-                    colorText: Colors.white,
-                  );
+                  // Chuyển về trang unit
+                  Get.back();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,

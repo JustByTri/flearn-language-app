@@ -353,7 +353,7 @@ class _LessonExerciseScreenState extends State<LessonExerciseScreen> {
     final IconData typeIcon = _getExerciseTypeIcon(e.exerciseType);
 
     return InkWell(
-      onTap: () => _goToExercisePage(e),
+      // onTap: () => _goToExercisePage(e),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -593,25 +593,25 @@ class _LessonExerciseScreenState extends State<LessonExerciseScreen> {
     );
   }
 
-  void _goToExercisePage(Exercise exercise) {
-    switch (exercise.exerciseType) {
-      case 'RepeatAfterMe':
-        Get.to(() => ExerciseRepeatAfterMeScreen(exercise: exercise));
-        break;
-      case 'PictureDescription':
-        Get.to(() => ExerciseMultipleChoiceScreen(exercise: exercise));
-        break;
-      case 'StoryTelling':
-        Get.to(() => ExerciseFillInBlankScreen(exercise: exercise));
-        break;
-      case 'Debate': // NEW
-        Get.to(() => ExerciseDebateScreen(exercise: exercise));
-        break;
-      default:
-        Get.to(() => ExerciseRepeatAfterMeScreen(exercise: exercise));
-        break;
-    }
-  }
+  // void _goToExercisePage(Exercise exercise) {
+  //   switch (exercise.exerciseType) {
+  //     case 'RepeatAfterMe':
+  //       Get.to(() => ExerciseRepeatAfterMeScreen(exercise: exercise));
+  //       break;
+  //     case 'PictureDescription':
+  //       Get.to(() => ExerciseMultipleChoiceScreen(exercise: exercise));
+  //       break;
+  //     case 'StoryTelling':
+  //       Get.to(() => ExerciseFillInBlankScreen(exercise: exercise));
+  //       break;
+  //     case 'Debate': // NEW
+  //       Get.to(() => ExerciseDebateScreen(exercise: exercise));
+  //       break;
+  //     default:
+  //       Get.to(() => ExerciseRepeatAfterMeScreen(exercise: exercise));
+  //       break;
+  //   }
+  // }
 
   Widget _buildBottomButtons() {
     final isLastExercise = _currentExerciseIndex == courseViewModel.exercises.length - 1;

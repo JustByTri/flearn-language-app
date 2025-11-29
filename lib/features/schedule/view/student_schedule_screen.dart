@@ -99,6 +99,13 @@ class _StudentScheduleScreenState extends State<StudentScheduleScreen> {
     }).toList();
   }
 
+  List<dynamic> _getEventsForDay(DateTime day) {
+    return classes.where((cls) {
+      final start = DateTime.parse(cls['startDateTime']);
+      return start.year == day.year && start.month == day.month && start.day == day.day;
+    }).toList();
+  }
+
   Future<void> bookClass(String classId) async {
     try {
       // ...existing code gọi API bookClass...
@@ -141,201 +148,220 @@ class _StudentScheduleScreenState extends State<StudentScheduleScreen> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : errorMessage.isNotEmpty
-              ? Center(child: Text(errorMessage, style: const TextStyle(color: Colors.red)))
-              : Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      child: Column(
-                        children: [
-                          // Custom header chỉ hiển thị tháng/năm
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.chevron_left, color: Colors.black),
-                                  onPressed: () {
-                                    setState(() {
-                                      selectedDay = DateTime(selectedDay.year, selectedDay.month - 1, selectedDay.day);
-                                    });
-                                  },
-                                ),
-                                Text(
-                                  '${viMonths[selectedDay.month]} ${selectedDay.year}',
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.chevron_right, color: Colors.black),
-                                  onPressed: () {
-                                    setState(() {
-                                      selectedDay = DateTime(selectedDay.year, selectedDay.month + 1, selectedDay.day);
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          TableCalendar(
-                            locale: 'vi_VN',
-                            firstDay: DateTime.utc(2020, 1, 1),
-                            lastDay: DateTime.utc(2030, 12, 31),
-                            focusedDay: selectedDay,
-                            calendarFormat: calendarFormat,
-                            onFormatChanged: (format) {}, // Không cho đổi format
-                            selectedDayPredicate: (day) {
-                              return isSameDay(selectedDay, day);
-                            },
-                            onDaySelected: (selected, focused) {
-                              setState(() {
-                                selectedDay = selected;
-                              });
-                            },
-                            headerVisible: false,
-                            calendarStyle: CalendarStyle(
-                              todayDecoration: BoxDecoration(
-                                color: AppColors.primary.withAlpha(77),
-                                shape: BoxShape.circle,
-                              ),
-                              selectedDecoration: BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              weekendTextStyle: const TextStyle(color: Colors.red),
-                              outsideDaysVisible: false,
-                            ),
-                            daysOfWeekStyle: DaysOfWeekStyle(
-                              weekdayStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500),
-                              weekendStyle: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
-                              dowTextFormatter: (day, locale) {
-                                return viWeekdays[DateFormat('E', 'en_US').format(day)] ?? '';
-                              },
-                            ),
-                          ),
-                        ],
+          ? Center(child: Text(errorMessage, style: const TextStyle(color: Colors.red)))
+          : Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Column(
+              children: [
+                // Custom header chỉ hiển thị tháng/năm
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left, color: Colors.black),
+                        onPressed: () {
+                          setState(() {
+                            selectedDay = DateTime(selectedDay.year, selectedDay.month - 1, selectedDay.day);
+                          });
+                        },
                       ),
+                      Text(
+                        '${viMonths[selectedDay.month]} ${selectedDay.year}',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right, color: Colors.black),
+                        onPressed: () {
+                          setState(() {
+                            selectedDay = DateTime(selectedDay.year, selectedDay.month + 1, selectedDay.day);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                TableCalendar(
+                  locale: 'vi_VN',
+                  firstDay: DateTime.utc(2020, 1, 1),
+                  lastDay: DateTime.utc(2030, 12, 31),
+                  focusedDay: selectedDay,
+                  calendarFormat: calendarFormat,
+                  onFormatChanged: (format) {}, // Không cho đổi format
+                  selectedDayPredicate: (day) {
+                    return isSameDay(selectedDay, day);
+                  },
+                  onDaySelected: (selected, focused) {
+                    setState(() {
+                      selectedDay = selected;
+                    });
+                  },
+                  eventLoader: _getEventsForDay, // Thêm eventLoader để load events cho ngày
+                  headerVisible: false,
+                  calendarStyle: CalendarStyle(
+                    todayDecoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(77),
+                      shape: BoxShape.circle,
                     ),
-                    Expanded(
-                      child: classesForSelectedDay.isEmpty
-                          ? Center(child: Text('Không có lớp học nào trong ngày này', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)))
-                          : ListView.builder(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: classesForSelectedDay.length,
-                              itemBuilder: (context, index) {
-                                final cls = classesForSelectedDay[index];
-                                final colorList = [Colors.orange.shade100, Colors.green.shade100, Colors.purple.shade100, Colors.blue.shade100];
-                                final cardColor = colorList[index % colorList.length];
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: cardColor,
-                                    borderRadius: BorderRadius.circular(18),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withAlpha(18), // 0.07*255=18
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  margin: const EdgeInsets.only(bottom: 20, left: 4, right: 4),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(18),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primary.withAlpha(40),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              padding: const EdgeInsets.all(6),
-                                              child: const Icon(Icons.class_, color: AppColors.primary, size: 22),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Text(
-                                                cls['title'] ?? '',
-                                                style: const TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF1A1A1A),
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.person, color: Colors.grey, size: 18),
-                                            const SizedBox(width: 6),
-                                            Expanded(
-                                              child: Text('Giáo viên: ${cls['teacherName'] ?? ''}', style: TextStyle(fontSize: 15, color: Colors.grey.shade800)),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.language, color: Colors.grey, size: 18),
-                                            const SizedBox(width: 6),
-                                            Expanded(
-                                              child: Text('Ngôn ngữ: ${cls['languageName'] ?? ''}', style: TextStyle(fontSize: 15, color: Colors.grey.shade800)),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            const Icon(Icons.access_time, color: Colors.grey, size: 18),
-                                            const SizedBox(width: 6),
-                                            Expanded(
-                                              child: Text('Thời gian: ${_formatDateTime(cls['startDateTime'])} - ${_formatDateTime(cls['endDateTime'])}', style: TextStyle(fontSize: 15, color: Colors.grey.shade800)),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 14),
-                                        if (cls['googleMeetLink'] != null && cls['googleMeetLink'].toString().isNotEmpty)
-                                          Align(
-                                            alignment: Alignment.centerLeft,
-                                            child: ElevatedButton.icon(
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: AppColors.primary,
-                                                foregroundColor: Colors.white,
-                                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                                elevation: 0,
-                                              ),
-                                              icon: const Icon(Icons.video_call, size: 20),
-                                              label: const Text('Vào lớp học', style: TextStyle(fontWeight: FontWeight.bold)),
-                                              onPressed: () async {
-                                                final url = cls['googleMeetLink'];
-                                                if (url != null && url.toString().isNotEmpty) {
-                                                  final uri = Uri.parse(url);
-                                                  if (await canLaunchUrl(uri)) {
-                                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                                  } else {
-                                                    Get.snackbar('Không mở được link', url, snackPosition: SnackPosition.BOTTOM);
-                                                  }
-                                                }
-                                              },
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                );
+                    selectedDecoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    weekendTextStyle: const TextStyle(color: Colors.red),
+                    outsideDaysVisible: false,
+                  ),
+                  calendarBuilders: CalendarBuilders( // Thêm calendarBuilders để custom marker
+                    markerBuilder: (context, date, events) {
+                      if (events.isNotEmpty) {
+                        return Positioned(
+                          bottom: 1,
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: AppColors.primary, // Màu xanh cho marker
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        );
+                      }
+                      return null;
+                    },
+                  ),
+                  daysOfWeekStyle: DaysOfWeekStyle(
+                    weekdayStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500),
+                    weekendStyle: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+                    dowTextFormatter: (day, locale) {
+                      return viWeekdays[DateFormat('E', 'en_US').format(day)] ?? '';
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: classesForSelectedDay.isEmpty
+                ? Center(child: Text('Không có lớp học nào trong ngày này', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)))
+                : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: classesForSelectedDay.length,
+              itemBuilder: (context, index) {
+                final cls = classesForSelectedDay[index];
+                final colorList = [Colors.orange.shade100, Colors.green.shade100, Colors.purple.shade100, Colors.blue.shade100];
+                final cardColor = colorList[index % colorList.length];
+                return Container(
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(18), // 0.07*255=18
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  margin: const EdgeInsets.only(bottom: 20, left: 4, right: 4),
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withAlpha(40),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.all(6),
+                              child: const Icon(Icons.class_, color: AppColors.primary, size: 22),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                cls['title'] ?? '',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1A1A1A),
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            const Icon(Icons.person, color: Colors.grey, size: 18),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text('Giáo viên: ${cls['teacherName'] ?? ''}', style: TextStyle(fontSize: 15, color: Colors.grey.shade800)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.language, color: Colors.grey, size: 18),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text('Ngôn ngữ: ${cls['languageName'] ?? ''}', style: TextStyle(fontSize: 15, color: Colors.grey.shade800)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.access_time, color: Colors.grey, size: 18),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text('Thời gian: ${_formatDateTime(cls['startDateTime'])} - ${_formatDateTime(cls['endDateTime'])}', style: TextStyle(fontSize: 15, color: Colors.grey.shade800)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        if (cls['googleMeetLink'] != null && cls['googleMeetLink'].toString().isNotEmpty)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                elevation: 0,
+                              ),
+                              icon: const Icon(Icons.video_call, size: 20),
+                              label: const Text('Vào lớp học', style: TextStyle(fontWeight: FontWeight.bold)),
+                              onPressed: () async {
+                                final url = cls['googleMeetLink'];
+                                if (url != null && url.toString().isNotEmpty) {
+                                  final uri = Uri.parse(url);
+                                  if (await canLaunchUrl(uri)) {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  } else {
+                                    Get.snackbar('Không mở được link', url, snackPosition: SnackPosition.BOTTOM);
+                                  }
+                                }
                               },
                             ),
+                          ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

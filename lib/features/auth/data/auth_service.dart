@@ -240,7 +240,7 @@ class AuthService implements IAuthRepository {
       );
       return ResponseModel.fromJson(
         response.data,
-            (json) => json, // Nếu không có model cụ thể, trả về json
+            (json) => json,
       );
     } on DioException catch (e) {
       // If server responded with body, convert it to ResponseModel so caller can read message
@@ -415,6 +415,7 @@ class AuthService implements IAuthRepository {
   }
 
 
+
   @override
   Future<Map<String, dynamic>?> submitCourseRefund({
     required String purchaseId,
@@ -422,43 +423,44 @@ class AuthService implements IAuthRepository {
     required String bankAccountNumber,
     required String bankAccountHolderName,
     required String reason,
-    required String proofImageBase64,
+    required String proofImagePath, // Đổi từ base64 sang path
   }) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/$purchaseId/refunds');
+    final url = Uri.parse('https://f-learn.app/api/purchases/refunds');
 
-    // Debug log to see what we are submitting
-    print('Submitting refund with data: ');
-    print('  PurchaseId: $purchaseId');
-    print('  BankName: $bankName');
-    print('  BankAccountNumber: $bankAccountNumber');
-    print('  BankAccountHolderName: $bankAccountHolderName');
-    print('  Reason: $reason');
-    print('  ProofImage: ${proofImageBase64.substring(0, 30)}...'); // Print first 30 chars of base64 string
+    var request = http.MultipartRequest('POST', url);
+    request.headers['Authorization'] = 'Bearer $accessToken';
 
-    final res = await http.post(url, headers: {
-      'Content-Type': 'application/json',
-      if (accessToken != null && accessToken.toString().isNotEmpty)
-        'Authorization': 'Bearer $accessToken',
-    }, body: jsonEncode({
-      // CHANGE: Use PascalCase keys to match API requirements
-      'BankName': bankName,
-      'BankAccountNumber': bankAccountNumber,
-      'BankAccountHolderName': bankAccountHolderName,
-      'Reason': reason,
-      'ProofImage': proofImageBase64,
-    }));
+    request.fields['PurchaseId'] = purchaseId;
+    request.fields['BankName'] = bankName;
+    request.fields['BankAccountNumber'] = bankAccountNumber;
+    request.fields['BankAccountHolderName'] = bankAccountHolderName;
+    request.fields['Reason'] = reason;
 
-    print('submitCourseRefund status: ${res.statusCode}');
-    print('submitCourseRefund body: ${res.body}');
+    // Thêm file ảnh chứng minh
+    request.files.add(await http.MultipartFile.fromPath('ProofImage', proofImagePath));
 
-    if (res.statusCode == 200) {
-      final jsonBody = jsonDecode(res.body);
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    print('submitCourseRefund status: ${response.statusCode}');
+    print('submitCourseRefund body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final jsonBody = jsonDecode(response.body);
       if (jsonBody['status'] == 'success') {
+        // Nếu data là String, trả về map với message
+        final data = jsonBody['data'];
+        if (data is String) {
+          return {
+            'status': jsonBody['status'],
+            'message': data,
+          };
+        }
         return jsonBody['data'];
       }
-    } else if (res.statusCode == 400) {
-      final jsonBody = jsonDecode(res.body);
+    } else if (response.statusCode == 400) {
+      final jsonBody = jsonDecode(response.body);
       if (jsonBody['errors'] != null) {
         throw Exception(jsonBody['errors'].toString());
       }
@@ -483,6 +485,26 @@ class AuthService implements IAuthRepository {
       }
     }
     return null;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchCourseRefundRequests() async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/refunds/me?Page=1&PageSize=10&SortBy=newest');
+    final res = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Content-Type': 'application/json',
+      },
+    );
+    if (res.statusCode == 200) {
+      final body = jsonDecode(res.body);
+      if (body['status'] == 'success' && body['data'] != null) {
+        return List<Map<String, dynamic>>.from(body['data']);
+      }
+    }
+    return [];
   }
 
 }

@@ -83,13 +83,47 @@ class _ExerciseSubmissionListScreenState extends State<ExerciseSubmissionListScr
     final scores = aiFeedback?['scores'] as Map<String, dynamic>? ?? {};
     final overall = aiFeedback?['overall']?.toString() ?? sub.aiScore.toString();
     final transcript = aiFeedback?['transcript']?.toString() ?? '';
+    // NEW: lấy recognizedText (câu nói được nhận diện bởi hệ thống)
+    final recognizedText = aiFeedback?['recognizedText']?.toString() ?? '';
+    // NEW: xử lý feedback có 2 dạng:
+    // - Một chuỗi mô tả (ví dụ: "Your description of the car rental counter ...")
+    // - Hoặc một JSON string/array các object phoneme (đã xử lý trước)
+    final String aiComment = (() {
+      try {
+        final feedbackRaw = aiFeedback?['feedback'];
+        if (feedbackRaw == null) return '';
+        // Nếu là List trực tiếp
+        if (feedbackRaw is List) return '';
+        // Nếu là String, thử parse JSON array -> phoneme list (handled below),
+        // nếu parse thất bại thì coi đó là comment text.
+        if (feedbackRaw is String) {
+          final trimmed = feedbackRaw.trim();
+          // Nếu bắt đầu bằng '[' hoặc '{' thì cố gắng parse JSON (phoneme list or object)
+          if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+            // không trả comment
+            return '';
+          } else {
+            // plain text feedback -> comment
+            return feedbackRaw;
+          }
+        }
+        return '';
+      } catch (_) {
+        return '';
+      }
+    }());
+
+    // Nếu feedback là danh sách phoneme, chuyển về feedbackList để hiển thị phần Phân tích phát âm
     final feedbackList = <Map<String, dynamic>>[];
     try {
       final feedbackRaw = aiFeedback?['feedback'];
-      if (feedbackRaw is String) {
-        feedbackList.addAll(List<Map<String, dynamic>>.from(json.decode(feedbackRaw)));
-      } else if (feedbackRaw is List) {
+      if (feedbackRaw is List) {
         feedbackList.addAll(List<Map<String, dynamic>>.from(feedbackRaw));
+      } else if (feedbackRaw is String) {
+        final trimmed = feedbackRaw.trim();
+        if (trimmed.startsWith('[')) {
+          feedbackList.addAll(List<Map<String, dynamic>>.from(json.decode(feedbackRaw)));
+        }
       }
     } catch (_) {}
 
@@ -137,6 +171,34 @@ class _ExerciseSubmissionListScreenState extends State<ExerciseSubmissionListScr
               ],
             ),
             const SizedBox(height: 12),
+            // Câu nói được nhận diện (recognizedText)
+            if (recognizedText.isNotEmpty) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.mic, size: 20, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Câu nói của bạn: $recognizedText', style: const TextStyle(fontSize: 14, color: Colors.black)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Đánh giá dạng chuỗi từ AI (nếu có) -> hiển thị "Đánh giá của AI"
+            if (aiComment.isNotEmpty) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.analytics, size: 20, color: Colors.green),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Đánh giá của AI: $aiComment', style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
             // Transcript
             if (transcript.isNotEmpty) ...[
               Row(

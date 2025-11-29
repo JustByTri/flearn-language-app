@@ -9,6 +9,7 @@ import '../model/course_lesson.dart';
 import '../model/course_unit.dart';
 import '../model/curriculum.dart';
 import '../model/exercise_submission_detail.dart';
+import '../model/lesson_progress_exercise.dart';
 import '../model/lesson_tracking.dart';
 
 
@@ -46,6 +47,8 @@ abstract class ICourseRepository{
 
   Future<List<Exercise>> getLessonExercises(String lessonId, {int page, int pageSize});
 
+  Future<List<LessonProgressExercise>> getLessonProgressExercises(String lessonId);
+
   Future<void> trackLessonActivity({
     required String lessonId,
     required int logType,
@@ -60,7 +63,7 @@ abstract class ICourseRepository{
 
   Future<List<CoursePopular>> getCoursePopular({int count});
 
-  Future<String?> submitExercise({
+  Future<Map<String, dynamic>?> submitExercise({
     required String exerciseId,
     required String audioFilePath,
   });

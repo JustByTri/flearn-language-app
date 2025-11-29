@@ -66,10 +66,10 @@ class ExerciseSubmissionResultScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    _kv('Trạng thái', detail.status ?? '-', Icons.info),
+                    _kv('Trạng thái', statusToVN(detail.status ?? '-'), Icons.info),
                     _kv('AI Score', (detail.aiScore ?? 0).toString(), Icons.star),
                     _kv('Final Score', detail.finalScore?.toString() ?? '-', Icons.check_circle),
-                    _kv('Đỗ', (detail.isPassed == true) ? 'Yes' : 'No', Icons.thumb_up),
+                    _kv('Đỗ', passToVN(detail.isPassed == true ? 'Đậu' : 'Trượt'), Icons.thumb_up),
                     _kv('Submitted at', detail.submittedAt ?? '-', Icons.access_time),
                     if ((detail.audioUrl ?? '').isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -242,5 +242,29 @@ class ExerciseSubmissionResultScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String statusToVN(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending': return 'Đang chấm';
+      case 'passed': return 'Đã đạt';
+      case 'failed': return 'Chưa đạt';
+      case 'completed': return 'Hoàn thành';
+      case 'active': return 'Đang hoạt động';
+      case 'paid': return 'Đã thanh toán';
+      case 'expired': return 'Hết hạn';
+      case 'cancelled': return 'Đã hủy';
+      default: return status;
+    }
+  }
+
+  String passToVN(String pass) {
+    switch (pass.toLowerCase()) {
+      case 'yes': return 'Đỗ';
+      case 'no': return 'Trượt';
+      case 'passed': return 'Đỗ';
+      case 'failed': return 'Trượt';
+      default: return pass;
+    }
   }
 }

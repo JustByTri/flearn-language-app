@@ -1,10 +1,14 @@
+// ...existing code...
 class ExerciseSubmission {
   final String exerciseSubmissionId;
   final int aiScore;
+  final int aiPercent;
   final String aiFeedback;
   final int teacherScore;
+  final int teacherPercent;
   final String teacherFeedback;
   final int finalScore;
+  final int? passScore;
   final bool isPassed;
   final String status;
   final String audioUrl;
@@ -13,10 +17,13 @@ class ExerciseSubmission {
   ExerciseSubmission({
     required this.exerciseSubmissionId,
     required this.aiScore,
+    required this.aiPercent,
     required this.aiFeedback,
     required this.teacherScore,
+    required this.teacherPercent,
     required this.teacherFeedback,
     required this.finalScore,
+    this.passScore,
     required this.isPassed,
     required this.status,
     required this.audioUrl,
@@ -24,25 +31,38 @@ class ExerciseSubmission {
   });
 
   factory ExerciseSubmission.fromJson(Map<String, dynamic> json) {
-    int parseInt(dynamic value) {
-      if (value == null) return 0;
-      if (value is int) return value;
-      if (value is double) return value.toInt();
-      if (value is String) return int.tryParse(value) ?? 0;
-      return 0;
-    }
-
     return ExerciseSubmission(
-      exerciseSubmissionId: json['exerciseSubmissionId'] ?? '',
-      aiScore: parseInt(json['aiScore']),
-      aiFeedback: json['aiFeedback'] ?? '',
-      teacherScore: parseInt(json['teacherScore']),
-      teacherFeedback: json['teacherFeedback'] ?? '',
-      finalScore: parseInt(json['finalScore']),
-      isPassed: json['isPassed'] ?? false,
-      status: json['status'] ?? '',
-      audioUrl: json['audioUrl'] ?? '',
-      submittedAt: json['submittedAt'] ?? '',
+      exerciseSubmissionId: json['exerciseSubmissionId'] as String? ?? '',
+      aiScore: (json['aiScore'] as num?)?.toInt() ?? 0,
+      aiPercent: (json['aiPercent'] as num?)?.toInt() ?? 0,
+      aiFeedback: json['aiFeedback'] as String? ?? '',
+      teacherScore: (json['teacherScore'] as num?)?.toInt() ?? 0,
+      teacherPercent: (json['teacherPercent'] as num?)?.toInt() ?? 0,
+      teacherFeedback: json['teacherFeedback'] as String? ?? '',
+      finalScore: (json['finalScore'] as num?)?.toInt() ?? 0,
+      passScore: json.containsKey('passScore') && json['passScore'] != null
+          ? (json['passScore'] as num).toInt()
+          : null,
+      isPassed: json['isPassed'] as bool? ?? false,
+      status: json['status'] as String? ?? '',
+      audioUrl: json['audioUrl'] as String? ?? '',
+      submittedAt: json['submittedAt'] as String? ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'exerciseSubmissionId': exerciseSubmissionId,
+    'aiScore': aiScore,
+    'aiPercent': aiPercent,
+    'aiFeedback': aiFeedback,
+    'teacherScore': teacherScore,
+    'teacherPercent': teacherPercent,
+    'teacherFeedback': teacherFeedback,
+    'finalScore': finalScore,
+    'passScore': passScore,
+    'isPassed': isPassed,
+    'status': status,
+    'audioUrl': audioUrl,
+    'submittedAt': submittedAt,
+  };
 }

@@ -5,6 +5,7 @@ import '../../../shared/widgets/fadeSlideAnimation.dart';
 import '../model/course_unit.dart';
 import '../model/curriculum.dart';
 import '../viewmodel/course_viewmodel.dart';
+import 'course_detail_screen.dart';
 import 'course_lesson_screen.dart';
 
 class CourseUnitScreen extends StatefulWidget {
@@ -27,11 +28,14 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
   void initState() {
     super.initState();
     courseViewModel = Get.find<CourseViewModel>();
-    if (widget.enrollmentId != null && widget.enrollmentId!.isNotEmpty) {
-      courseViewModel.fetchCurriculum(widget.enrollmentId!);
-    } else {
-      courseViewModel.fetchCourseUnits(widget.courseId);
-    }
+    // Tránh cập nhật Obx trong quá trình build -> gọi sau khi frame hiện tại hoàn tất
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.enrollmentId != null && widget.enrollmentId!.isNotEmpty) {
+        courseViewModel.fetchCurriculum(widget.enrollmentId!);
+      } else {
+        courseViewModel.fetchCourseUnits(widget.courseId);
+      }
+    });
   }
 
   Future<void> _fetchLessonsForUnit(String unitId) async {
@@ -154,11 +158,16 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.red),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Vui lòng liên hệ hỗ trợ nếu cần.',
-            style: TextStyle(color: Colors.grey.shade600),
-            textAlign: TextAlign.center,
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => Get.to(() => CourseDetailScreen(courseId: widget.courseId, showTeacherProfile: true)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Bạn cần đăng ký học lại'),
           ),
         ],
       ),

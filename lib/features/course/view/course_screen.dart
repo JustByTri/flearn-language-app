@@ -36,14 +36,7 @@ class _CourseScreenState extends State<CourseScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: Color(0xFF1A1A1A)),
-          onPressed: () {
 
-            Get.find<NavigationController>().selectedIndex.value = 0;
-            Get.back();
-          },
-        ),
         title: const Text(
           'Khóa học của tôi',
           style: TextStyle(

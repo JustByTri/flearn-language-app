@@ -102,12 +102,14 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
         ));
         if (paid == true) {
           final enrollData = await vm.enrollCourse(widget.courseId);
+          print('enrollData: $enrollData');
           final enrolled = enrollData != null;
           setState(() {
             _isEnrolled = enrolled;
             _enrollmentId = enrollData?['enrollmentId'];
           });
           if (enrolled) {
+            print('enrolled: $enrolled' );
             // Thêm: Refresh danh sách khóa học đang học
             await courseProgressVM.fetchMyCourses();
             Get.snackbar('Thành công', 'Bạn đã đăng ký khóa học thành công!', backgroundColor: Colors.green, colorText: Colors.white);

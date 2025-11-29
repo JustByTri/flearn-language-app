@@ -14,6 +14,7 @@ import '../model/course_unit.dart';
 import '../model/course_lesson.dart';
 import '../model/curriculum.dart';
 import '../model/exercise_submission_detail.dart';
+import '../model/lesson_progress_exercise.dart';
 import '../model/lesson_tracking.dart';
 import 'course_repository.dart';
 import 'package:get_storage/get_storage.dart';
@@ -258,6 +259,27 @@ class CourseService implements ICourseRepository {
   }
 
   @override
+  Future<List<LessonProgressExercise>> getLessonProgressExercises(String lessonId) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('${ApiConfig.baseUrl}/lesson-progress/lessons/$lessonId/exercises');  // Giả sử endpoint mới; thay nếu sai
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        if (accessToken != null && accessToken.toString().isNotEmpty)
+          "Authorization": "Bearer $accessToken",
+      },
+    );
+    if (response.statusCode == 200) {
+      final jsonBody = jsonDecode(response.body);
+      final data = jsonBody['data'] as List<dynamic>? ?? [];
+      return data.map((item) => LessonProgressExercise.fromJson(item)).toList();
+    } else {
+      print('getLessonProgressExercises failed: ${response.statusCode} ${response.body}');
+      return [];  // Trả rỗng để tránh crash
+    }
+  }
+  @override
   Future<Exercise> getExerciseDetail(String exerciseId) async {
     final accessToken = GetStorage().read('accessToken');
     final url = Uri.parse('${ApiConfig.baseUrl}/exercises/$exerciseId');
@@ -331,7 +353,7 @@ class CourseService implements ICourseRepository {
   }
 
   @override
-  Future<String?> submitExercise({
+  Future<Map<String, dynamic>?> submitExercise({
     required String exerciseId,
     required String audioFilePath,
   }) async {
@@ -343,16 +365,37 @@ class CourseService implements ICourseRepository {
     }
     req.fields['ExerciseId'] = exerciseId;
     final file = File(audioFilePath);
-    if (!await file.exists()) return null;
+    if (!await file.exists()) {
+      return {'success': false, 'message': 'Audio file does not exist.'};
+    }
     req.files.add(await http.MultipartFile.fromPath('Audio', audioFilePath, contentType: MediaType('audio', 'wav')));
     final streamed = await req.send();
     final res = await http.Response.fromStream(streamed);
+
     if (res.statusCode == 200) {
       final body = jsonDecode(res.body);
       final data = body['data'];
-      return data?['exerciseSubmissionId'] as String?;
+      final submissionId = data?['exerciseSubmissionId'] as String?;
+      if (submissionId != null) {
+        return {'success': true, 'submissionId': submissionId};
+      } else {
+        return {'success': false, 'message': 'Invalid response: missing submission ID.'};
+      }
+    } else {
+      // Parse error from response body if available
+      String errorMessage = 'Submission failed with status ${res.statusCode}.';
+      try {
+        final body = jsonDecode(res.body);
+        if (body['message'] != null) {
+          errorMessage = body['message'];
+        } else if (body['error'] != null) {
+          errorMessage = body['error'];
+        }
+      } catch (_) {
+        // If parsing fails, keep default error
+      }
+      return {'success': false, 'message': errorMessage};
     }
-    return null;
   }
 
   @override

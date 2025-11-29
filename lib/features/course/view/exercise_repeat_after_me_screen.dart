@@ -9,8 +9,8 @@ import 'exercise_submission_result_screen.dart';
 
 
 class ExerciseRepeatAfterMeScreen extends StatefulWidget {
-  final Exercise exercise; // nhận item từ list để có dữ liệu ban đầu
-  const ExerciseRepeatAfterMeScreen({super.key, required this.exercise});
+  final String exerciseId; // Thay Exercise thành String
+  const ExerciseRepeatAfterMeScreen({super.key, required this.exerciseId});
 
   @override
   State<ExerciseRepeatAfterMeScreen> createState() => _ExerciseRepeatAfterMeScreenState();
@@ -30,7 +30,7 @@ class _ExerciseRepeatAfterMeScreenState extends State<ExerciseRepeatAfterMeScree
     super.initState();
     // gọi API lấy chi tiết theo exerciseID
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      vm.fetchExerciseDetail(widget.exercise.exerciseID);
+      vm.fetchExerciseDetail(widget.exerciseId); // Fetch bằng exerciseId
     });
   }
 
@@ -106,7 +106,7 @@ class _ExerciseRepeatAfterMeScreenState extends State<ExerciseRepeatAfterMeScree
             style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
         centerTitle: true,
       ),
-      body: _isGrading // NEW: nếu đang grading, hiển thị loading toàn màn
+      body: _isGrading
           ? Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -120,12 +120,13 @@ class _ExerciseRepeatAfterMeScreenState extends State<ExerciseRepeatAfterMeScree
           ],
         ),
       )
-          : Obx(() { // NEW: wrap trong _isGrading check
+          : Obx(() {
         final loading = vm.isLoadingExerciseDetail.value;
-        final Exercise ex = vm.exerciseDetail.value ?? widget.exercise;
-        if (loading && vm.exerciseDetail.value == null) {
+        final Exercise? ex = vm.exerciseDetail.value;  // Dùng nullable, không có ?? widget.exercise
+        if (loading || ex == null) {
           return const Center(child: CircularProgressIndicator(color: AppColors.primary));
         }
+        // Bây giờ ex chắc chắn không null, dùng bình thường
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -234,9 +235,10 @@ class _ExerciseRepeatAfterMeScreenState extends State<ExerciseRepeatAfterMeScree
           ),
         );
       }),
-      bottomNavigationBar: _isGrading ? null : Obx(() { // NEW: ẩn bottomNavigationBar khi grading
+      bottomNavigationBar: _isGrading ? null : Obx(() {
         final submitting = vm.isSubmittingExercise.value;
-        final Exercise ex = vm.exerciseDetail.value ?? widget.exercise;
+        final Exercise? ex = vm.exerciseDetail.value;  // Dùng nullable
+        if (ex == null) return const SizedBox.shrink();  // Ẩn nếu chưa load
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey.shade200))),
@@ -263,26 +265,33 @@ class _ExerciseRepeatAfterMeScreenState extends State<ExerciseRepeatAfterMeScree
                         snackPosition: SnackPosition.TOP, backgroundColor: Colors.orange, colorText: Colors.white);
                     return;
                   }
-                  final submissionId = await vm.submitExercise(
+                  final result = await vm.submitExercise(
                     exerciseId: ex.exerciseID,
                     audioFilePath: _recordedPath!,
                   );
-                  if (submissionId != null) {
-                    setState(() {
-                      _submissionId = submissionId;
-                      _isGrading = true; // NEW: bật loading toàn màn
-                    });
-                    // NEW: delay 3 giây
-                    await Future.delayed(const Duration(seconds: 3));
-                    if (mounted) {
+                  if (result != null && result['success'] == true) {
+                    final submissionId = result['submissionId'] as String?;
+                    if (submissionId != null) {
                       setState(() {
-                        _isGrading = false; // NEW: tắt loading
-                        _submitted = true; // NEW: cho phép xem kết quả
+                        _submissionId = submissionId;
+                        _isGrading = true; // NEW: bật loading toàn màn
                       });
+                      // NEW: delay 3 giây
+                      await Future.delayed(const Duration(seconds: 3));
+                      if (mounted) {
+                        setState(() {
+                          _isGrading = false; // NEW: tắt loading
+                          _submitted = true; // NEW: cho phép xem kết quả
+                        });
+                      }
+                      Get.snackbar('Thành công', 'Nộp bài thành công! Bấm xem kết quả.', snackPosition: SnackPosition.TOP, backgroundColor: Colors.green, colorText: Colors.white);
+                    } else {
+                      Get.snackbar('Lỗi', 'Nộp bài thất bại: Submission ID missing.', snackPosition: SnackPosition.TOP, backgroundColor: Colors.red, colorText: Colors.white);
                     }
-                    Get.snackbar('Thành công', 'Nộp bài thành công! Bấm xem kết quả.', snackPosition: SnackPosition.TOP, backgroundColor: Colors.green, colorText: Colors.white);
                   } else {
-                    Get.snackbar('Lỗi', 'Nộp bài thất bại.', snackPosition: SnackPosition.TOP, backgroundColor: Colors.red, colorText: Colors.white);
+                    // Use the detailed message from the result
+                    final errorMessage = result?['message'] as String? ?? 'Nộp bài thất bại.';
+                    Get.snackbar('Lỗi', errorMessage, snackPosition: SnackPosition.TOP, backgroundColor: Colors.red, colorText: Colors.white);
                   }
                 },
                 icon: submitting
