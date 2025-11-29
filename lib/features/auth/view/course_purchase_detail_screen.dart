@@ -76,7 +76,7 @@ class _CoursePurchaseDetailScreenState extends State<CoursePurchaseDetailScreen>
     }
 
     // Kiểm tra xem nút có disable không
-    bool isButtonDisabled = widget.detail.purchaseStatus.toLowerCase() == 'failed';
+    bool isButtonDisabled = widget.detail.purchaseStatus.toLowerCase() == 'failed' || _refundDetail != null;
 
     return Scaffold(
       backgroundColor: Colors.white,

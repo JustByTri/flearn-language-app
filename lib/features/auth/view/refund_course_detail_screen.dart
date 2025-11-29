@@ -17,6 +17,33 @@ class _RefundDetailScreenState extends State<RefundDetailScreen> {
   Map<String, dynamic>? _refundDetail;
   bool _isLoading = true;
 
+  String _statusText(dynamic status) {
+    if (status is String) {
+      switch (status.toLowerCase()) {
+        case 'pending':
+          return 'Đang xử lý';
+        case 'approved':
+          return 'Đã duyệt';
+        case 'rejected':
+          return 'Từ chối';
+        default:
+          return 'Không xác định';
+      }
+    } else if (status is int) {
+      switch (status) {
+        case 0:
+          return 'Đang xử lý';
+        case 1:
+          return 'Đã duyệt';
+        case 2:
+          return 'Từ chối';
+        default:
+          return 'Không xác định';
+      }
+    }
+    return 'Không xác định';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +61,46 @@ class _RefundDetailScreenState extends State<RefundDetailScreen> {
       setState(() => _isLoading = false);
       Get.snackbar('Lỗi', 'Không thể tải chi tiết đơn.', snackPosition: SnackPosition.BOTTOM);
     }
+  }
+
+  Widget _buildStatusRow(String label, dynamic status) {
+    Color color;
+    String statusText = _statusText(status);
+    switch (statusText.toLowerCase()) {
+      case 'đang xử lý':
+        color = Colors.orange;  // Màu vàng/cam cho đang xử lý
+        break;
+      case 'đã duyệt':
+        color = Colors.green;  // Màu xanh lá cho đã duyệt
+        break;
+      case 'từ chối':
+        color = Colors.red;  // Màu đỏ cho từ chối
+        break;
+      default:
+        color = Colors.black;  // Màu đen cho không xác định
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              statusText,
+              style: TextStyle(color: color, fontWeight: FontWeight.bold),  // Thêm màu và đậm để nổi bật
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -70,7 +137,7 @@ class _RefundDetailScreenState extends State<RefundDetailScreen> {
               _buildRow('Khóa học', _refundDetail!['courseName'] ?? 'N/A'),
               _buildRow('Số tiền hoàn', '${_refundDetail!['refundAmount'] ?? 0}₫'),
               _buildRow('Lý do', _refundDetail!['reason'] ?? 'N/A'),
-              _buildRow('Trạng thái', _refundDetail!['status'] ?? 'N/A'),
+              _buildStatusRow('Trạng thái', _refundDetail!['status']),  // Sử dụng hàm mới để nổi bật trạng thái
               _buildRow('Ngày gửi', _refundDetail!['requestedAt'] ?? 'N/A'),
               if (_refundDetail!['adminNote'] != null) _buildRow('Ghi chú', _refundDetail!['adminNote']),
             ]),

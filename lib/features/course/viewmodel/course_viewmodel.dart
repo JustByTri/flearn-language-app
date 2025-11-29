@@ -10,6 +10,7 @@ import '../model/course_lesson.dart';
 import '../model/course_unit.dart';
 import '../model/curriculum.dart';
 import '../model/exercise_submission_detail.dart';
+import '../model/lesson_progress_exercise.dart';
 import '../model/lesson_tracking.dart';
 
 class CourseViewModel extends GetxController {
@@ -241,6 +242,21 @@ class CourseViewModel extends GetxController {
     }
   }
 
+  var progressExercises = <LessonProgressExercise>[].obs;
+  var isLoadingProgressExercises = false.obs;
+
+  Future<void> fetchLessonProgressExercises(String lessonId) async {
+    isLoadingProgressExercises.value = true;
+    try {
+      final result = await _courseRepository.getLessonProgressExercises(lessonId);
+      progressExercises.assignAll(result);
+    } catch (e) {
+      progressExercises.clear();
+    } finally {
+      isLoadingProgressExercises.value = false;
+    }
+  }
+
   Future<void> trackLessonActivity({
     required String lessonId,
     required int logType,
@@ -312,20 +328,20 @@ class CourseViewModel extends GetxController {
 
   var isSubmittingExercise = false.obs;
 
-  Future<String?> submitExercise({
+  Future<Map<String, dynamic>?> submitExercise({
     required String exerciseId,
     required String audioFilePath,
   }) async {
     try {
       isSubmittingExercise.value = true;
-      // Gọi repository, nhận về exerciseSubmissionId
+      // Call repository and return the full result map
       return await _courseRepository.submitExercise(
         exerciseId: exerciseId,
         audioFilePath: audioFilePath,
       );
     } catch (e) {
       print('submitExercise error: $e');
-      return null;
+      return {'success': false, 'message': 'Unexpected error: $e'};
     } finally {
       isSubmittingExercise.value = false;
     }

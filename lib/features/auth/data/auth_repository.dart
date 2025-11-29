@@ -72,8 +72,10 @@ abstract class IAuthRepository {
     required String bankAccountNumber,
     required String bankAccountHolderName,
     required String reason,
-    required String proofImageBase64,
+    required String proofImagePath,
   });
 
   Future<Map<String, dynamic>?> fetchRefundDetail(String purchaseId);
+
+  Future<List<Map<String, dynamic>>> fetchCourseRefundRequests();
 }

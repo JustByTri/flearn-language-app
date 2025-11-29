@@ -28,6 +28,10 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> with TickerProvid
     _viewModel = Get.put(ClassSearchViewModel(service: Get.find()));
     _searchController.addListener(_onSearchChanged);
     _pulseController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
+    // Clear data cũ và fetch mới với ngôn ngữ hiện tại
+    _viewModel.clearFilters(); // Giả sử viewmodel có hàm này để reset
+    _viewModel.classes.clear(); // Clear list cũ nếu cần
+    _viewModel.searchClasses(resetPage: true);
   }
 
   @override
@@ -275,7 +279,12 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> with TickerProvid
       if (_viewModel.classes.isEmpty) return _buildEmpty(hasFilter);
 
       return RefreshIndicator(
-        onRefresh: () => _viewModel.searchClasses(resetPage: true),
+        onRefresh: () async {
+          // Clear data cũ trước khi fetch để đảm bảo pull-to-refresh luôn hoạt động
+          _viewModel.classes.clear();
+          _viewModel.clearFilters(); // Reset filters nếu cần
+          await _viewModel.searchClasses(resetPage: true);
+        },
         color: AppColors.primary,
         child: ListView.builder(
           padding: const EdgeInsets.all(16),

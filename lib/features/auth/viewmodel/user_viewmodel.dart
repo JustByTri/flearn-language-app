@@ -217,7 +217,7 @@ class UserViewModel extends GetxController {
     required String bankAccountNumber,
     required String bankAccountHolderName,
     required String reason,
-    required String proofImage,
+    required String proofImagePath,
   }) async {
     return await _authRepository.submitCourseRefund(
       purchaseId: purchaseId,
@@ -225,7 +225,7 @@ class UserViewModel extends GetxController {
       bankAccountNumber: bankAccountNumber,
       bankAccountHolderName: bankAccountHolderName,
       reason: reason,
-      proofImageBase64: proofImage,
+      proofImagePath: proofImagePath,
     );
   }
 
@@ -235,6 +235,21 @@ class UserViewModel extends GetxController {
     } catch (e) {
       print('fetchRefundDetail error: $e');
       return null;
+    }
+  }
+
+  var courseRefundRequests = <Map<String, dynamic>>[].obs;
+  var isLoadingCourseRefundRequests = false.obs;
+
+  Future<void> fetchCourseRefundRequests() async {
+    isLoadingCourseRefundRequests.value = true;
+    try {
+      final list = await _authRepository.fetchCourseRefundRequests();
+      courseRefundRequests.assignAll(list);
+    } catch (e) {
+      courseRefundRequests.clear();
+    } finally {
+      isLoadingCourseRefundRequests.value = false;
     }
   }
 

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flearn_app/features/auth/view/refund_course_detail_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -7,6 +8,7 @@ import 'package:flearn_app/core/constants/colors.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../schedule/viewmodel/schedule_viewmodel.dart';
 import '../viewmodel/user_viewmodel.dart';
+import 'course_purchase_detail_screen.dart';
 
 class RefundCenterScreen extends StatefulWidget {
   const RefundCenterScreen({super.key});
@@ -17,6 +19,9 @@ class RefundCenterScreen extends StatefulWidget {
 
 class _RefundCenterScreenState extends State<RefundCenterScreen> {
   int _tab = 0; // 0 = gửi đơn, 1 = xem đơn
+
+  // NEW: Thay _viewTab bằng _selectedViewRefundType để đồng nhất với submit tab
+  int _selectedViewRefundType = 0;
 
   late final ScheduleViewModel _scheduleVM;
   late final UserViewModel _userVM;
@@ -63,13 +68,17 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
         _selectedPurchaseId = args['selectedPurchaseId'];
         _selectedCourseName = args['selectedCourseName'];
         _tab = 0; // Chuyển sang tab "Gửi đơn"
+        // NEW: Nếu vừa gửi đơn khóa học, set tab xem đơn là khóa học
+        if (_selectedRefundType == 1) {
+          _selectedViewRefundType = 1;
+        }
       });
     }
     _scheduleVM = Get.isRegistered<ScheduleViewModel>()
         ? Get.find<ScheduleViewModel>()
         : Get.put(ScheduleViewModel(service: Get.find()), permanent: true);
     _userVM = Get.find<UserViewModel>();
-
+    _userVM.fetchCourseRefundRequests();
     _scheduleVM.fetchMyEnrollments();
     _userVM.fetchRefundRequests();
     _userVM.fetchCoursePurchaseHistory().then((_) {
@@ -122,6 +131,10 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
         Get.snackbar('Lỗi', 'Vui lòng chọn lớp cần hoàn tiền.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
         return;
       }
+      if (_selectedRequestType == null) { // GIỮ: Vẫn cần cho lớp học
+        Get.snackbar('Lỗi', 'Vui lòng chọn loại đơn.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+        return;
+      }
     } else if (_selectedRefundType == 1) { // Khóa học
       if (_selectedPurchaseId == null || _selectedCourseName == null) {
         Get.snackbar('Lỗi', 'Vui lòng chọn khóa học cần hoàn tiền.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
@@ -131,15 +144,17 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
         Get.snackbar('Lỗi', 'Vui lòng upload ảnh chứng minh.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
         return;
       }
-    }
-    if (_selectedRequestType == null) {
-      Get.snackbar('Lỗi', 'Vui lòng chọn loại đơn.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
-      return;
+      // BỎ: Không cần check _selectedRequestType cho khóa học
+      // if (_selectedRequestType == null) {
+      //   Get.snackbar('Lỗi', 'Vui lòng chọn loại đơn.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+      //   return;
+      // }
     }
     setState(() => _isSubmitting = true);
     Map<String, dynamic>? result;
     try {
       if (_selectedRefundType == 0) {
+        print('selectedRequestType 0: $_selectedRequestType');
         result = await _scheduleVM.submitRefundRequest(
           enrollmentID: _selectedEnrollmentID!,
           classID: _selectedClassID!,
@@ -151,22 +166,69 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
           reason: _reasonController.text.trim(),
         );
       } else if (_selectedRefundType == 1) {
+        print('selectedRequestType 1: $_selectedRequestType');
         result = await _userVM.submitCourseRefund(
           purchaseId: _selectedPurchaseId!,
           bankName: _bankNameController.text.trim(),
           bankAccountNumber: accountNumber,
           bankAccountHolderName: _bankAccountHolderNameController.text.trim(),
           reason: _reasonController.text.trim(),
-          proofImage: _proofImageBase64!,
-
+          proofImagePath: _selectedImage!.path, // truyền path file
         );
       }
       setState(() => _isSubmitting = false);
-      if (result != null) {
-        Get.snackbar('Thành công', 'Gửi đơn hoàn tiền thành công.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
-        _userVM.fetchRefundRequests();
+      if (result != null && result['status'] == 'success') {
+        String message = result['data'] == "Refund request submitted successfully"
+            ? "Gửi đơn hoàn tiền thành công. Đơn của bạn đang được xử lý."
+            : "Gửi đơn hoàn tiền thành công.";
+        Get.snackbar('Thành công', result['message'] ?? 'Gửi đơn hoàn tiền thành công.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
+
+        if (_selectedRefundType == 1) {
+          // BỎ: Không cần add local nữa vì API fetch sẽ lấy lên
+          // final selectedPurchase = _userVM.coursePurchases.firstWhereOrNull((p) => p.purchaseId == _selectedPurchaseId);
+          // final refundAmount = selectedPurchase?.price ?? 0;
+          // final newRefund = {
+          //   'courseName': _selectedCourseName ?? 'Khóa học không xác định',
+          //   'refundAmount': refundAmount,
+          //   'status': 0,
+          //   'requestedAt': DateTime.now().toString(),
+          //   'adminNote': null,
+          // };
+          // _userVM.refundRequests.add(newRefund);
+        }
+
+        // LƯU purchaseId trước khi clear form
+        final String? purchaseId = _selectedPurchaseId;
+
+        await _userVM.fetchRefundRequests();
+
+        // Clear form (nếu vẫn ở lại trang này)
         _clearForm();
-        Get.back();
+
+        // Điều hướng về màn chi tiết đơn mua khóa học
+        if (purchaseId != null) {
+          await _userVM.fetchCoursePurchaseDetail(purchaseId);
+          if (_userVM.coursePurchaseDetail.value != null) {
+            Get.off(() => CoursePurchaseDetailScreen(detail: _userVM.coursePurchaseDetail.value!));
+          } else {
+            // fallback nếu không fetch được detail
+            Get.back();
+          }
+        } else {
+          Get.back();
+        }
+      } else if (result != null && result['status'] == 'fail') {
+        String errorMsg = "";
+        if (result['errors'] == "There is already a pending refund request for this purchase") {
+          errorMsg = "Bạn đã gửi đơn hoàn tiền cho khóa học này và đơn đang chờ xử lý.";
+        } else if (result['message'] == "Validation failed") {
+          errorMsg = "Gửi đơn thất bại do dữ liệu không hợp lệ.";
+        } else {
+          errorMsg = "Gửi đơn hoàn tiền thất bại.";
+        }
+
+        print('errorMsg: $errorMsg');
+        Get.snackbar('Lỗi', errorMsg, snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
       } else {
         Get.snackbar('Lỗi', 'Gửi đơn hoàn tiền thất bại.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
       }
@@ -196,42 +258,55 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: Color(0xFF1A1A1A)),
-          onPressed: () => Get.back(),
-        ),
-        title: Text(
-          _tab == 0 ? 'Gửi đơn' : 'Xem đơn',
-          style: const TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.w600, fontSize: 18),
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dropdownMenuTheme: DropdownMenuThemeData(
+          menuStyle: MenuStyle(
+            shape: MaterialStateProperty.all(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
         ),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
-              children: [
-                Expanded(child: _buildTabButton('Gửi đơn', 0)),
-                const SizedBox(width: 12),
-                Expanded(child: _buildTabButton('Xem đơn', 1)),
-              ],
-            ),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(CupertinoIcons.back, color: Color(0xFF1A1A1A)),
+            onPressed: () => Get.back(),
           ),
-          const SizedBox(height: 8),
-          // Nội dung
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: _tab == 0 ? _buildSubmitTab() : _buildViewTab(),
-            ),
+          title: Text(
+            _tab == 0 ? 'Gửi đơn' : 'Xem đơn',
+            style: const TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.w600, fontSize: 18),
           ),
-        ],
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Row(
+                children: [
+                  Expanded(child: _buildTabButton('Gửi đơn', 0)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildTabButton('Xem đơn', 1)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Nội dung
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: _tab == 0 ? _buildSubmitTab() : _buildViewTab(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -496,16 +571,6 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
                         },
                       ),
                       const SizedBox(height: 24),
-                      const Text('Lý do hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<int>(
-                        decoration: _decoration('Chọn loại đơn', 'Chọn lý do'),
-                        isExpanded: true,
-                        items: _requestTypeOptions.entries.map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value))).toList(),
-                        value: _selectedRequestType,
-                        onChanged: (v) => setState(() => _selectedRequestType = v),
-                      ),
-                      const SizedBox(height: 24),
                       const Text('Thông tin ngân hàng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
                       const SizedBox(height: 16),
                       _textField(controller: _bankNameController, label: 'Tên ngân hàng', hint: 'VD: Vietcombank, Techcombank...'),
@@ -556,7 +621,7 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      const Text('Lý do hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const Text('Lý do hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))), // GIỮ: Section cho text field
                       const SizedBox(height: 16),
                       _textField(controller: _reasonController, label: 'Mô tả chi tiết', hint: 'Nhập lý do hoàn tiền...', maxLines: 4),
                       const SizedBox(height: 32),
@@ -592,22 +657,54 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
 
   // Tab xem đơn
   Widget _buildViewTab() {
+    return Column(
+      children: [
+        // Phần dropdown fixed ở trên, giống submit tab
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Loại đơn hoàn tiền', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                decoration: _decoration('Chọn loại đơn', 'Chọn loại'),
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem<int>(value: 0, child: Text('Đơn lớp học')),
+                  DropdownMenuItem<int>(value: 1, child: Text('Đơn khóa học')),
+                ],
+                value: _selectedViewRefundType,
+                onChanged: (v) => setState(() => _selectedViewRefundType = v ?? 0),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+        // Phần list scrollable bên dưới
+        Expanded(
+          child: _selectedViewRefundType == 0 ? _buildClassRefundList() : _buildCourseRefundList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildClassRefundList() {
     return Obx(() {
       if (_userVM.isLoadingRefundRequests.value) {
         return const Center(child: CircularProgressIndicator(color: AppColors.primary));
       }
-      if (_userVM.refundRequests.isEmpty) {
-        return const Center(child: Text('Bạn chưa có đơn hoàn tiền nào.'));
+      final data = _userVM.refundRequests.where((req) => req['courseName'] == null).toList();
+      if (data.isEmpty) {
+        return const Center(child: Text('Bạn chưa có đơn hoàn tiền nào cho lớp học.'));
       }
-      final data = _userVM.refundRequests;
       return ListView.separated(
         padding: const EdgeInsets.all(24),
         itemCount: data.length,
         separatorBuilder: (_, __) => const SizedBox(height: 16),
         itemBuilder: (context, idx) {
           final req = data[idx];
-          final isCourseRefund = req['courseName'] != null; // Giả sử khóa học có courseName, lớp học có className
-          final displayName = req['className'] ?? req['courseName'] ?? 'Không xác định';
+          final displayName = req['className'] ?? 'Không xác định';
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -620,15 +717,22 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
               children: [
                 Row(
                   children: [
-                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Flexible(
+                      child: Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis),
+                    ),
                     const SizedBox(width: 8),
-                    Text('(${isCourseRefund ? 'Khóa học' : 'Lớp học'})', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text('(Lớp học)', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text('Số tiền: ${req['refundAmount']}₫', style: const TextStyle(color: AppColors.primary)),
+                Text('Số tiền: ${req['refundAmount'] ?? 0}₫', style: const TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text('Trạng thái: ${_statusText(req['status'])}', style: const TextStyle(fontSize: 13)),
+                Row(
+                  children: [
+                    Text('Trạng thái: ', style: const TextStyle(fontSize: 13)),
+                    Text(_statusText(req['status']), style: TextStyle(fontSize: 13, color: _getStatusColor(req['status']), fontWeight: FontWeight.bold)),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text('Ngày gửi: ${req['requestedAt'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                 if (req['adminNote'] != null) ...[
@@ -643,13 +747,113 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
     });
   }
 
-  String _statusText(int? status) {
-    switch (status) {
-      case 0: return 'Đang xử lý';
-      case 1: return 'Đã duyệt';
-      case 2: return 'Từ chối';
-      default: return 'Không xác định';
+
+  Widget _buildCourseRefundList() {
+    return Obx(() {
+      if (_userVM.isLoadingCourseRefundRequests.value) {
+        return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+      }
+      final data = _userVM.courseRefundRequests;
+      if (data.isEmpty) {
+        return const Center(child: Text('Bạn chưa có đơn hoàn tiền nào cho khóa học.'));
+      }
+      return ListView.separated(
+        padding: const EdgeInsets.only(left: 24, right: 24, bottom: 24, top: 8),  // Giảm top padding từ 24 xuống 8 để gần hơn với dropdown
+        itemCount: data.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 16),
+        itemBuilder: (context, idx) {
+          final req = data[idx];
+          final displayName = req['courseName'] ?? 'Không xác định';
+          return InkWell( // Thêm InkWell để xử lý onTap
+            onTap: () {
+              final purchaseId = req['purchaseId']; // Lấy purchaseId từ req
+              if (purchaseId != null) {
+                Get.to(() => RefundDetailScreen(purchaseId: purchaseId));
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300, width: 1.5),
+                boxShadow: [BoxShadow(color: Colors.grey.withAlpha(20), blurRadius: 8, offset: const Offset(0, 2))],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('(Khóa học)', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Số tiền: ${req['refundAmount'] ?? 0}₫', style: const TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text('Trạng thái: ', style: const TextStyle(fontSize: 13)),
+                      Text(_statusText(req['status']), style: TextStyle(fontSize: 13, color: _getStatusColor(req['status']), fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Ngày gửi: ${req['requestedAt'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  if (req['adminNote'] != null) ...[
+                    const SizedBox(height: 4),
+                    Text('Ghi chú: ${req['adminNote']}', style: const TextStyle(fontSize: 12, color: Colors.orange)),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    });
+  }
+
+  Color _getStatusColor(dynamic status) {
+    String statusText = _statusText(status);
+    switch (statusText.toLowerCase()) {
+      case 'đang xử lý':
+        return Colors.orange;  // Orange for pending
+      case 'đã duyệt':
+        return Colors.green;  // Green for approved
+      case 'từ chối':
+        return Colors.red;  // Red for rejected
+      default:
+        return Colors.black;  // Black for unknown
     }
+  }
+
+  String _statusText(dynamic status) {
+    if (status is String) {
+      switch (status.toLowerCase()) {
+        case 'pending':
+          return 'Đang xử lý';
+        case 'approved':
+          return 'Đã duyệt';
+        case 'rejected':
+          return 'Từ chối';
+        default:
+          return 'Không xác định';
+      }
+    } else if (status is int) {
+      switch (status) {
+        case 0:
+          return 'Đang xử lý';
+        case 1:
+          return 'Đã duyệt';
+        case 2:
+          return 'Từ chối';
+        default:
+          return 'Không xác định';
+      }
+    }
+    return 'Không xác định';
   }
 
   InputDecoration _decoration(String label, String hint) {
@@ -677,3 +881,4 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
     );
   }
 }
+

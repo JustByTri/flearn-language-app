@@ -1,3 +1,4 @@
+import 'package:flearn_app/features/auth/view/profile_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -103,7 +104,15 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
         ),
         leading: IconButton(
           icon: const Icon(CupertinoIcons.back, color: AppColors.textPrimary),
-          onPressed: () => Get.back(),
+          onPressed: () {
+
+            if (Navigator.of(context).canPop()) {
+              Get.back();
+            } else {
+
+              Get.to(() => const ProfileScreen());
+            }
+          },
         ),
       ),
       body: Column(

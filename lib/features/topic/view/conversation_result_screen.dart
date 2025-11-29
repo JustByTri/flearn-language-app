@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:translator/translator.dart';
+import '../../../di.dart';
 import '../../../shared/widgets/mainBottomNavbar.dart';
+import '../../auth/viewmodel/login_viewmodel.dart';
 
 class ConversationResultScreen extends StatefulWidget {
   final Map<String, dynamic> resultData;
@@ -875,7 +877,15 @@ class _ConversationResultScreenState extends State<ConversationResultScreen> {
       ),
       child: SafeArea(
         child: ElevatedButton(
-          onPressed: () => Get.offAll(() => const NavigationMenu()),
+          onPressed: () {
+            if (!Get.isRegistered<LoginViewModel>()) {
+              Get.put(LoginViewModel(Get.find()));
+            }
+
+            setupDI();
+
+            Get.offAll(() => const NavigationMenu());
+          },
 
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
