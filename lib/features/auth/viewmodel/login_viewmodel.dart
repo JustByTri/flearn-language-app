@@ -1,6 +1,6 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -17,9 +17,13 @@ class LoginViewModel extends GetxController {
     storage.remove('refreshToken');
     storage.remove('user');
   }
+
   LoginViewModel(this._authRepository);
 
-  Future<Map<String, bool>> login(String email, String password) async {
+  Future<Map<String, bool>> login(
+    String email,
+    String password,
+  ) async {
     try {
       isLoading.value = true;
 
@@ -30,18 +34,40 @@ class LoginViewModel extends GetxController {
       final response = await _authRepository.login(request);
 
       if (response.isSuccess && response.result != null) {
-        await storage.write('accessToken', response.result!.accessToken,);
-        await storage.write('refreshToken', response.result!.refreshToken,);
+        await storage.write(
+          'accessToken',
+          response.result!.accessToken,
+        );
+        await storage.write(
+          'refreshToken',
+          response.result!.refreshToken,
+        );
 
         await storage.write('user', {
           ...?response.result!.user,
-          'languageId': response.result!.activeLanguage?['languageId'],
-          'languageName': response.result!.activeLanguage?['languageName'],
-          'languageCode': response.result!.activeLanguage?['languageCode'],
+          'languageId': response
+              .result!
+              .activeLanguage?['languageId'],
+          'languageName': response
+              .result!
+              .activeLanguage?['languageName'],
+          'languageCode': response
+              .result!
+              .activeLanguage?['languageCode'],
         });
+        String? fcmToken = await FirebaseMessaging.instance
+            .getToken();
 
-        final surveyRequired = response.result!.activeLanguage == null;
-        return {'success': true, 'surveyRequired': surveyRequired};
+        if (fcmToken != null) {
+          await _authRepository.updateFcmToken(fcmToken);
+        }
+
+        final surveyRequired =
+            response.result!.activeLanguage == null;
+        return {
+          'success': true,
+          'surveyRequired': surveyRequired,
+        };
       } else {
         return {'success': false, 'surveyRequired': false};
       }
@@ -67,19 +93,36 @@ class LoginViewModel extends GetxController {
         throw Exception("No Google ID Token found");
       }
 
-      final response = await _authRepository.loginWithGoogle(idToken);
+      final response = await _authRepository
+          .loginWithGoogle(idToken);
       if (response.isSuccess && response.result != null) {
-        await storage.write('accessToken', response.result!.accessToken);
-        await storage.write('refreshToken', response.result!.refreshToken);
+        await storage.write(
+          'accessToken',
+          response.result!.accessToken,
+        );
+        await storage.write(
+          'refreshToken',
+          response.result!.refreshToken,
+        );
         await storage.write('user', {
           ...?response.result!.user,
-          'languageId': response.result!.activeLanguage?['languageId'],
-          'languageName': response.result!.activeLanguage?['languageName'],
-          'languageCode': response.result!.activeLanguage?['languageCode'],
+          'languageId': response
+              .result!
+              .activeLanguage?['languageId'],
+          'languageName': response
+              .result!
+              .activeLanguage?['languageName'],
+          'languageCode': response
+              .result!
+              .activeLanguage?['languageCode'],
         });
 
-        final surveyRequired = response.result!.activeLanguage == null;
-        return {'success': true, 'surveyRequired': surveyRequired};
+        final surveyRequired =
+            response.result!.activeLanguage == null;
+        return {
+          'success': true,
+          'surveyRequired': surveyRequired,
+        };
       } else {
         return {'success': false, 'surveyRequired': false};
       }
@@ -106,5 +149,4 @@ class LoginViewModel extends GetxController {
       print("Lỗi khi gọi API logout: $e");
     }
   }
-
 }

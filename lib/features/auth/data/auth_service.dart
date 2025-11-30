@@ -1,19 +1,19 @@
 import "dart:async";
 import "dart:convert";
 import "dart:io";
-import "package:http/http.dart" as http;
+
 import "package:dio/dio.dart";
 import "package:get_storage/get_storage.dart";
+import "package:http/http.dart" as http;
 
 import "../../../config/api_config.dart";
 import "../model/login_request.dart";
 import "../model/login_response.dart";
-import "../model/purchase_history.dart";
+import "../model/logout_request.dart";
 import "../model/response.dart";
 import "../model/roadmap_detail.dart";
 import "../model/user.dart";
 import "auth_repository.dart";
-import "../model/logout_request.dart";
 
 class AuthService implements IAuthRepository {
   final Dio _dio;
@@ -34,11 +34,11 @@ class AuthService implements IAuthRepository {
 
   @override
   Future<LoginResponse> register(
-      String userName,
-      String email,
-      String password,
-      String confirmedPassword,
-      ) async {
+    String userName,
+    String email,
+    String password,
+    String confirmedPassword,
+  ) async {
     try {
       final response = await _dio.post(
         '/Auth/register',
@@ -56,7 +56,9 @@ class AuthService implements IAuthRepository {
   }
 
   @override
-  Future<LoginResponse> loginWithGoogle(String idToken) async {
+  Future<LoginResponse> loginWithGoogle(
+    String idToken,
+  ) async {
     try {
       final response = await _dio.post(
         '/Auth/login-google',
@@ -68,14 +70,15 @@ class AuthService implements IAuthRepository {
     }
   }
 
-
   @override
   Future<LoginResponse> confirmEmail(String otp) async {
     final storage = GetStorage();
     final email = storage.read("registeredEmail");
 
     if (email == null) {
-      throw Exception("Email not found in storage. Please register first.");
+      throw Exception(
+        "Email not found in storage. Please register first.",
+      );
     }
 
     try {
@@ -85,7 +88,9 @@ class AuthService implements IAuthRepository {
       );
       return LoginResponse.fromJson(response.data);
     } on DioException catch (e) {
-      throw Exception('Failed to confirm email: ${e.message}');
+      throw Exception(
+        'Failed to confirm email: ${e.message}',
+      );
     }
   }
 
@@ -108,10 +113,10 @@ class AuthService implements IAuthRepository {
       final response = await _dio.get('/Auth/me');
       return ResponseModel<User>.fromJson(
         response.data,
-            (json) => User.fromJson(json),
+        (json) => User.fromJson(json),
       );
     } on DioException catch (e) {
-      throw Exception("Profile error: "+e.message!);
+      throw Exception("Profile error: " + e.message!);
     }
   }
 
@@ -130,11 +135,11 @@ class AuthService implements IAuthRepository {
 
   @override
   Future<Map<String, dynamic>> resetPassword(
-      String email,
-      String otp,
-      String newPassword,
-      String confirmPassword,
-      ) async {
+    String email,
+    String otp,
+    String newPassword,
+    String confirmPassword,
+  ) async {
     try {
       final response = await _dio.post(
         '/Auth/reset-password',
@@ -148,14 +153,18 @@ class AuthService implements IAuthRepository {
       if (response.statusCode == 200) {
         return {'success': true};
       } else {
-        return {'success': false, 'error': 'Đổi mật khẩu thất bại!'};
+        return {
+          'success': false,
+          'error': 'Đổi mật khẩu thất bại!',
+        };
       }
     } on DioException catch (e) {
       if (e.response != null && e.response?.data != null) {
         final data = e.response!.data;
         String errorMsg = '';
         if (data is Map && data['errors'] != null) {
-          final errors = data['errors'] as Map<String, dynamic>;
+          final errors =
+              data['errors'] as Map<String, dynamic>;
           errorMsg = errors.values
               .expand((v) => v as List)
               .map((msg) => msg.toString())
@@ -165,27 +174,24 @@ class AuthService implements IAuthRepository {
         } else {
           errorMsg = 'Đổi mật khẩu thất bại!';
         }
-        return {
-          'success': false,
-          'error': errorMsg,
-        };
+        return {'success': false, 'error': errorMsg};
       }
       return {
         'success': false,
         'error': e.message ?? 'Đổi mật khẩu thất bại!',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'error': e.toString(),
-      };
+      return {'success': false, 'error': e.toString()};
     }
   }
 
   @override
   Future<void> logout(String refreshToken) async {
     try {
-      final request = LogoutRequest(refreshToken: refreshToken);
+      await removeFcmToken();
+      final request = LogoutRequest(
+        refreshToken: refreshToken,
+      );
       await _dio.post(
         '/Auth/logout',
         data: request.toJson(),
@@ -207,7 +213,9 @@ class AuthService implements IAuthRepository {
         'FullName': fullName,
         'UserName': userName,
         if (avatar != null)
-          'Avatar': await MultipartFile.fromFile(avatar.path),
+          'Avatar': await MultipartFile.fromFile(
+            avatar.path,
+          ),
       });
 
       final response = await _dio.put(
@@ -216,10 +224,13 @@ class AuthService implements IAuthRepository {
       );
       return ResponseModel.fromJson(
         response.data,
-            (json) => json, // Nếu không có model cụ thể, trả về json
+        (json) =>
+            json, // Nếu không có model cụ thể, trả về json
       );
     } on DioException catch (e) {
-      throw Exception('Failed to update profile: '+e.message!);
+      throw Exception(
+        'Failed to update profile: ' + e.message!,
+      );
     }
   }
 
@@ -240,18 +251,26 @@ class AuthService implements IAuthRepository {
       );
       return ResponseModel.fromJson(
         response.data,
-            (json) => json,
+        (json) => json,
       );
     } on DioException catch (e) {
       // If server responded with body, convert it to ResponseModel so caller can read message
-      if (e.response != null && e.response!.data != null && e.response!.data is Map<String, dynamic>) {
+      if (e.response != null &&
+          e.response!.data != null &&
+          e.response!.data is Map<String, dynamic>) {
         try {
-          return ResponseModel.fromJson(e.response!.data as Map<String, dynamic>, (json) => json);
+          return ResponseModel.fromJson(
+            e.response!.data as Map<String, dynamic>,
+            (json) => json,
+          );
         } catch (err) {
           // fallback
           return ResponseModel<dynamic>(
             statusCode: e.response?.statusCode ?? 0,
-            message: e.response?.data['message']?.toString() ?? e.message ?? 'Đã có lỗi xảy ra',
+            message:
+                e.response?.data['message']?.toString() ??
+                e.message ??
+                'Đã có lỗi xảy ra',
             isSuccess: false,
             result: null,
           );
@@ -268,24 +287,37 @@ class AuthService implements IAuthRepository {
     }
   }
 
-  Future<RoadmapDetailsResponse> fetchRoadmapDetails(String learnerLanguageId) async {
+  Future<RoadmapDetailsResponse> fetchRoadmapDetails(
+    String learnerLanguageId,
+  ) async {
     try {
       final response = await _dio.get(
         '/VoiceAssessment/roadmap-details/$learnerLanguageId',
       );
-      if (response.statusCode == 200 && response.data['success'] == true) {
-        return RoadmapDetailsResponse.fromJson(response.data);
+      if (response.statusCode == 200 &&
+          response.data['success'] == true) {
+        return RoadmapDetailsResponse.fromJson(
+          response.data,
+        );
       }
-      throw Exception(response.data['message'] ?? 'Lỗi lấy roadmap');
+      throw Exception(
+        response.data['message'] ?? 'Lỗi lấy roadmap',
+      );
     } on DioException catch (e) {
-      throw Exception('Roadmap details error: ${e.message}');
+      throw Exception(
+        'Roadmap details error: ${e.message}',
+      );
     }
   }
 
   @override
-  Future<Map<String, dynamic>?> purchaseSubscription(String planName) async {
+  Future<Map<String, dynamic>?> purchaseSubscription(
+    String planName,
+  ) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('https://f-learn.app/api/subscriptions/purchase');
+    final url = Uri.parse(
+      'https://f-learn.app/api/subscriptions/purchase',
+    );
     try {
       final response = await http.post(
         url,
@@ -313,25 +345,33 @@ class AuthService implements IAuthRepository {
     String sortBy = 'newest',
   }) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}/purchases?Page=$page&PageSize=$pageSize&SortBy=$sortBy');
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/purchases?Page=$page&PageSize=$pageSize&SortBy=$sortBy',
+    );
     final res = await http.get(
       url,
       headers: {
         'Content-Type': 'application/json',
-        if (accessToken != null && accessToken.toString().isNotEmpty)
+        if (accessToken != null &&
+            accessToken.toString().isNotEmpty)
           'Authorization': 'Bearer $accessToken',
       },
     );
     if (res.statusCode != 200) {
-      throw Exception('getPurchaseHistory failed ${res.statusCode}: ${res.body}');
+      throw Exception(
+        'getPurchaseHistory failed ${res.statusCode}: ${res.body}',
+      );
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchRefundRequests() async {
+  Future<List<Map<String, dynamic>>>
+  fetchRefundRequests() async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('https://f-learn.app/api/Refund/my-requests');
+    final url = Uri.parse(
+      'https://f-learn.app/api/Refund/my-requests',
+    );
     final res = await http.get(
       url,
       headers: {
@@ -341,13 +381,15 @@ class AuthService implements IAuthRepository {
     );
     if (res.statusCode == 200) {
       final body = jsonDecode(res.body);
-      if (body['status'] == 'success' && body['data'] != null) {
-        return List<Map<String, dynamic>>.from(body['data']);
+      if (body['status'] == 'success' &&
+          body['data'] != null) {
+        return List<Map<String, dynamic>>.from(
+          body['data'],
+        );
       }
     }
     return [];
   }
-
 
   @override
   Future<Map<String, dynamic>?> getCoursePurchaseHistory({
@@ -356,65 +398,81 @@ class AuthService implements IAuthRepository {
     String sortBy = 'newest',
   }) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/courses?Page=$page&PageSize=$pageSize&SortBy=$sortBy');
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/purchases/courses?Page=$page&PageSize=$pageSize&SortBy=$sortBy',
+    );
     final res = await http.get(
       url,
       headers: {
         'Content-Type': 'application/json',
-        if (accessToken != null && accessToken.toString().isNotEmpty)
+        if (accessToken != null &&
+            accessToken.toString().isNotEmpty)
           'Authorization': 'Bearer $accessToken',
       },
     );
     if (res.statusCode == 200) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     } else {
-      throw Exception('getCoursePurchaseHistory failed ${res.statusCode}: ${res.body}');
+      throw Exception(
+        'getCoursePurchaseHistory failed ${res.statusCode}: ${res.body}',
+      );
     }
   }
 
   @override
-  Future<Map<String, dynamic>?> getSubscriptionPurchaseHistory({
+  Future<Map<String, dynamic>?>
+  getSubscriptionPurchaseHistory({
     int page = 1,
     int pageSize = 10,
     String sortBy = 'newest',
   }) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/subscription?Page=$page&PageSize=$pageSize&SortBy=$sortBy');
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/purchases/subscription?Page=$page&PageSize=$pageSize&SortBy=$sortBy',
+    );
     final res = await http.get(
       url,
       headers: {
         'Content-Type': 'application/json',
-        if (accessToken != null && accessToken.toString().isNotEmpty)
+        if (accessToken != null &&
+            accessToken.toString().isNotEmpty)
           'Authorization': 'Bearer $accessToken',
       },
     );
     if (res.statusCode == 200) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     } else {
-      throw Exception('getSubscriptionPurchaseHistory failed ${res.statusCode}: ${res.body}');
+      throw Exception(
+        'getSubscriptionPurchaseHistory failed ${res.statusCode}: ${res.body}',
+      );
     }
   }
 
   @override
-  Future<Map<String, dynamic>?> getCoursePurchaseDetail(String purchaseId) async {
+  Future<Map<String, dynamic>?> getCoursePurchaseDetail(
+    String purchaseId,
+  ) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/$purchaseId/details');
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/purchases/$purchaseId/details',
+    );
     final res = await http.get(
       url,
       headers: {
         'Content-Type': 'application/json',
-        if (accessToken != null && accessToken.toString().isNotEmpty)
+        if (accessToken != null &&
+            accessToken.toString().isNotEmpty)
           'Authorization': 'Bearer $accessToken',
       },
     );
     if (res.statusCode == 200) {
       return jsonDecode(res.body) as Map<String, dynamic>;
     } else {
-      throw Exception('getCoursePurchaseDetail failed ${res.statusCode}: ${res.body}');
+      throw Exception(
+        'getCoursePurchaseDetail failed ${res.statusCode}: ${res.body}',
+      );
     }
   }
-
-
 
   @override
   Future<Map<String, dynamic>?> submitCourseRefund({
@@ -423,27 +481,41 @@ class AuthService implements IAuthRepository {
     required String bankAccountNumber,
     required String bankAccountHolderName,
     required String reason,
-    required String proofImagePath, // Đổi từ base64 sang path
+    required String
+    proofImagePath, // Đổi từ base64 sang path
   }) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('https://f-learn.app/api/purchases/refunds');
+    final url = Uri.parse(
+      'https://f-learn.app/api/purchases/refunds',
+    );
 
     var request = http.MultipartRequest('POST', url);
-    request.headers['Authorization'] = 'Bearer $accessToken';
+    request.headers['Authorization'] =
+        'Bearer $accessToken';
 
     request.fields['PurchaseId'] = purchaseId;
     request.fields['BankName'] = bankName;
     request.fields['BankAccountNumber'] = bankAccountNumber;
-    request.fields['BankAccountHolderName'] = bankAccountHolderName;
+    request.fields['BankAccountHolderName'] =
+        bankAccountHolderName;
     request.fields['Reason'] = reason;
 
     // Thêm file ảnh chứng minh
-    request.files.add(await http.MultipartFile.fromPath('ProofImage', proofImagePath));
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'ProofImage',
+        proofImagePath,
+      ),
+    );
 
     final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+    final response = await http.Response.fromStream(
+      streamedResponse,
+    );
 
-    print('submitCourseRefund status: ${response.statusCode}');
+    print(
+      'submitCourseRefund status: ${response.statusCode}',
+    );
     print('submitCourseRefund body: ${response.body}');
 
     if (response.statusCode == 200) {
@@ -468,16 +540,23 @@ class AuthService implements IAuthRepository {
     return null;
   }
 
-
   @override
-  Future<Map<String, dynamic>?> fetchRefundDetail(String purchaseId) async {
+  Future<Map<String, dynamic>?> fetchRefundDetail(
+    String purchaseId,
+  ) async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('${ApiConfig.baseUrl}/purchases/$purchaseId/refunds/me');
-    final res = await http.get(url, headers: {
-      'Content-Type': 'application/json',
-      if (accessToken != null && accessToken.toString().isNotEmpty)
-        'Authorization': 'Bearer $accessToken',
-    });
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/purchases/$purchaseId/refunds/me',
+    );
+    final res = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        if (accessToken != null &&
+            accessToken.toString().isNotEmpty)
+          'Authorization': 'Bearer $accessToken',
+      },
+    );
     if (res.statusCode == 200) {
       final jsonBody = jsonDecode(res.body);
       if (jsonBody['status'] == 'success') {
@@ -488,9 +567,12 @@ class AuthService implements IAuthRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchCourseRefundRequests() async {
+  Future<List<Map<String, dynamic>>>
+  fetchCourseRefundRequests() async {
     final accessToken = GetStorage().read('accessToken');
-    final url = Uri.parse('https://f-learn.app/api/refunds/me?Page=1&PageSize=10&SortBy=newest');
+    final url = Uri.parse(
+      'https://f-learn.app/api/refunds/me?Page=1&PageSize=10&SortBy=newest',
+    );
     final res = await http.get(
       url,
       headers: {
@@ -500,11 +582,36 @@ class AuthService implements IAuthRepository {
     );
     if (res.statusCode == 200) {
       final body = jsonDecode(res.body);
-      if (body['status'] == 'success' && body['data'] != null) {
-        return List<Map<String, dynamic>>.from(body['data']);
+      if (body['status'] == 'success' &&
+          body['data'] != null) {
+        return List<Map<String, dynamic>>.from(
+          body['data'],
+        );
       }
     }
     return [];
   }
 
+  @override
+  Future<void> updateFcmToken(String token) async {
+    try {
+      await _dio.put(
+        '/Auth/fcm-token',
+        data: {'fcmToken': token},
+      );
+      print("FCM Token synced successfully: $token");
+    } on DioException catch (e) {
+      print('Update FCM Token error: ${e.message}');
+    }
+  }
+
+  @override
+  Future<void> removeFcmToken() async {
+    try {
+      await _dio.delete('/Auth/fcm-token');
+      print("FCM Token removed from server");
+    } on DioException catch (e) {
+      print('Remove FCM Token error: ${e.message}');
+    }
+  }
 }
