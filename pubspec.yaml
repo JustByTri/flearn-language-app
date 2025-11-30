@@ -48,8 +48,10 @@ dependencies:
   just_audio: ^0.9.36
   http_parser: ^4.0.2
   audioplayers: ^5.2.1
-  firebase_core: ^2.25.4
-  firebase_auth: ^4.16.0
+  firebase_core: ^4.2.1
+  firebase_auth: ^6.1.2
+  firebase_messaging: ^16.0.4
+  flutter_local_notifications: ^19.5.0
   flutter_html: ^3.0.0
   openai_tts: ^0.0.3
   flutter_sound: ^9.2.13
