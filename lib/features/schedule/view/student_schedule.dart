@@ -4,29 +4,32 @@ import 'package:intl/intl.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:flearn_app/features/schedule/model/enrollment_model.dart';
 import 'package:flearn_app/features/schedule/viewmodel/schedule_viewmodel.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class StudentScheduleScreen extends StatefulWidget {
-  const StudentScheduleScreen({super.key});
+class StudentScheduleTimelineScreen extends StatefulWidget {
+  const StudentScheduleTimelineScreen({super.key});
 
   @override
-  State<StudentScheduleScreen> createState() => _StudentScheduleScreenState();
+  State<StudentScheduleTimelineScreen> createState() => _StudentScheduleTimelineScreenState();
 }
 
-class _StudentScheduleScreenState extends State<StudentScheduleScreen> {
+class _StudentScheduleTimelineScreenState extends State<StudentScheduleTimelineScreen> {
   late final ScheduleViewModel _viewModel;
-  DateTime _selectedDate = DateTime.now();
+
+  static const _cardColors = [
+    Color(0xFF50C2C9),
+    Color(0xFFF6A623),
+    Color(0xFF7B61FF),
+    Color(0xFFFF5B8F),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _viewModel = Get.put(ScheduleViewModel(service: Get.find()));
+    _viewModel = Get.isRegistered<ScheduleViewModel>()
+        ? Get.find<ScheduleViewModel>()
+        : Get.put(ScheduleViewModel(service: Get.find()), permanent: true);
     _viewModel.fetchMyEnrollments();
-  }
-
-  void _onDaySelected(DateTime day) {
-    setState(() {
-      _selectedDate = day;
-    });
   }
 
   @override
@@ -34,281 +37,459 @@ class _StudentScheduleScreenState extends State<StudentScheduleScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text('Lịch học của tôi'),
         backgroundColor: Colors.white,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A1A1A)),
+          onPressed: () => Get.back(),
+        ),
+        title: const Text(
+          'Lịch học của bạn',
+          style: TextStyle(
+            color: Color(0xFF1A1A1A),
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
+        ),
       ),
       body: Obx(() {
         if (_viewModel.isLoading.value && _viewModel.myEnrollments.isEmpty) {
           return const Center(child: CircularProgressIndicator(color: AppColors.primary));
         }
-
         if (_viewModel.errorMessage.value.isNotEmpty) {
           return Center(child: Text(_viewModel.errorMessage.value));
         }
-
-        return Column(
-          children: [
-            _buildWeekSelector(),
-            const SizedBox(height: 16),
-            _buildTimelineHeader(),
-            Expanded(child: _buildTimeline()),
-          ],
+        return RefreshIndicator(
+          onRefresh: () => _viewModel.fetchMyEnrollments(),
+          color: AppColors.primary,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            children: [
+              _buildGroupedTimeline(),
+            ],
+          ),
         );
       }),
     );
   }
 
-  Widget _buildWeekSelector() {
-    final weekStart = _selectedDate.subtract(Duration(days: _selectedDate.weekday - 1));
-    final days = List.generate(7, (index) => weekStart.add(Duration(days: index)));
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      color: Colors.white,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: days.map((day) {
-          final isSelected = day.year == _selectedDate.year &&
-              day.month == _selectedDate.month &&
-              day.day == _selectedDate.day;
-          return GestureDetector(
-            onTap: () => _onDaySelected(day),
-            child: Column(
-              children: [
-                Text(
-                  DateFormat('E').format(day).toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isSelected ? AppColors.primary : Colors.grey.shade600,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isSelected ? AppColors.primary : Colors.transparent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${day.day}',
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildTimelineHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            DateFormat('MMMM d, yyyy').format(_selectedDate),
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.today, color: AppColors.primary),
-            onPressed: () => _onDaySelected(DateTime.now()),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimeline() {
-    final enrollmentsForDay = _viewModel.myEnrollments.where((e) {
-      final startDate = e.startDateTime;
-      return startDate.year == _selectedDate.year &&
-          startDate.month == _selectedDate.month &&
-          startDate.day == _selectedDate.day;
-    }).toList();
-
-    enrollmentsForDay.sort((a, b) => a.startDateTime.compareTo(b.startDateTime));
-
-    if (enrollmentsForDay.isEmpty) {
-      return const Center(
+  Widget _buildGroupedTimeline() {
+    final enrollments = _viewModel.myEnrollments;
+    if (enrollments.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.calendar_today_outlined, size: 60, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'Không có lịch học',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+            Icon(Icons.event_busy, size: 56, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            const Text(
+              'Bạn chưa đăng ký lớp học nào.',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
       );
     }
-    
-    // Determine the current or next event to highlight
-    Enrollment? highlightedEnrollment;
-    final now = DateTime.now();
-    
-    // Find current running class
-    final currentClasses = enrollmentsForDay.where((e) => now.isAfter(e.startDateTime) && now.isBefore(e.endDateTime));
-    if (currentClasses.isNotEmpty) {
-      highlightedEnrollment = currentClasses.first;
-    } else {
-      // Find next class to start
-      final upcomingClasses = enrollmentsForDay.where((e) => now.isBefore(e.startDateTime));
-      if (upcomingClasses.isNotEmpty) {
-        highlightedEnrollment = upcomingClasses.first;
-      }
+
+    final grouped = <DateTime, List<Enrollment>>{};
+    for (final enrollment in enrollments) {
+      final date = DateTime(
+        enrollment.startDateTime.year,
+        enrollment.startDateTime.month,
+        enrollment.startDateTime.day,
+      );
+      grouped.putIfAbsent(date, () => <Enrollment>[]).add(enrollment);
     }
 
+    final sortedDates = grouped.keys.toList()..sort();
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      itemCount: enrollmentsForDay.length,
-      itemBuilder: (context, index) {
-        final enrollment = enrollmentsForDay[index];
-        final isHighlighted = enrollment == highlightedEnrollment;
-
-        return _buildTimelineItem(
-          enrollment,
-          isFirst: index == 0,
-          isLast: index == enrollmentsForDay.length - 1,
-          isHighlighted: isHighlighted,
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final date in sortedDates) ...[
+          _buildDaySection(date, grouped[date]!),
+          const SizedBox(height: 24),
+        ],
+      ],
     );
   }
 
-  Widget _buildTimelineItem(Enrollment enrollment, {required bool isFirst, required bool isLast, required bool isHighlighted}) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Timeline graphic
-          SizedBox(
-            width: 40,
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                Container(
-                  width: 2,
-                  height: 20,
-                  color: isFirst ? Colors.transparent : Colors.grey.shade300,
+  Widget _buildDaySection(DateTime date, List<Enrollment> enrollments) {
+    final label = DateFormat('EEEE, dd MMMM yyyy', 'vi_VN').format(date);
+    final isToday = DateUtils.isSameDay(date, DateTime.now());
+    final items = List<Enrollment>.from(enrollments)
+      ..sort((a, b) => a.startDateTime.compareTo(b.startDateTime));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            if (isToday) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isHighlighted ? AppColors.primary : Colors.grey.shade300,
+                child: const Text(
+                  'Hôm nay',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        Column(
+          children: [
+            for (var i = 0; i < items.length; i++) ...[
+              _timelineTile(
+                items[i],
+                index: i,
+                isLast: i == items.length - 1,
+              ),
+              if (i != items.length - 1) const SizedBox(height: 20),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _timelineTile(
+      Enrollment enrollment, {
+        required int index,
+        required bool isLast,
+      }) {
+    final start = DateFormat('HH:mm').format(enrollment.startDateTime);
+    final end = DateFormat('HH:mm').format(enrollment.endDateTime);
+    final now = DateTime.now();
+
+    late final String statusLabel;
+    late final Color statusColor;
+    if (enrollment.endDateTime.isBefore(now)) {
+      statusLabel = 'Đã diễn ra';
+      statusColor = Colors.grey.shade600;
+    } else if (enrollment.startDateTime.isAfter(now)) {
+      statusLabel = 'Sắp diễn ra';
+      statusColor = AppColors.primary;
+    } else {
+      statusLabel = 'Đang diễn ra';
+      statusColor = Colors.green.shade600;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.school, color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Container(
-                    width: 2,
-                    color: isLast ? Colors.transparent : Colors.grey.shade300,
+                  child: Text(
+                    enrollment.title ?? 'Lớp học dành cho người mới',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                ),
+                _statusBadge(statusLabel, statusColor),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.person, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(
+                  'Giáo viên: ${enrollment.teacherName ?? "Unknown Teacher"}',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.language, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(
+                  'Ngôn ngữ: ${enrollment.languageName ?? "English"}',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Thời gian: ${DateFormat('EEEE, dd/MM/yyyy', 'vi_VN').format(enrollment.startDateTime)} $start - $end',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
                   ),
                 ),
               ],
             ),
-          ),
-          // Content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 24.0),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isHighlighted ? AppColors.primary : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 1,
-                      blurRadius: 5,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      enrollment.title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: isHighlighted ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'GV: ${enrollment.teacherName}',
-                       style: TextStyle(
-                        fontSize: 14,
-                        color: isHighlighted ? Colors.white.withOpacity(0.8) : Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${enrollment.totalEnrollments}/${enrollment.capacity} HV',
-                           style: TextStyle(
-                            fontSize: 14,
-                            color: isHighlighted ? Colors.white.withOpacity(0.8) : Colors.grey.shade600,
-                          ),
-                        ),
-                        Text(
-                          '${DateFormat('HH:mm').format(enrollment.startDateTime)} - ${DateFormat('HH:mm').format(enrollment.endDateTime)}',
-                           style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: isHighlighted ? Colors.white : AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (enrollment.canJoinClass) ...[
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () { /* Handle join class */ },
-                        icon: Icon(Icons.videocam, color: isHighlighted ? AppColors.primary : Colors.white),
-                        label: Text(
-                          'Vào lớp học',
-                          style: TextStyle(color: isHighlighted ? AppColors.primary : Colors.white),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isHighlighted ? Colors.white : AppColors.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      )
-                    ]
-                  ],
-                ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () async => _openMeeting(enrollment),
+              icon: const Icon(Icons.video_call, size: 18, color: Colors.white),
+              label: const Text(
+                'Vào lớp học',
+                style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                minimumSize: const Size(double.infinity, 0),
+                elevation: 0,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _statusBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  // Widget _timelineTile(
+  //     Enrollment enrollment, {
+  //       required int index,
+  //       required bool isLast,
+  //     }) {
+  //   final start = DateFormat('HH:mm').format(enrollment.startDateTime);
+  //   final end = DateFormat('HH:mm').format(enrollment.endDateTime);
+  //   final now = DateTime.now();
+  //
+  //   late final String statusLabel;
+  //   late final Color statusColor;
+  //   if (enrollment.endDateTime.isBefore(now)) {
+  //     statusLabel = 'Đã diễn ra';
+  //     statusColor = Colors.grey.shade600;
+  //   } else if (enrollment.startDateTime.isAfter(now)) {
+  //     statusLabel = 'Sắp diễn ra';
+  //     statusColor = AppColors.primary;
+  //   } else {
+  //     statusLabel = 'Đang diễn ra';
+  //     statusColor = Colors.green.shade600;
+  //   }
+  //
+  //   return IntrinsicHeight(
+  //     child: Row(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         // Phần hiển thị giờ bên trái
+  //         SizedBox(
+  //           width: 70,
+  //           child: Column(
+  //             children: [
+  //               Text(
+  //                 start,
+  //                 style: const TextStyle(
+  //                   fontSize: 18,
+  //                   fontWeight: FontWeight.bold,
+  //                   color: AppColors.primary,
+  //                 ),
+  //               ),
+  //               Container(
+  //                 width: 2,
+  //                 height: 8,
+  //                 margin: const EdgeInsets.symmetric(vertical: 4),
+  //                 decoration: BoxDecoration(
+  //                   color: AppColors.primary.withOpacity(0.3),
+  //                   borderRadius: BorderRadius.circular(1),
+  //                 ),
+  //               ),
+  //               Text(
+  //                 end,
+  //                 style: TextStyle(
+  //                   fontSize: 14,
+  //                   fontWeight: FontWeight.w600,
+  //                   color: Colors.grey.shade600,
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //         const SizedBox(width: 12),
+  //         // Card nội dung
+  //         Expanded(
+  //           child: Container(
+  //             decoration: BoxDecoration(
+  //               color: Colors.white,
+  //               borderRadius: BorderRadius.circular(12),
+  //               border: Border.all(color: Colors.grey.shade200),
+  //               boxShadow: [
+  //                 BoxShadow(
+  //                   color: Colors.black.withOpacity(0.03),
+  //                   blurRadius: 8,
+  //                   offset: const Offset(0, 2),
+  //                 ),
+  //               ],
+  //             ),
+  //             child: Padding(
+  //               padding: const EdgeInsets.all(16),
+  //               child: Column(
+  //                 crossAxisAlignment: CrossAxisAlignment.start,
+  //                 children: [
+  //                   Row(
+  //                     children: [
+  //                       Container(
+  //                         padding: const EdgeInsets.all(8),
+  //                         decoration: BoxDecoration(
+  //                           color: AppColors.primary.withOpacity(0.1),
+  //                           shape: BoxShape.circle,
+  //                         ),
+  //                         child: const Icon(Icons.school, color: AppColors.primary, size: 20),
+  //                       ),
+  //                       const SizedBox(width: 8),
+  //                       Expanded(
+  //                         child: Text(
+  //                           enrollment.title ?? 'Lớp học dành cho người mới',
+  //                           style: const TextStyle(
+  //                             fontWeight: FontWeight.bold,
+  //                             fontSize: 16,
+  //                             color: Color(0xFF1A1A1A),
+  //                           ),
+  //                         ),
+  //                       ),
+  //                       _statusBadge(statusLabel, statusColor),
+  //                     ],
+  //                   ),
+  //                   const SizedBox(height: 12),
+  //                   Row(
+  //                     children: [
+  //                       Icon(Icons.person, size: 16, color: Colors.grey.shade600),
+  //                       const SizedBox(width: 4),
+  //                       Expanded(
+  //                         child: Text(
+  //                           'Giáo viên: ${enrollment.teacherName ?? "Unknown Teacher"}',
+  //                           style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+  //                         ),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                   const SizedBox(height: 4),
+  //                   Row(
+  //                     children: [
+  //                       Icon(Icons.language, size: 16, color: Colors.grey.shade600),
+  //                       const SizedBox(width: 4),
+  //                       Text(
+  //                         'Ngôn ngữ: ${enrollment.languageName ?? "English"}',
+  //                         style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                   const SizedBox(height: 12),
+  //                   ElevatedButton.icon(
+  //                     onPressed: () async => _openMeeting(enrollment),
+  //                     icon: const Icon(Icons.video_call, size: 18, color: Colors.white),
+  //                     label: const Text(
+  //                       'Vào lớp học',
+  //                       style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+  //                     ),
+  //                     style: ElevatedButton.styleFrom(
+  //                       backgroundColor: AppColors.primary,
+  //                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  //                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+  //                       minimumSize: const Size(double.infinity, 0),
+  //                       elevation: 0,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+
+  Future<void> _openMeeting(Enrollment enrollment) async {
+    final url = (enrollment.googleMeetLink ?? '').trim();
+    if (url.isEmpty) {
+      Get.snackbar('Không tìm thấy link', 'Lớp học chưa có link tham gia.', snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      Get.snackbar('Không mở được link', url, snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      Get.snackbar('Không mở được link', url, snackPosition: SnackPosition.BOTTOM);
+    }
   }
 }

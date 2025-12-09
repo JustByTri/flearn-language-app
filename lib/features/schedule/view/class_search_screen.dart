@@ -2,12 +2,15 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:flearn_app/core/constants/colors.dart';
 import 'package:flearn_app/features/schedule/viewmodel/class_search_viewmodel.dart';
 import 'package:flearn_app/features/schedule/model/schedule_model.dart';
 import 'package:flearn_app/features/schedule/view/student_schedule_screen.dart' // <-- thêm import
     ;
+
+import '../../auth/viewmodel/user_viewmodel.dart';
 
 class ClassSearchScreen extends StatefulWidget {
   const ClassSearchScreen({super.key});
@@ -273,20 +276,51 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> with TickerProvid
 
   Widget _buildClassList() {
     return Obx(() {
-      if (_viewModel.isLoading.value) return _buildShimmer();
-      if (_viewModel.errorMessage.value.isNotEmpty) return _buildError();
-      final hasFilter = _viewModel.selectedTeacherId.value.isNotEmpty || _viewModel.selectedProgramId.value.isNotEmpty || _viewModel.searchKeyword.value.isNotEmpty;
-      if (_viewModel.classes.isEmpty) return _buildEmpty(hasFilter);
+      final physics = const AlwaysScrollableScrollPhysics();
+
+      if (_viewModel.isLoading.value) {
+        // Bọc shimmer trong RefreshIndicator để vẫn có gesture
+        return RefreshIndicator(
+          onRefresh: () async => _viewModel.searchClasses(resetPage: true),
+          color: AppColors.primary,
+          child: ListView(
+            physics: physics,
+            children: [Padding(padding: const EdgeInsets.all(16), child: _shimmerCard())],
+          ),
+        );
+      }
+
+      if (_viewModel.errorMessage.value.isNotEmpty) {
+        return RefreshIndicator(
+          onRefresh: () async => _viewModel.searchClasses(resetPage: true),
+          color: AppColors.primary,
+          child: ListView(
+            physics: physics,
+            children: [const SizedBox(height: 200), _buildError()],
+          ),
+        );
+      }
+
+      final hasFilter = _viewModel.selectedTeacherId.value.isNotEmpty ||
+          _viewModel.selectedProgramId.value.isNotEmpty ||
+          _viewModel.searchKeyword.value.isNotEmpty;
+
+      if (_viewModel.classes.isEmpty) {
+        return RefreshIndicator(
+          onRefresh: () async => _viewModel.searchClasses(resetPage: true),
+          color: AppColors.primary,
+          child: ListView(
+            physics: physics,
+            children: [const SizedBox(height: 200), _buildEmpty(hasFilter)],
+          ),
+        );
+      }
 
       return RefreshIndicator(
-        onRefresh: () async {
-          // Clear data cũ trước khi fetch để đảm bảo pull-to-refresh luôn hoạt động
-          _viewModel.classes.clear();
-          _viewModel.clearFilters(); // Reset filters nếu cần
-          await _viewModel.searchClasses(resetPage: true);
-        },
+        onRefresh: () async => _viewModel.searchClasses(resetPage: true),
         color: AppColors.primary,
         child: ListView.builder(
+          physics: physics,
           padding: const EdgeInsets.all(16),
           itemCount: _viewModel.classes.length,
           itemBuilder: (context, i) => _buildNeumorphicCard(_viewModel.classes[i]),
@@ -631,6 +665,24 @@ class _ClassSearchScreenState extends State<ClassSearchScreen> with TickerProvid
           ElevatedButton(
             onPressed: () {
               Get.back();
+              String studentId = '';
+              try {
+                if (Get.isRegistered<UserViewModel>()) {
+                  final u = Get.find<UserViewModel>().user.value;
+                  studentId = u?.id ?? '';
+                }
+                if (studentId.isEmpty) {
+                  final userMap = GetStorage().read('user') as Map?;
+                  studentId = userMap?['userId']?.toString() ?? '';
+                }
+              } catch (e) {
+                print('[Enroll] read user failed: $e');
+              }
+
+              if (studentId.isEmpty) {
+                Get.snackbar('Lỗi', 'Không tìm thấy mã học viên. Vui lòng đăng nhập lại.');
+                return;
+              }
               _viewModel.bookClass(cls.classID);
             },
             style: ElevatedButton.styleFrom(

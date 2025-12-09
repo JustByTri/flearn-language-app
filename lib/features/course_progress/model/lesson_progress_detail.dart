@@ -12,6 +12,7 @@ class LessonProgressDetail {
   final int totalExercises;
   final int completedExercises;
   final int passedExercises;
+  final bool isAllExercisesPassed;
   final String unitId;
   final String unitTitle;
   final String courseId;
@@ -31,6 +32,7 @@ class LessonProgressDetail {
     required this.totalExercises,
     required this.completedExercises,
     required this.passedExercises,
+    required this.isAllExercisesPassed,
     required this.unitId,
     required this.unitTitle,
     required this.courseId,
@@ -52,6 +54,7 @@ class LessonProgressDetail {
       totalExercises: json['totalExercises'] ?? 0,
       completedExercises: json['completedExercises'] ?? 0,
       passedExercises: json['passedExercises'] ?? 0,
+      isAllExercisesPassed: json['isAllExercisesPassed'] ?? false,
       unitId: json['unitId'] ?? '',
       unitTitle: json['unitTitle'] ?? '',
       courseId: json['courseId'] ?? '',

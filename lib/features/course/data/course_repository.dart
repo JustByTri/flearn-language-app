@@ -6,6 +6,7 @@ import '../model/course_access.dart';
 import '../model/course_detail.dart';
 import '../model/course_exercise.dart';
 import '../model/course_lesson.dart';
+import '../model/course_review.dart';
 import '../model/course_unit.dart';
 import '../model/curriculum.dart';
 import '../model/exercise_submission_detail.dart';
@@ -81,4 +82,16 @@ abstract class ICourseRepository{
   Future<Map<String, dynamic>?> enrollFreeCourse(String courseId);
 
   Future<List<CoursePopular>> getCoursePopularByLang({int count = 10, String? languageId});
+
+  Future<Map<String, dynamic>?> submitCourseReview({
+    required String courseId,
+    required int rating,
+    required String comment,
+  });
+
+  Future<List<CourseReview>> getCourseReviews({
+    required String courseId,
+    int page = 1,
+    int pageSize = 10,
+  });
 }

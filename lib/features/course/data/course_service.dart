@@ -10,6 +10,7 @@ import '../model/course.dart';
 import '../model/course_access.dart';
 import '../model/course_detail.dart';
 import '../model/course_exercise.dart';
+import '../model/course_review.dart';
 import '../model/course_unit.dart';
 import '../model/course_lesson.dart';
 import '../model/curriculum.dart';
@@ -498,6 +499,97 @@ class CourseService implements ICourseRepository {
     } else {
       throw Exception('getCoursePopular failed: ${response.body}');
     }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> submitCourseReview({
+    required String courseId,
+    required int rating,
+    required String comment,
+  }) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}/course-reviews/courses/$courseId');
+    final token = GetStorage().read('accessToken');
+
+    try {
+      final res = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null && token.toString().isNotEmpty) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'rating': rating, 'comment': comment}),
+      );
+
+      // Try parsing JSON if possible
+      Map<String, dynamic> body = {};
+      try { body = jsonDecode(res.body) as Map<String, dynamic>; } catch (_) {}
+
+      // Case 3: backend returns only { "message": "..."} with 400
+      if (body.isNotEmpty && body['message'] is String && body['status'] == null && body['code'] == null) {
+        return {
+          'status': 'fail',
+          'code': res.statusCode,
+          'message': body['message'],
+          'duplicate': false,
+          'data': null,
+        };
+      }
+
+      // Normal success/fail envelope
+      final status = (body['status'] ?? (res.statusCode >= 200 && res.statusCode < 300 ? 'success' : 'fail')).toString();
+      final code = body['code'] is int ? body['code'] as int : res.statusCode;
+      final message = (body['message'] ?? '').toString();
+      final data = body['data'] as Map<String, dynamic>?;
+      final errors = body['errors'] as Map<String, dynamic>?;
+      final reviewJson = (data ?? errors);
+      final review = reviewJson != null ? CourseReview.fromJson(reviewJson) : null;
+
+      return {
+        'status': status.toLowerCase(),
+        'code': code,
+        'message': message,
+        'duplicate': code == 400 && (message.toLowerCase().contains('already reviewed')),
+        'data': review,
+      };
+    } catch (e) {
+      return {
+        'status': 'fail',
+        'code': 0,
+        'message': e.toString(),
+        'duplicate': false,
+        'data': null,
+      };
+    }
+  }
+
+  @override
+  Future<List<CourseReview>> getCourseReviews({
+    required String courseId,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    final token = GetStorage().read('accessToken');
+    final uri = Uri.parse('${ApiConfig.baseUrl}/course-reviews/courses/$courseId')
+        .replace(queryParameters: {
+      'page': '$page',
+      'pageSize': '$pageSize',
+    });
+
+    final res = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null && token.toString().isNotEmpty) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (res.statusCode == 200) {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final data = (body['data'] as List?) ?? [];
+      return data.map((e) => CourseReview.fromJson(e as Map<String, dynamic>)).toList();
+    }
+
+    throw Exception('getCourseReviews failed: ${res.statusCode} ${res.body}');
   }
 
 }

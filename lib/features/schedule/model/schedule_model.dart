@@ -80,7 +80,7 @@ class TeacherClass {
       isEnrollmentOpen: json['isEnrollmentOpen'] ?? false,
     );
   }
-  
+
   // Helpers to move logic from the View
   bool get isFull => availableSlots <= 0;
   bool get isAlmostFull => !isFull && capacity > 0 && (currentEnrollments / capacity) >= 0.8;
@@ -129,6 +129,11 @@ class ClassSearchResult {
   final String? teacherAvatar;
   final String? programName;
 
+  // NEW: fields present in API response
+  final int minStudents;
+  final int availableSlots;
+  final bool isEnrollmentOpen;
+
   ClassSearchResult({
     required this.classID,
     required this.title,
@@ -147,31 +152,42 @@ class ClassSearchResult {
     this.teacherName,
     this.teacherAvatar,
     this.programName,
+    required this.minStudents,
+    required this.availableSlots,
+    required this.isEnrollmentOpen,
   });
 
   factory ClassSearchResult.fromJson(Map<String, dynamic> json) {
+    final capacity = (json['capacity'] as num?)?.toInt() ?? 0;
+    final current = (json['currentEnrollments'] as num?)?.toInt() ?? 0;
+    final rawSlots = json['availableSlots'];
+
     return ClassSearchResult(
-      classID: json['classID'] ?? '',
-      title: json['title'] ?? '',
-      description: json['description'] ?? '',
-      languageID: json['languageID'] ?? '',
-      languageName: json['languageName'] ?? '',
+      classID: json['classID']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      languageID: json['languageID']?.toString() ?? '',
+      languageName: json['languageName']?.toString() ?? '',
       startDateTime: DateTime.parse(json['startDateTime']),
       endDateTime: DateTime.parse(json['endDateTime']),
-      capacity: json['capacity'] ?? 0,
-      pricePerStudent: (json['pricePerStudent'] as num).toDouble(),
-      googleMeetLink: json['googleMeetLink'] ?? '',
-      status: json['status'] ?? '',
-      currentEnrollments: json['currentEnrollments'] ?? 0,
+      capacity: capacity,
+      pricePerStudent: (json['pricePerStudent'] as num?)?.toDouble() ?? 0,
+      googleMeetLink: json['googleMeetLink']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      currentEnrollments: current,
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
-      teacherName: json['teacherName'],
-      teacherAvatar: json['teacherAvatar'],
-      programName: json['programName'],
+      teacherName: json['teacherName']?.toString(),
+      teacherAvatar: json['teacherAvatar']?.toString(),
+      programName: json['programName']?.toString(),
+      minStudents: (json['minStudents'] as num?)?.toInt() ?? 0,
+      availableSlots: rawSlots is num ? rawSlots.toInt() : (capacity - current).clamp(0, capacity),
+      isEnrollmentOpen: json['isEnrollmentOpen'] as bool? ?? true,
     );
   }
 
-  bool get isFull => currentEnrollments >= capacity;
+  // Helpers to move logic from the View
+  bool get isFull => availableSlots <= 0;
   bool get isAlmostFull => !isFull && capacity > 0 && (currentEnrollments / capacity) >= 0.8;
   int get durationInMinutes => endDateTime.difference(startDateTime).inMinutes;
 }

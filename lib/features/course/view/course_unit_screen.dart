@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import '../../../core/constants/colors.dart';
 import '../../../shared/widgets/fadeSlideAnimation.dart';
 import '../model/course_unit.dart';
@@ -23,6 +24,8 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
   final Set<String> _expandedUnits = {};
   final Map<String, List<dynamic>> _unitLessons = {};
   final Map<String, bool> _unitLoading = {};
+  final box = GetStorage();
+  bool _hasShownReviewDialog = false; // Thêm biến này
 
   @override
   void initState() {
@@ -64,79 +67,85 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Get.back(),
-        ),
-        title: Text(
-          widget.courseTitle,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
+    return WillPopScope(
+      onWillPop: _handleBackPressed, // NEW
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0.5,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            onPressed: () async {
+              final shouldPop = await _handleBackPressed();
+              if (shouldPop) Get.back();
+            },
           ),
+          title: Text(
+            widget.courseTitle,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          centerTitle: true,
         ),
-        centerTitle: true,
-      ),
-      body: Obx(() {
-        final useCurriculum = widget.enrollmentId != null && widget.enrollmentId!.isNotEmpty;
-        if (useCurriculum) {
-          if (courseViewModel.isLoadingCurriculum.value) {
+        body: Obx(() {
+          final useCurriculum = widget.enrollmentId != null && widget.enrollmentId!.isNotEmpty;
+          if (useCurriculum) {
+            if (courseViewModel.isLoadingCurriculum.value) {
+              return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+            }
+            final data = courseViewModel.curriculum.value;
+            final error = courseViewModel.curriculumError.value;
+            if (data == null) {
+              if (error != null) {
+                return _buildErrorState(error); // Hiển thị error message
+              }
+              return _buildEmptyState();
+            }
+            final units = data.units;
+            if (units.isEmpty) return _buildEmptyState();
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                await courseViewModel.fetchCurriculum(widget.enrollmentId!);
+              },
+              child: FadeSlideAnimation(
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: units.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) {
+                    final u = units[i];
+                    final expanded = _expandedUnits.contains(u.unitId);
+                    return _buildCurriculumUnitCard(u, expanded);
+                  },
+                ),
+              ),
+            );
+          }
+          // fallback cũ
+          if (courseViewModel.isLoadingUnit.value) {
             return const Center(child: CircularProgressIndicator(color: AppColors.primary));
           }
-          final data = courseViewModel.curriculum.value;
-          final error = courseViewModel.curriculumError.value;
-          if (data == null) {
-            if (error != null) {
-              return _buildErrorState(error); // Hiển thị error message
-            }
-            return _buildEmptyState();
-          }
-          final units = data.units;
+          final units = courseViewModel.units;
           if (units.isEmpty) return _buildEmptyState();
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              await courseViewModel.fetchCurriculum(widget.enrollmentId!);
-            },
-            child: FadeSlideAnimation(
-              child: ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: units.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, i) {
-                  final u = units[i];
-                  final expanded = _expandedUnits.contains(u.unitId);
-                  return _buildCurriculumUnitCard(u, expanded);
-                },
-              ),
+          return FadeSlideAnimation(
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: units.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, i) {
+                final unit = units[i];
+                final expanded = _expandedUnits.contains(unit.courseUnitID);
+                return _buildUnitCard(unit, i, expanded);
+              },
             ),
           );
-        }
-        // fallback cũ
-        if (courseViewModel.isLoadingUnit.value) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-        }
-        final units = courseViewModel.units;
-        if (units.isEmpty) return _buildEmptyState();
-        return FadeSlideAnimation(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: units.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, i) {
-              final unit = units[i];
-              final expanded = _expandedUnits.contains(unit.courseUnitID);
-              return _buildUnitCard(unit, i, expanded);
-            },
-          ),
-        );
-      }),
+        }),
+      ),
     );
   }
 
@@ -561,5 +570,41 @@ class _CourseUnitScreenState extends State<CourseUnitScreen> {
         ),
       ),
     );
+  }
+
+  Future<bool> _handleBackPressed() async {
+    // Kiểm tra biến toàn cục đã hỏi chưa
+    if (box.read('hasShownReviewDialog') == true) {
+      return true;
+    }
+
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đánh giá khóa học'),
+        content: const Text('Bạn có muốn đánh giá khóa học vừa học không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Không'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Đánh giá'),
+          ),
+        ],
+      ),
+    );
+
+    box.write('hasShownReviewDialog', true); // Đánh dấu đã hỏi
+
+    if (res == false) {
+      Get.to(() => CourseDetailScreen(
+        courseId: widget.courseId,
+        showTeacherProfile: true,
+      ), arguments: {'showReviewForm': true});
+      return false;
+    }
+    return true;
   }
 }
