@@ -158,10 +158,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadInitialData() async {
-    await Future.wait([
-      _fetchLanguages(),
-      _fetchOtherData(),
-    ]);
+    await _fetchLanguages();
+    await _fetchOtherData();
     _hasLoadedOnce = true;
   }
 
@@ -173,14 +171,26 @@ class _HomeScreenState extends State<HomeScreen>
 
       final box = GetStorage();
       final user = box.read('user');
-      String? langCode = overrideLangCode; // NEW: ưu tiên langCode được truyền vào
+      String? langCode = overrideLangCode;
 
-      if (langCode == null && user != null && user['languageId'] != null) {
-        final language = _languages.firstWhere(
+      if (langCode == null && user != null && user['languageCode'] != null) {
+        langCode = user['languageCode']?.toString();
+      }
+
+      if (langCode == null && user != null && user['languageId'] != null && _languages.isNotEmpty) {
+        final match = _languages.firstWhere(
               (lang) => lang.id == user['languageId'],
           orElse: () => Language(id: '', langName: '', langCode: ''),
         );
-        langCode = language.langCode.isNotEmpty ? language.langCode : null;
+        langCode = match.langCode.isNotEmpty ? match.langCode : null;
+      }
+
+      if (langCode == null && _selectedLanguageId != null && _languages.isNotEmpty) {
+        final match = _languages.firstWhere(
+              (lang) => lang.id == _selectedLanguageId,
+          orElse: () => Language(id: '', langName: '', langCode: ''),
+        );
+        langCode = match.langCode.isNotEmpty ? match.langCode : null;
       }
 
       debugPrint('HomeScreen: Fetching courses with langCode: $langCode');
@@ -191,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen>
         sortBy: _sortBy,
         isRefresh: true,
       );
-      final languageId = user?['languageId'];
+      final languageId = user?['languageId'] ?? _selectedLanguageId;
       await courseViewModel.fetchPopularCoursesByLang(count: 10, languageId: languageId);
 
       debugPrint('HomeScreen: Fetched ${courseViewModel.courses.length} courses');
@@ -1123,15 +1133,10 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
 
-      // Lấy danh sách courseId từ "Tiếp tục học" để lọc
-      final enrolledCourseIds = courseProgressViewModel.courses.map((c) => c.courseId).toSet();
+      // KHÔNG LỌC enrolledCourseIds nữa, hiện tất cả popularCourses
+      final popularCourses = courseViewModel.popularCourses;
 
-      // Lọc popularCourses để loại bỏ những khóa học đã đăng ký
-      final filteredPopularCourses = courseViewModel.popularCourses
-          .where((course) => !enrolledCourseIds.contains(course.courseId))
-          .toList();
-
-      if (filteredPopularCourses.isEmpty) {
+      if (popularCourses.isEmpty) {
         return const SizedBox(
           height: 230,
           child: Center(
@@ -1144,10 +1149,10 @@ class _HomeScreenState extends State<HomeScreen>
         height: 230,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          itemCount: filteredPopularCourses.length,
+          itemCount: popularCourses.length,
           separatorBuilder: (context, index) => const SizedBox(width: 16),
           itemBuilder: (context, index) {
-            final course = filteredPopularCourses[index];
+            final course = popularCourses[index];
             return SizedBox(
               width: MediaQuery.of(context).size.width * 0.65,
               child: PopularCourseCard(course: course),
@@ -1223,11 +1228,15 @@ class PopularCourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
+    final enrolledCourseIds = Get.find<CourseProgressViewModel>().courses.map((c) => c.courseId).toSet();
+    final isEnrolled = enrolledCourseIds.contains(course.courseId);
+
     return InkWell(
       onTap: () {
         Get.to(() => CourseDetailScreen(
           courseId: course.courseId,
-        ));
+        ), arguments: isEnrolled ? {'showReviewForm': true} : null);
       },
       child: Card(
         elevation: 2,

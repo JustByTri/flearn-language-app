@@ -5,6 +5,7 @@ class CourseAccess {
   final String? refundEligibleUntil;
   final String accessStatus;
   final String? purchaseId;
+  final String? enrollmentId;
 
   CourseAccess({
     required this.hasAccess,
@@ -13,6 +14,7 @@ class CourseAccess {
     this.refundEligibleUntil,
     required this.accessStatus,
     this.purchaseId,
+    this.enrollmentId,
   });
 
   factory CourseAccess.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class CourseAccess {
       refundEligibleUntil: json['refundEligibleUntil'],
       accessStatus: json['accessStatus'] ?? '',
       purchaseId: json['purchaseId'],
+      enrollmentId: json['enrollmentId'],
     );
   }
 }

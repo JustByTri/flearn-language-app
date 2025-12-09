@@ -12,6 +12,9 @@ class ClassSearchViewModel extends GetxController {
 
   ClassSearchViewModel({required this.service});
 
+  final GetStorage _box = GetStorage();
+  String _activeLanguageId = '';
+
   var isLoading = true.obs;
   var classes = <ClassSearchResult>[].obs;
   var errorMessage = ''.obs;
@@ -44,9 +47,30 @@ class ClassSearchViewModel extends GetxController {
   // Lưu danh sách classId vừa thanh toán thành công
   final recentlyPaidClassIds = <String>{}.obs;
 
+  // Helper: đảm bảo có languageId hợp lệ và ghi vào storage nếu thiếu
+  String _ensureLanguageId() {
+    final rawSelected = _box.read('selectedLanguageId')?.toString() ?? '';
+    final rawUser = _box.read('user') as Map?;
+    debugPrint('[ClassSearchVM] storage selectedLanguageId="$rawSelected"');
+    debugPrint('[ClassSearchVM] storage user.languageId=${rawUser?['languageId']} activeLanguage=${rawUser?['activeLanguage']?['languageId']}');
+
+    var languageId = rawSelected;
+    if (languageId.isEmpty || languageId == '00faa1ba-f715-431d-a9b2-2572729fccb2') {
+      languageId = rawUser?['languageId']?.toString()
+          ?? rawUser?['activeLanguage']?['languageId']?.toString()
+          ?? 'bdc5ccca-676f-4099-9968-beff38f3ca83';
+      _box.write('selectedLanguageId', languageId);
+      debugPrint('[ClassSearchVM] fallback languageId="$languageId"');
+    }
+    _activeLanguageId = languageId;
+    return languageId;
+  }
+
   @override
   void onInit() {
     super.onInit();
+    _activeLanguageId = _ensureLanguageId();
+    _box.listenKey('selectedLanguageId', _handleSelectedLanguageChanged);
     loadFilters();
     searchClasses(resetPage: true);
   }
@@ -76,15 +100,20 @@ class ClassSearchViewModel extends GetxController {
 
   Future<void> loadPrograms() async {
     try {
-      final languageId = GetStorage().read('selectedLanguageId') as String? ?? '';
+      isLoadingFilters.value = true;
+      final languageId = _activeLanguageId.isEmpty ? _ensureLanguageId() : _activeLanguageId;
       print('[PROGRAMS] Fetching for languageId: $languageId');
       if (languageId.isNotEmpty) {
         final result = await service.getPrograms(languageId);
         print('[PROGRAMS] result: ${result.length} programs');
         programs.value = result;
+      } else {
+        programs.clear();
       }
     } catch (e) {
       print('[PROGRAMS] error: $e');
+    } finally {
+      isLoadingFilters.value = false;
     }
   }
 
@@ -114,10 +143,20 @@ class ClassSearchViewModel extends GetxController {
         if (!append) classes.clear();
       }
       if (!append) {
-        isLoading.value = true; // show loading when not appending
+        isLoading.value = true;
       }
       errorMessage.value = '';
-      final languageId = GetStorage().read('selectedLanguageId') as String? ?? '';
+
+      final languageId = _activeLanguageId.isEmpty ? _ensureLanguageId() : _activeLanguageId;
+      if (languageId != _activeLanguageId) {
+        _activeLanguageId = languageId;
+      }
+      if (languageId.isEmpty) {
+        errorMessage.value = 'Không tìm thấy ngôn ngữ. Vui lòng chọn ngôn ngữ trước.';
+        classes.clear();
+        return;
+      }
+
       print('[SEARCH] languageId: $languageId, teacherId: ${selectedTeacherId.value}, programId: ${selectedProgramId.value}, keyword: ${searchKeyword.value}, status: ${selectedStatus.value}, page: ${currentPage.value}');
       final result = await service.searchClasses(
         languageId: languageId,
@@ -301,8 +340,14 @@ class ClassSearchViewModel extends GetxController {
         return;
       }
       final user = GetStorage().read('user') as Map?;
-      final studentId = user?['userID']?.toString() ?? user?['id']?.toString() ?? '';
-      if (studentId.isEmpty) {
+      print('[CONFIRM] user: $user');
+      final studentID = user?['userID']?.toString()
+          ?? user?['userId']?.toString()
+          ?? user?['id']?.toString()
+          ?? '';
+      print('Confirming payment for studentId: $studentID, classId: $classId');
+
+      if (studentID.isEmpty) {
         Get.snackbar('Lỗi', 'Không tìm thấy mã học viên.');
         return;
       }
@@ -311,7 +356,7 @@ class ClassSearchViewModel extends GetxController {
         transactionId: _lastTransactionId!,
         amount: _lastAmount!,
         classId: classId,
-        studentId: studentId,
+        studentId: studentID,
       );
 
       await searchClasses();
@@ -342,5 +387,28 @@ class ClassSearchViewModel extends GetxController {
 
   void _markClassPaid(String classId) {
     recentlyPaidClassIds.add(classId);
+  }
+
+  void _handleSelectedLanguageChanged(dynamic value) {
+    final newId = (value ?? '').toString();
+    if (newId.isEmpty || newId == _activeLanguageId) return;
+
+    _activeLanguageId = newId;
+    _resetFiltersForLanguageChange();
+    loadFilters();
+    searchClasses(resetPage: true);
+  }
+
+  void _resetFiltersForLanguageChange() {
+    selectedTeacherId.value = '';
+    selectedProgramId.value = '';
+    searchKeyword.value = '';
+    selectedStatus.value = '2';
+    currentPage.value = 1;
+    totalPages.value = 1;
+    errorMessage.value = '';
+    classes.clear();
+    recentlyPaidClassIds.clear();
+    isLoadingMore.value = false;
   }
 }

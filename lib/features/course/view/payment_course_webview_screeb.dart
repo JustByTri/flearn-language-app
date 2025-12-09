@@ -26,23 +26,36 @@ class _PaymentCourseWebViewScreenState extends State<PaymentCourseWebViewScreen>
   bool _loading = true;
   bool _finished = false;
 
-  // Adjust patterns to your real returnUrl if needed
+  // Bổ sung thêm pattern phổ biến (VNPay/return URL)
   final List<String> _successIndicators = [
-    'status=PAID',
+    'status=paid',
+    'code=00',
+    'vnp_responsecode=00',
     'success=true',
     '/payment/success',
+    '/checkout/success',
   ];
   final List<String> _cancelIndicators = [
-    'status=CANCELLED',
-    'status=FAILED',
+    'status=cancelled',
+    'status=failed',
     'cancel=true',
+    'code=01',
     '/payment/cancel',
     '/payment/failed',
   ];
 
+  String _sanitizeUrl(String raw) {
+    var u = raw.trim();
+    if (u.startsWith('https//')) u = u.replaceFirst('https//', 'https://');
+    if (u.startsWith('http//')) u = u.replaceFirst('http//', 'http://');
+    if (!u.contains('://')) u = 'https://$u';
+    return u;
+  }
+
   @override
   void initState() {
     super.initState();
+    final safeUrl = _sanitizeUrl(widget.paymentUrl);
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.white)
@@ -53,21 +66,55 @@ class _PaymentCourseWebViewScreenState extends State<PaymentCourseWebViewScreen>
             setState(() => _loading = false);
             _inspect(url);
           },
+          onUrlChange: (change) {
+            final u = change.url;
+            if (u != null) _inspect(u);
+          },
           onNavigationRequest: (req) {
+            final uri = Uri.tryParse(req.url);
+            // Chặn scheme ngoài http(s)/about/data/blob
+            if (uri != null && !['http','https','about','data','blob'].contains(uri.scheme)) {
+              return NavigationDecision.prevent;
+            }
             _inspect(req.url);
             return NavigationDecision.navigate;
           },
         ),
       )
-      ..loadRequest(Uri.parse(widget.paymentUrl));
+      ..loadRequest(Uri.parse(safeUrl));
   }
 
   void _inspect(String url) {
-    if (_finished) return;
-    final lower = url.toLowerCase();
+    if (_finished || url.isEmpty) return;
 
-    final success = _successIndicators.any((p) => lower.contains(p.toLowerCase()));
-    final cancel = _cancelIndicators.any((p) => lower.contains(p.toLowerCase()));
+    // Ưu tiên parse query nếu có
+    try {
+      final uri = Uri.parse(url);
+      final status = (uri.queryParameters['status'] ?? '').toLowerCase();
+      final code = (uri.queryParameters['code'] ?? '').toLowerCase();
+      final vnp = (uri.queryParameters['vnp_ResponseCode'] ?? uri.queryParameters['vnp_responsecode'] ?? '').toLowerCase();
+      final cancel = (uri.queryParameters['cancel'] ?? '').toLowerCase();
+
+      final isSuccess = (status == 'paid' && code == '00') || (vnp == '00');
+      final isCancel = (status == 'cancelled') || (cancel == 'true') || (code == '01');
+
+      if (isSuccess) {
+        _finished = true;
+        Get.back(result: true);
+        return;
+      }
+      if (isCancel) {
+        _finished = true;
+        Get.back(result: false);
+        return;
+      }
+    } catch (_) {
+      // ignore parse error -> fallback pattern match
+    }
+
+    final lower = url.toLowerCase();
+    final success = _successIndicators.any((p) => lower.contains(p));
+    final cancel = _cancelIndicators.any((p) => lower.contains(p));
 
     if (success) {
       _finished = true;
@@ -81,7 +128,7 @@ class _PaymentCourseWebViewScreenState extends State<PaymentCourseWebViewScreen>
   Future<bool> _onWillPop() async {
     if (!_finished) {
       _finished = true;
-      Get.back(result: false); // treat as cancel
+      Get.back(result: false);
       return false;
     }
     return true;
@@ -112,8 +159,7 @@ class _PaymentCourseWebViewScreenState extends State<PaymentCourseWebViewScreen>
         body: Stack(
           children: [
             WebViewWidget(controller: _controller),
-            if (_loading)
-              const Center(child: CircularProgressIndicator()),
+            if (_loading) const Center(child: CircularProgressIndicator()),
           ],
         ),
       ),

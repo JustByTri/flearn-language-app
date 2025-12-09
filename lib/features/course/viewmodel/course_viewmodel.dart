@@ -7,6 +7,7 @@ import '../model/course_access.dart';
 import '../model/course_detail.dart';
 import '../model/course_exercise.dart';
 import '../model/course_lesson.dart';
+import '../model/course_review.dart';
 import '../model/course_unit.dart';
 import '../model/curriculum.dart';
 import '../model/exercise_submission_detail.dart';
@@ -415,4 +416,57 @@ class CourseViewModel extends GetxController {
       isLoadingPopularCourses.value = false;
     }
   }
+
+
+  final isSubmittingReview = false.obs;
+
+  Future<Map<String, dynamic>?> submitCourseReview({
+    required String courseId,
+    required int rating,
+    required String comment,
+  }) async {
+    isSubmittingReview.value = true;
+    try {
+      final resp = await _courseRepository.submitCourseReview(
+        courseId: courseId,
+        rating: rating,
+        comment: comment,
+      );
+      return resp;
+    } catch (e) {
+      return {
+        'status': 'fail',
+        'message': e.toString(),
+        'duplicate': false,
+      };
+    } finally {
+      isSubmittingReview.value = false;
+    }
+  }
+
+  final isLoadingReviews = false.obs;
+  final reviewsError = RxnString();
+  final courseReviews = <CourseReview>[].obs;
+
+  Future<void> fetchCourseReviews(String courseId, {int page = 1, int pageSize = 10}) async {
+    try {
+      isLoadingReviews.value = true;
+      reviewsError.value = null;
+      final list = await _courseRepository.getCourseReviews(
+        courseId: courseId,
+        page: page,
+        pageSize: pageSize,
+      );
+      courseReviews.assignAll(list);
+    } catch (e) {
+      reviewsError.value = e.toString();
+      courseReviews.clear();
+    } finally {
+      isLoadingReviews.value = false;
+    }
+  }
+
+
+
+
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flearn_app/features/schedule/view/student_schedule.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
@@ -8,6 +9,7 @@ import 'package:flearn_app/core/constants/colors.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 
 class StudentScheduleScreen extends StatefulWidget {
   const StudentScheduleScreen({super.key});
@@ -155,6 +157,23 @@ class _StudentScheduleScreenState extends State<StudentScheduleScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Column(
               children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Get.to(
+                          () => const StudentScheduleTimelineScreen(),
+                      transition: Transition.cupertino,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.view_agenda_outlined, size: 18),
+                    label: const Text('Lịch học của bạn', style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ),
                 // Custom header chỉ hiển thị tháng/năm
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
