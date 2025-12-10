@@ -2,22 +2,36 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import '../../../core/constants/colors.dart';
+
 import '../../auth/view/subcription_plans.dart';
 import '../model/conversationLanguage.dart';
 import '../model/topic.dart';
 import '../viewmodel/topic_viewmodel.dart';
 import 'chatAi_screen.dart';
 
+// --- Coursera/Enterprise Style Constants ---
+const Color kCourseraBlue = Color(0xFF0056D2);
+const Color kBackgroundColor = Colors.white;
+const Color kTextPrimary = Color(0xFF1F1F1F);
+const Color kTextSecondary = Color(0xFF5E5E5E);
+const Color kCardBorderColor = Color(0xFFE0E0E0);
+const double kCardRadius = 12.0;
+
 class ConfirmContextScreen extends StatefulWidget {
   final TopicModel topic;
-  const ConfirmContextScreen({super.key, required this.topic});
+  const ConfirmContextScreen({
+    super.key,
+    required this.topic,
+  });
 
   @override
-  State<ConfirmContextScreen> createState() => _ConfirmContextScreenState();
+  State<ConfirmContextScreen> createState() =>
+      _ConfirmContextScreenState();
 }
 
-class _ConfirmContextScreenState extends State<ConfirmContextScreen> with WidgetsBindingObserver {
+class _ConfirmContextScreenState
+    extends State<ConfirmContextScreen>
+    with WidgetsBindingObserver {
   String? _selectedLevel;
   bool _isLoading = false;
   int? _dailyLimit;
@@ -38,11 +52,15 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
     final topicViewModel = Get.find<TopicViewModel>();
     final langId = GetStorage().read('user')?['languageId'];
     if (langId != null) {
-      topicViewModel.fetchConversationLevels(langId).then((_) {
+      topicViewModel.fetchConversationLevels(langId).then((
+          _,
+          ) {
         if (mounted) {
           final levels = _getAvailableLevels();
           setState(() {
-            _selectedLevel = levels.isNotEmpty ? levels.first.levelName : null;
+            _selectedLevel = levels.isNotEmpty
+                ? levels.first.levelName
+                : null;
           });
         }
       });
@@ -77,7 +95,8 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
       final usage = topicViewModel.conversationUsage.value;
       setState(() {
         _dailyLimit = usage?['dailyLimit'];
-        _conversationsUsedToday = usage?['conversationsUsedToday'];
+        _conversationsUsedToday =
+        usage?['conversationsUsedToday'];
         _isCheckingUsage = false;
       });
     } catch (e) {
@@ -90,7 +109,7 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
       "Thông báo",
       "Bạn đã dùng 1 lượt luyện tập.",
       snackPosition: SnackPosition.TOP,
-      backgroundColor: AppColors.primary,
+      backgroundColor: kCourseraBlue,
       colorText: Colors.white,
     );
 
@@ -112,12 +131,15 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
     setState(() => _isLoading = true);
 
     try {
-      final langId = GetStorage().read('user')?['languageId'];
+      final langId = GetStorage().read(
+        'user',
+      )?['languageId'];
       if (langId == null) {
         throw Exception('Chưa chọn ngôn ngữ.');
       }
       final topicViewModel = Get.find<TopicViewModel>();
-      final conversationData = await topicViewModel.startConversation(
+      final conversationData = await topicViewModel
+          .startConversation(
         languageId: langId,
         topicId: widget.topic.topicId,
         difficultyLevel: _selectedLevel!,
@@ -138,7 +160,9 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
           );
         }
       } else {
-        throw Exception('Không thể bắt đầu cuộc trò chuyện.');
+        throw Exception(
+          'Không thể bắt đầu cuộc trò chuyện.',
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -154,9 +178,6 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final isSmallScreen = screenSize.width < 400;
-
     if (_isLoading) {
       return WillPopScope(
         onWillPop: () async {
@@ -164,15 +185,23 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
           final shouldExit = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               title: const Text('Xác nhận'),
-              content: const Text('Bạn có chắc muốn thoát không?'),
+              content: const Text(
+                'Bạn có chắc muốn thoát không?',
+              ),
               actions: [
                 TextButton(
                   onPressed: () {
                     _isConfirmDialogOpen = false;
                     Navigator.of(context).pop(false);
                   },
-                  child: const Text('Không'),
+                  child: const Text(
+                    'Không',
+                    style: TextStyle(color: kTextSecondary),
+                  ),
                 ),
                 TextButton(
                   onPressed: () {
@@ -180,7 +209,13 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
                     _isCancelled = true;
                     Navigator.of(context).pop(true);
                   },
-                  child: const Text('Có'),
+                  child: const Text(
+                    'Có',
+                    style: TextStyle(
+                      color: kCourseraBlue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -193,22 +228,37 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
         child: Scaffold(
           backgroundColor: Colors.white,
           body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset('assets/images/animationAI2.gif', width: 180),
-                const SizedBox(height: 30),
-                Text(
-                  'Đợi chút nhé, tớ đang suy nghĩ...\nKịch bản sắp được tạo cho bạn trong giây lát.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: isSmallScreen ? 14 : 16,
-                    color: AppColors.textPrimary,
-                    height: 1.5,
-                    fontWeight: FontWeight.w500,
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Có thể thay bằng CircularProgressIndicator màu xanh nếu không muốn dùng gif
+                  Image.asset(
+                    'assets/images/animationAI2.gif',
+                    width: 150,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 32),
+                  const Text(
+                    'Đang khởi tạo hội thoại...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: kTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'AI đang chuẩn bị kịch bản phù hợp nhất dành cho bạn.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: kTextSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -216,98 +266,138 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FC),
+      backgroundColor: kBackgroundColor,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back,
+            color: Colors.white,
+          ),
+          onPressed: () => Get.back(),
+        ),
       ),
-      body: _buildBody(screenSize, isSmallScreen),
+      body: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  _buildUsageInfo(),
+                  const SizedBox(height: 32),
+                  const Text(
+                    "Chọn trình độ",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: kTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "Chọn mức độ phù hợp với khả năng hiện tại của bạn.",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: kTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildLevelSelector(),
+                  const SizedBox(height: 40),
+                  _buildStartButton(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildHeader(Size screenSize, bool isSmallScreen) {
-    return Container(
-      height: screenSize.height * 0.42,
+  Widget _buildHeader() {
+    return SizedBox(
+      height: 300,
       width: double.infinity,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Background Image
           Image.network(
             widget.topic.imageUrl,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.grey.shade200,
-                      Colors.grey.shade400,
-                    ],
-                  ),
-                ),
-                child: const Icon(CupertinoIcons.photo, size: 80, color: Colors.white54),
-              );
-            },
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return Container(
-                color: Colors.grey.shade200,
-                child: const Center(child: CupertinoActivityIndicator()),
-              );
-            },
+            errorBuilder: (_, __, ___) => Container(
+              color: Colors.grey.shade300,
+              child: const Icon(
+                Icons.image,
+                size: 50,
+                color: Colors.grey,
+              ),
+            ),
           ),
-
-          // Dark Overlay
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.4),
-                  Colors.black.withOpacity(0.7),
-                  Colors.black.withOpacity(0.9),
+                  Colors.black.withOpacity(0.3),
+                  Colors.black.withOpacity(0.8),
                 ],
               ),
             ),
           ),
-
-          // Content
-          SafeArea(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(24, 60, 24, isSmallScreen ? 25 : 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.topic.topicName,
+          Positioned(
+            left: 24,
+            right: 24,
+            bottom: 32,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'CHỦ ĐỀ',
                     style: TextStyle(
-                      fontSize: isSmallScreen ? 28 : 32,
-                      fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      letterSpacing: -0.5,
-                      height: 1.2,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    widget.topic.topicDescription,
-                    style: TextStyle(
-                      fontSize: isSmallScreen ? 14 : 15,
-                      color: Colors.white.withOpacity(0.9),
-                      height: 1.5,
-                      letterSpacing: 0.2,
-                    ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.topic.topicName,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    height: 1.2,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.topic.topicDescription,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white70,
+                    height: 1.4,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],
@@ -315,212 +405,141 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
     );
   }
 
-  Widget _buildBody(Size screenSize, bool isSmallScreen) {
-    return Column(
-      children: [
-        _buildHeader(screenSize, isSmallScreen),
-        Expanded(
-          child: Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 20 : 24, vertical: isSmallScreen ? 14 : 28),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+  Widget _buildUsageInfo() {
+    if (_isCheckingUsage) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(kCardRadius),
+          border: Border.all(color: kCardBorderColor),
+        ),
+        child: const Center(
+          child: CupertinoActivityIndicator(),
+        ),
+      );
+    }
+
+    if (_dailyLimit != null &&
+        _conversationsUsedToday != null) {
+      final remaining =
+          _dailyLimit! - _conversationsUsedToday!;
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(kCardRadius),
+          border: Border.all(color: kCardBorderColor),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: kCourseraBlue.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.bolt,
+                color: kCourseraBlue,
+                size: 20,
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Usage Info Card
-                if (_isCheckingUsage)
-                  _buildUsageCard(
-                    child: const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: CupertinoActivityIndicator(),
-                      ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Lượt thực hành hôm nay',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: kTextSecondary,
                     ),
-                  )
-                else if (_dailyLimit != null && _conversationsUsedToday != null)
-                  _buildUsageCard(
-                    child: Row(
+                  ),
+                  const SizedBox(height: 4),
+                  RichText(
+                    text: TextSpan(
+                      text: '$remaining',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: kTextPrimary,
+                      ),
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            CupertinoIcons.chart_bar_alt_fill,
-                            color: AppColors.primary,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Lượt luyện tập hôm nay',
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 12 : 13,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${_dailyLimit! - _conversationsUsedToday!} / $_dailyLimit',
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 18 : 20,
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                            ],
+                        TextSpan(
+                          text: '/$_dailyLimit',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: kTextSecondary,
+                            fontWeight: FontWeight.normal,
                           ),
                         ),
                       ],
                     ),
                   ),
-
-                SizedBox(height: isSmallScreen ? 15 : 25),
-
-                // Level Selection Section
-                Row(
-                  children: [
-                    Icon(
-                      CupertinoIcons.star_circle_fill,
-                      color: AppColors.primary,
-                      size: isSmallScreen ? 20 : 24,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      "Chọn trình độ",
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 18 : 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Chọn mức độ phù hợp với khả năng của bạn",
-                  style: TextStyle(
-                    fontSize: isSmallScreen ? 13 : 14,
-                    color: Colors.grey.shade600,
-                    height: 1.4,
-                  ),
-                ),
-                SizedBox(height: isSmallScreen ? 16 : 20),
-
-                _buildLevelSelector(isSmallScreen),
-                const Spacer(),
-                _buildStartButton(isSmallScreen),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ),
-      ],
-    );
+      );
+    }
+    return const SizedBox.shrink();
   }
 
-  Widget _buildUsageCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FC),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade400, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade300.withOpacity(0.4),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-          BoxShadow(
-            color: Colors.grey.shade200.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-
-  Widget _buildLevelSelector(bool isSmallScreen) {
+  Widget _buildLevelSelector() {
     return Obx(() {
       final topicViewModel = Get.find<TopicViewModel>();
-      if (topicViewModel.isLoadingLevels.value) {
+      if (topicViewModel.isLoadingLevels.value)
         return const Center(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: CupertinoActivityIndicator(),
-          ),
+          child: CupertinoActivityIndicator(),
         );
-      }
+
       final levels = _getAvailableLevels();
-      if (levels.isEmpty) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8F9FC),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Center(
-            child: Text(
-              "Không có trình độ nào cho ngôn ngữ này.",
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ),
+      if (levels.isEmpty)
+        return const Text(
+          "Không có trình độ nào.",
+          style: TextStyle(color: kTextSecondary),
         );
-      }
+
       return Wrap(
-        spacing: 12.0,
-        runSpacing: 12.0,
+        spacing: 12,
+        runSpacing: 12,
         children: levels.map((level) {
-          final isSelected = _selectedLevel == level.levelName;
+          final isSelected =
+              _selectedLevel == level.levelName;
           return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedLevel = level.levelName;
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 20 : 24, vertical: isSmallScreen ? 12 : 14),
+            onTap: () => setState(
+                  () => _selectedLevel = level.levelName,
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 12,
+              ),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : const Color(0xFFF8F9FC),
-                borderRadius: BorderRadius.circular(16),
+                color: isSelected
+                    ? kCourseraBlue.withOpacity(0.05)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: isSelected ? AppColors.primary : Colors.grey.shade300,
-                  width: 1.5,
+                  color: isSelected
+                      ? kCourseraBlue
+                      : Colors.grey.shade300,
                 ),
-                boxShadow: isSelected
-                    ? [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-                    : null,
               ),
               child: Text(
                 level.levelName,
                 style: TextStyle(
-                  fontSize: isSmallScreen ? 14 : 15,
-                  color: isSelected ? Colors.white : AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.2,
+                  color: isSelected
+                      ? kCourseraBlue
+                      : kTextPrimary,
+                  fontWeight: isSelected
+                      ? FontWeight.bold
+                      : FontWeight.w500,
+                  fontSize: 14,
                 ),
               ),
             ),
@@ -530,42 +549,27 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
     });
   }
 
-  Widget _buildStartButton(bool isSmallScreen) {
-    final isQuotaExceeded = (_dailyLimit != null && _conversationsUsedToday != null)
+  Widget _buildStartButton() {
+    final isQuotaExceeded =
+    (_dailyLimit != null &&
+        _conversationsUsedToday != null)
         ? _conversationsUsedToday! >= _dailyLimit!
         : false;
-
-    if (_isLoading) {
-      return SizedBox(
-        width: double.infinity,
-        height: isSmallScreen ? 48 : 56,
-        child: ElevatedButton(
-          onPressed: null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 0,
-          ),
-          child: const CupertinoActivityIndicator(color: Colors.white),
-        ),
-      );
-    }
 
     if (isQuotaExceeded) {
       return SizedBox(
         width: double.infinity,
-        height: isSmallScreen ? 48 : 56,
+        height: 52,
         child: ElevatedButton(
           onPressed: () async {
-            final result = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(builder: (_) => const SubscriptionPlansScreen()),
+            final result = await Get.to(
+                  () => const SubscriptionPlansScreen(),
             );
             if (result == true) {
               await _fetchConversationUsage();
               Get.snackbar(
                 "Thành công",
-                "Bạn đã mua lượt luyện tập thành công!",
-                snackPosition: SnackPosition.BOTTOM,
+                "Đã mua thêm lượt!",
                 backgroundColor: Colors.green,
                 colorText: Colors.white,
               );
@@ -573,13 +577,18 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orange.shade600,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
             elevation: 0,
           ),
-          child: Text(
-            "Mua lượt luyện tập",
-            style: TextStyle(fontSize: isSmallScreen ? 14 : 16, fontWeight: FontWeight.bold),
+          child: const Text(
+            "Mua thêm lượt",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
         ),
       );
@@ -587,7 +596,7 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
 
     return SizedBox(
       width: double.infinity,
-      height: isSmallScreen ? 48 : 56,
+      height: 52,
       child: ElevatedButton(
         onPressed: _isLoading
             ? null
@@ -596,20 +605,22 @@ class _ConfirmContextScreenState extends State<ConfirmContextScreen> with Widget
           await _startConversation();
         },
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: kCourseraBlue,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
           elevation: 0,
-          shadowColor: Colors.transparent,
         ),
         child: _isLoading
-            ? const CupertinoActivityIndicator(color: Colors.white)
-            : Text(
+            ? const CupertinoActivityIndicator(
+          color: Colors.white,
+        )
+            : const Text(
           "Bắt đầu luyện tập",
           style: TextStyle(
-            fontSize: isSmallScreen ? 14 : 16,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
-            letterSpacing: -0.3,
+            color: Colors.white,
           ),
         ),
       ),

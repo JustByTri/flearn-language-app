@@ -34,6 +34,8 @@ class ClassSearchViewModel extends GetxController {
   var selectedProgramId = ''.obs;
   var searchKeyword = ''.obs;
   var selectedStatus = '2'.obs; // Default to Published
+  var selectedFromDate = Rxn<DateTime>();
+  var selectedToDate = Rxn<DateTime>();
 
   // Debounce timer for keyword search
   Timer? _debounce;
@@ -166,6 +168,8 @@ class ClassSearchViewModel extends GetxController {
         status: selectedStatus.value,
         page: currentPage.value,
         pageSize: pageSize,
+        from: selectedFromDate.value?.toIso8601String(),
+        to: selectedToDate.value?.toIso8601String(),
       );
       print('[SEARCH] fetched: ${result.length} classes');
       if (append) {
@@ -188,7 +192,13 @@ class ClassSearchViewModel extends GetxController {
     }
   }
 
-  void updateFilters({String? teacherId, String? programId, String? keyword}) {
+  void updateFilters({
+    String? teacherId,
+    String? programId,
+    String? keyword,
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) {
     bool shouldSearch = false;
     if (teacherId != null && teacherId != selectedTeacherId.value) {
       selectedTeacherId.value = teacherId;
@@ -196,6 +206,16 @@ class ClassSearchViewModel extends GetxController {
     }
     if (programId != null && programId != selectedProgramId.value) {
       selectedProgramId.value = programId;
+      shouldSearch = true;
+    }
+    if (fromDate != null || toDate != null) {
+      selectedFromDate.value = fromDate;
+      selectedToDate.value = toDate;
+      shouldSearch = true;
+    } else if (fromDate == null && toDate == null && (selectedFromDate.value != null || selectedToDate.value != null)) {
+      // clear range
+      selectedFromDate.value = null;
+      selectedToDate.value = null;
       shouldSearch = true;
     }
     if (keyword != null) {
@@ -218,6 +238,8 @@ class ClassSearchViewModel extends GetxController {
     selectedProgramId.value = '';
     searchKeyword.value = '';
     selectedStatus.value = '2';
+    selectedFromDate.value = null;
+    selectedToDate.value = null;
     searchClasses(resetPage: true);
   }
 

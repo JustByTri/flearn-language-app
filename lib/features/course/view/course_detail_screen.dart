@@ -37,8 +37,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     // NEW: đọc flag để bật form review
     final args = Get.arguments;
     if (args is Map && args['showReviewForm'] == true) {
-      _forceShowReviewForm = true;
-      _isShowingReviewForm = true;
+      _forceShowReviewForm = true; // chỉ ghi nhận flag, không auto mở form
     }
     if (vm.courseDetail.value == null || vm.courseDetail.value?.courseId != widget.courseId) {
       vm.fetchCourseDetail(widget.courseId);
@@ -51,7 +50,11 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           _enrollmentId = access.enrollmentId;
         });
       } else {
-        setState(() => _isEnrolled = false);
+        setState(() {
+          _isEnrolled = false;
+          _forceShowReviewForm = false;   // NEW: prevent forcing when not enrolled
+          _isShowingReviewForm = false;   // NEW: hide review form when not enrolled
+        });
       }
     });
 
@@ -736,17 +739,27 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
 
   Widget _buildTabs() {
     return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE0E0E0), width: 1),
+        ),
+      ),
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          GestureDetector(
-            onTap: () => setState(() => _selectedTab = 0),
-            child: _buildTab('Tổng quan', _selectedTab == 0),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedTab = 0),
+              child: _buildTab('Tổng quan', _selectedTab == 0),
+            ),
           ),
-          GestureDetector(
-            onTap: () => setState(() => _selectedTab = 1),
-            child: _buildTab('Nội dung', _selectedTab == 1),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedTab = 1),
+              child: _buildTab('Nội dung', _selectedTab == 1),
+            ),
           ),
         ],
       ),
@@ -755,25 +768,27 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
 
   Widget _buildTab(String title, bool isActive) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           title,
           style: TextStyle(
-            fontSize: 15,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 16,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
             color: isActive ? AppColors.primary : Colors.grey.shade600,
           ),
         ),
         const SizedBox(height: 8),
-        if (isActive)
-          Container(
-            width: 40,
-            height: 3,
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(2),
-            ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          width: 40,
+          height: isActive ? 3 : 0,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(2),
           ),
+        ),
       ],
     );
   }
@@ -811,8 +826,16 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
+                        'Chi phí',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                      Text(
                         _formatPrice(course.discountPrice ?? course.price),
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F1F1F), // giống UI mới
+                        ),
                       ),
                     ],
                   ),
@@ -887,50 +910,52 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   }
 
   Widget _buildReviewsSection() {
+    final isEnrolled = _isEnrolled;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header với nút toggle form
-          Row(
-            children: [
-              const Expanded(
-                child: Text('Đánh giá khóa học', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ),
-              SizedBox(
-                height: 36,
-                child: ElevatedButton.icon(
-                  onPressed: () => setState(() {
-                    _isShowingReviewForm = !_isShowingReviewForm;
-                    if (!_isShowingReviewForm) _reviewRating = 0;
-                  }),
-                  icon: Icon(_isShowingReviewForm ? Icons.close : Icons.rate_review, size: 16),
-                  label: Text(_isShowingReviewForm ? 'Đóng' : 'Viết đánh giá'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          if (isEnrolled) ...[
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('Đánh giá khóa học', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                SizedBox(
+                  height: 36,
+                  child: ElevatedButton.icon(
+                    onPressed: () => setState(() {
+                      _isShowingReviewForm = !_isShowingReviewForm;
+                      if (!_isShowingReviewForm) _reviewRating = 0;
+                    }),
+                    icon: Icon(_isShowingReviewForm ? Icons.close : Icons.rate_review, size: 16),
+                    label: Text(_isShowingReviewForm ? 'Đóng' : 'Viết đánh giá'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
                   ),
                 ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_isShowingReviewForm) ...[
+              _buildReviewForm(vm.courseDetail.value!.courseId),
+              const SizedBox(height: 16),
             ],
-          ),
-          const SizedBox(height: 12),
-
-          // Form đánh giá (nếu đang mở)
-          if (_isShowingReviewForm) ...[
-            _buildReviewForm(vm.courseDetail.value!.courseId),
-            const SizedBox(height: 16),
+            const Divider(height: 24),
+          ] else ...[
+            const Text('Đánh giá từ học viên', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
           ],
 
-          const Divider(height: 24),
+          if (isEnrolled) const Text('Đánh giá từ học viên', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          if (isEnrolled) const SizedBox(height: 8),
 
-          // Danh sách đánh giá
-          const Text('Đánh giá từ học viên', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
           Obx(() {
             if (vm.isLoadingReviews.value) {
               return const Padding(
@@ -965,11 +990,12 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                   children: [
                     CircleAvatar(
                       radius: 18,
+                      backgroundColor: Colors.grey.shade200, // dùng màu xám mặc định
                       backgroundImage: (r.learnerAvatar != null && r.learnerAvatar!.isNotEmpty)
                           ? NetworkImage(r.learnerAvatar!)
                           : null,
                       child: (r.learnerAvatar == null || r.learnerAvatar!.isEmpty)
-                          ? const Icon(Icons.person, size: 18)
+                          ? const Icon(Icons.person, size: 18, color: Colors.grey)
                           : null,
                     ),
                     const SizedBox(width: 12),

@@ -180,147 +180,6 @@ class _StudentScheduleTimelineScreenState extends State<StudentScheduleTimelineS
     );
   }
 
-  Widget _timelineTile(
-      Enrollment enrollment, {
-        required int index,
-        required bool isLast,
-      }) {
-    final start = DateFormat('HH:mm').format(enrollment.startDateTime);
-    final end = DateFormat('HH:mm').format(enrollment.endDateTime);
-    final now = DateTime.now();
-
-    late final String statusLabel;
-    late final Color statusColor;
-    if (enrollment.endDateTime.isBefore(now)) {
-      statusLabel = 'Đã diễn ra';
-      statusColor = Colors.grey.shade600;
-    } else if (enrollment.startDateTime.isAfter(now)) {
-      statusLabel = 'Sắp diễn ra';
-      statusColor = AppColors.primary;
-    } else {
-      statusLabel = 'Đang diễn ra';
-      statusColor = Colors.green.shade600;
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.school, color: AppColors.primary, size: 20),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    enrollment.title ?? 'Lớp học dành cho người mới',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                ),
-                _statusBadge(statusLabel, statusColor),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.person, size: 16, color: Colors.grey.shade600),
-                const SizedBox(width: 4),
-                Text(
-                  'Giáo viên: ${enrollment.teacherName ?? "Unknown Teacher"}',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.language, size: 16, color: Colors.grey.shade600),
-                const SizedBox(width: 4),
-                Text(
-                  'Ngôn ngữ: ${enrollment.languageName ?? "English"}',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    'Thời gian: ${DateFormat('EEEE, dd/MM/yyyy', 'vi_VN').format(enrollment.startDateTime)} $start - $end',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: () async => _openMeeting(enrollment),
-              icon: const Icon(Icons.video_call, size: 18, color: Colors.white),
-              label: const Text(
-                'Vào lớp học',
-                style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                minimumSize: const Size(double.infinity, 0),
-                elevation: 0,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statusBadge(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
   // Widget _timelineTile(
   //     Enrollment enrollment, {
   //       required int index,
@@ -343,137 +202,278 @@ class _StudentScheduleTimelineScreenState extends State<StudentScheduleTimelineS
   //     statusColor = Colors.green.shade600;
   //   }
   //
-  //   return IntrinsicHeight(
-  //     child: Row(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         // Phần hiển thị giờ bên trái
-  //         SizedBox(
-  //           width: 70,
-  //           child: Column(
+  //   return Container(
+  //     margin: const EdgeInsets.only(bottom: 16),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(12),
+  //       border: Border.all(color: Colors.grey.shade200),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.black.withOpacity(0.03),
+  //           blurRadius: 8,
+  //           offset: const Offset(0, 2),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(16),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Row(
   //             children: [
-  //               Text(
-  //                 start,
-  //                 style: const TextStyle(
-  //                   fontSize: 18,
-  //                   fontWeight: FontWeight.bold,
-  //                   color: AppColors.primary,
-  //                 ),
-  //               ),
   //               Container(
-  //                 width: 2,
-  //                 height: 8,
-  //                 margin: const EdgeInsets.symmetric(vertical: 4),
+  //                 padding: const EdgeInsets.all(8),
   //                 decoration: BoxDecoration(
-  //                   color: AppColors.primary.withOpacity(0.3),
-  //                   borderRadius: BorderRadius.circular(1),
+  //                   color: AppColors.primary.withOpacity(0.1),
+  //                   shape: BoxShape.circle,
+  //                 ),
+  //                 child: const Icon(Icons.school, color: AppColors.primary, size: 20),
+  //               ),
+  //               const SizedBox(width: 8),
+  //               Expanded(
+  //                 child: Text(
+  //                   enrollment.title ?? 'Lớp học dành cho người mới',
+  //                   style: const TextStyle(
+  //                     fontWeight: FontWeight.bold,
+  //                     fontSize: 16,
+  //                     color: Color(0xFF1A1A1A),
+  //                   ),
   //                 ),
   //               ),
+  //               _statusBadge(statusLabel, statusColor),
+  //             ],
+  //           ),
+  //           const SizedBox(height: 12),
+  //           Row(
+  //             children: [
+  //               Icon(Icons.person, size: 16, color: Colors.grey.shade600),
+  //               const SizedBox(width: 4),
   //               Text(
-  //                 end,
-  //                 style: TextStyle(
-  //                   fontSize: 14,
-  //                   fontWeight: FontWeight.w600,
-  //                   color: Colors.grey.shade600,
+  //                 'Giáo viên: ${enrollment.teacherName ?? "Unknown Teacher"}',
+  //                 style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+  //               ),
+  //             ],
+  //           ),
+  //           const SizedBox(height: 4),
+  //           Row(
+  //             children: [
+  //               Icon(Icons.language, size: 16, color: Colors.grey.shade600),
+  //               const SizedBox(width: 4),
+  //               Text(
+  //                 'Ngôn ngữ: ${enrollment.languageName ?? "English"}',
+  //                 style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+  //               ),
+  //             ],
+  //           ),
+  //           const SizedBox(height: 4),
+  //           Row(
+  //             children: [
+  //               Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+  //               const SizedBox(width: 4),
+  //               Expanded(
+  //                 child: Text(
+  //                   'Thời gian: ${DateFormat('EEEE, dd/MM/yyyy', 'vi_VN').format(enrollment.startDateTime)} $start - $end',
+  //                   style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
   //                 ),
   //               ),
   //             ],
   //           ),
-  //         ),
-  //         const SizedBox(width: 12),
-  //         // Card nội dung
-  //         Expanded(
-  //           child: Container(
-  //             decoration: BoxDecoration(
-  //               color: Colors.white,
-  //               borderRadius: BorderRadius.circular(12),
-  //               border: Border.all(color: Colors.grey.shade200),
-  //               boxShadow: [
-  //                 BoxShadow(
-  //                   color: Colors.black.withOpacity(0.03),
-  //                   blurRadius: 8,
-  //                   offset: const Offset(0, 2),
-  //                 ),
-  //               ],
+  //           const SizedBox(height: 12),
+  //           ElevatedButton.icon(
+  //             onPressed: () async => _openMeeting(enrollment),
+  //             icon: const Icon(Icons.video_call, size: 18, color: Colors.white),
+  //             label: const Text(
+  //               'Vào lớp học',
+  //               style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
   //             ),
-  //             child: Padding(
-  //               padding: const EdgeInsets.all(16),
-  //               child: Column(
-  //                 crossAxisAlignment: CrossAxisAlignment.start,
-  //                 children: [
-  //                   Row(
-  //                     children: [
-  //                       Container(
-  //                         padding: const EdgeInsets.all(8),
-  //                         decoration: BoxDecoration(
-  //                           color: AppColors.primary.withOpacity(0.1),
-  //                           shape: BoxShape.circle,
-  //                         ),
-  //                         child: const Icon(Icons.school, color: AppColors.primary, size: 20),
-  //                       ),
-  //                       const SizedBox(width: 8),
-  //                       Expanded(
-  //                         child: Text(
-  //                           enrollment.title ?? 'Lớp học dành cho người mới',
-  //                           style: const TextStyle(
-  //                             fontWeight: FontWeight.bold,
-  //                             fontSize: 16,
-  //                             color: Color(0xFF1A1A1A),
-  //                           ),
-  //                         ),
-  //                       ),
-  //                       _statusBadge(statusLabel, statusColor),
-  //                     ],
-  //                   ),
-  //                   const SizedBox(height: 12),
-  //                   Row(
-  //                     children: [
-  //                       Icon(Icons.person, size: 16, color: Colors.grey.shade600),
-  //                       const SizedBox(width: 4),
-  //                       Expanded(
-  //                         child: Text(
-  //                           'Giáo viên: ${enrollment.teacherName ?? "Unknown Teacher"}',
-  //                           style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
-  //                         ),
-  //                       ),
-  //                     ],
-  //                   ),
-  //                   const SizedBox(height: 4),
-  //                   Row(
-  //                     children: [
-  //                       Icon(Icons.language, size: 16, color: Colors.grey.shade600),
-  //                       const SizedBox(width: 4),
-  //                       Text(
-  //                         'Ngôn ngữ: ${enrollment.languageName ?? "English"}',
-  //                         style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
-  //                       ),
-  //                     ],
-  //                   ),
-  //                   const SizedBox(height: 12),
-  //                   ElevatedButton.icon(
-  //                     onPressed: () async => _openMeeting(enrollment),
-  //                     icon: const Icon(Icons.video_call, size: 18, color: Colors.white),
-  //                     label: const Text(
-  //                       'Vào lớp học',
-  //                       style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
-  //                     ),
-  //                     style: ElevatedButton.styleFrom(
-  //                       backgroundColor: AppColors.primary,
-  //                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-  //                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-  //                       minimumSize: const Size(double.infinity, 0),
-  //                       elevation: 0,
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
+  //             style: ElevatedButton.styleFrom(
+  //               backgroundColor: AppColors.primary,
+  //               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  //               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+  //               minimumSize: const Size(double.infinity, 0),
+  //               elevation: 0,
   //             ),
   //           ),
-  //         ),
-  //       ],
+  //         ],
+  //       ),
   //     ),
   //   );
   // }
+
+  Widget _statusBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _timelineTile(
+      Enrollment enrollment, {
+        required int index,
+        required bool isLast,
+      }) {
+    final start = DateFormat('HH:mm').format(enrollment.startDateTime);
+    final end = DateFormat('HH:mm').format(enrollment.endDateTime);
+    final now = DateTime.now();
+
+    late final String statusLabel;
+    late final Color statusColor;
+    if (enrollment.endDateTime.isBefore(now)) {
+      statusLabel = 'Đã diễn ra';
+      statusColor = Colors.grey.shade600;
+    } else if (enrollment.startDateTime.isAfter(now)) {
+      statusLabel = 'Sắp diễn ra';
+      statusColor = AppColors.primary;
+    } else {
+      statusLabel = 'Đang diễn ra';
+      statusColor = Colors.green.shade600;
+    }
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Phần hiển thị giờ bên trái
+          SizedBox(
+            width: 70,
+            child: Column(
+              children: [
+                Text(
+                  start,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+                Container(
+                  width: 2,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+                Text(
+                  end,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Card nội dung
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.school, color: AppColors.primary, size: 20),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            enrollment.title ?? 'Lớp học dành cho người mới',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                        ),
+                        _statusBadge(statusLabel, statusColor),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(Icons.person, size: 16, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Giáo viên: ${enrollment.teacherName ?? "Unknown Teacher"}',
+                            style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.language, size: 16, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Ngôn ngữ: ${enrollment.languageName ?? "English"}',
+                          style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: () async => _openMeeting(enrollment),
+                      icon: const Icon(Icons.video_call, size: 18, color: Colors.white),
+                      label: const Text(
+                        'Vào lớp học',
+                        style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        minimumSize: const Size(double.infinity, 0),
+                        elevation: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
 
   Future<void> _openMeeting(Enrollment enrollment) async {
