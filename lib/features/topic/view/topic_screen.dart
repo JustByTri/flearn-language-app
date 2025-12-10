@@ -7,6 +7,11 @@ import '../model/topic.dart';
 import '../viewmodel/topic_viewmodel.dart';
 import 'confirm_context_screen.dart';
 
+// Coursera style constants
+const Color kCourseraBlue = Color(0xFF0056D2);
+const Color kCardBorderColor = Color(0xFFE0E0E0);
+const double kCardRadius = 12.0; // Giảm từ 24 xuống 12
+
 class TopicScreen extends StatefulWidget {
   const TopicScreen({super.key});
 
@@ -50,9 +55,12 @@ class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.05;
+    final bottomPadding =
+        MediaQuery.of(context).padding.bottom + 20;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FC),
+      extendBody: true,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -75,7 +83,6 @@ class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
                 colors: [
                   Colors.grey.shade200,
                   Colors.grey.shade100,
-                  Colors.grey.shade200,
                 ],
               ),
             ),
@@ -131,25 +138,25 @@ class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
             );
           }
 
-          return Padding(
-            padding: EdgeInsets.only(bottom: kBottomNavigationBarHeight + 20),
-            child: GridView.builder(
-              padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-                vertical: _scale(20),
-              ),
-              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 200,
-                childAspectRatio: 0.82,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: topicViewModel.topics.length,
-              itemBuilder: (context, index) {
-                final topic = topicViewModel.topics[index];
-                return _buildTopicCard(topic, _scale);
-              },
+          return GridView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              _scale(20),
+              horizontalPadding,
+              bottomPadding,
             ),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 200,
+              childAspectRatio: 0.82,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: topicViewModel.topics.length,
+            itemBuilder: (context, index) {
+              final topic = topicViewModel.topics[index];
+              return _buildTopicCard(topic, _scale);
+            },
           );
         }),
       ),
@@ -168,7 +175,8 @@ class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(scale(24)),
+          borderRadius: BorderRadius.circular(kCardRadius), // Bo góc vừa phải 12
+          border: Border.all(color: kCardBorderColor), // Thêm viền mỏng
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.06),
@@ -185,7 +193,7 @@ class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(scale(24)),
+          borderRadius: BorderRadius.circular(kCardRadius),
           child: Column(
             children: [
               // ───────────── IMAGE WITH GRADIENT OVERLAY ─────────────
@@ -233,7 +241,6 @@ class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  // Subtle gradient overlay for better text readability
                   Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(
@@ -281,33 +288,21 @@ class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
 
                       SizedBox(width: scale(10)),
 
-                      // Arrow Button with animation
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                      // Arrow Button - đơn giản như trong hình
+                      Container(
                         width: scale(32),
                         height: scale(32),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              AppColors.primary,
-                              AppColors.primaryDark,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(scale(18)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF2D3142).withOpacity(0.3),
-                              blurRadius: scale(8),
-                              offset: Offset(0, scale(3)),
-                            ),
-                          ],
+                          color: const Color(0xFFE3F2FD), // Xanh nhạt
+                          borderRadius: BorderRadius.circular(scale(8)), // Bo góc nhẹ
                         ),
-                        child: Icon(
-                          CupertinoIcons.arrow_right,
-                          color: Colors.white,
-                          size: scale(16),
+                        child: Center(
+                          child: Icon(
+                            CupertinoIcons.arrow_right,
+                            color: const Color(0xFF2196F3), // Xanh đậm hơn
+                            size: scale(18), // Tăng size từ 16 lên 18
+                            weight: 600, // Thêm weight để đậm hơn
+                          ),
                         ),
                       ),
                     ],

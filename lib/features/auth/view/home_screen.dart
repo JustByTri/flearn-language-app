@@ -24,6 +24,17 @@ import '../../course_progress/model/course_progress.dart';
 import '../../notification/view/notification_screen.dart';
 import '../viewmodel/user_viewmodel.dart';
 
+
+const Color kCourseraBlue = Color(
+  0xFF0056D2,
+);
+const Color kBackground = Color(
+  0xFFF5F7F8,
+);
+const double kCardRadius =
+8.0;
+
+
 class Language {
   final String id;
   final String langName;
@@ -432,12 +443,15 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     super.build(context);
     return AppScaffold(
-      backgroundColor: Colors.white,
+      extendBody: true,
+      safeAreaBottom: false,
+      backgroundColor: const Color(0xFFF8F9FC),
       body: RefreshIndicator(
         onRefresh: _loadInitialData,
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), // đủ khoảng để nav phủ lên nội dung
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -461,7 +475,7 @@ class _HomeScreenState extends State<HomeScreen>
                 _buildSectionHeader(title: 'Khám phá'),
                 const SizedBox(height: 12),
                 _buildDiscoverCoursesVertical(),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
               ],
             ),
           ),
@@ -1223,133 +1237,131 @@ String formatVND(int price) {
 
 class PopularCourseCard extends StatelessWidget {
   final CoursePopular course;
-
-  const PopularCourseCard({super.key, required this.course});
+  const PopularCourseCard({
+    super.key,
+    required this.course,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final isEnrolled = Get.find<CourseProgressViewModel>()
+        .courses
+        .any((c) => c.courseId == course.courseId);
 
-    final enrolledCourseIds = Get.find<CourseProgressViewModel>().courses.map((c) => c.courseId).toSet();
-    final isEnrolled = enrolledCourseIds.contains(course.courseId);
-
-    return InkWell(
-      onTap: () {
-        Get.to(() => CourseDetailScreen(
-          courseId: course.courseId,
-        ), arguments: isEnrolled ? {'showReviewForm': true} : null);
-      },
-      child: Card(
-        elevation: 2,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+    return GestureDetector(
+      onTap: () => Get.to(
+            () => CourseDetailScreen(courseId: course.courseId),
+        arguments: isEnrolled
+            ? {'showReviewForm': true}
+            : null,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(kCardRadius),
+          border: Border.all(
+            color: Colors.grey.shade200,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Phần ảnh - chiếm 50%
-            Expanded(
-              flex: 5,
-              child: Stack(
-                children: [
-                  (course.imageUrl.isNotEmpty)
-                      ? Image.network(
-                    course.imageUrl,
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                  )
-                      : Container(
-                    width: double.infinity,
-                    height: double.infinity,
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.school, color: Colors.grey, size: 40),
+            // Image 16:9 Aspect Ratio
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(kCardRadius),
+              ),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: course.imageUrl.isNotEmpty
+                    ? Image.network(
+                  course.imageUrl,
+                  fit: BoxFit.cover,
+                )
+                    : Container(
+                  color: Colors.grey.shade200,
+                  child: const Icon(
+                    Icons.image,
+                    color: Colors.grey,
                   ),
-                  Positioned(
-                    top: 6,
-                    left: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: course.price == 0 ? Colors.green.shade400 : Colors.orange.shade400,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        formatVND(course.price),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-            // Phần thông tin - chiếm 50%
             Expanded(
-              flex: 5,
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisSize: MainAxisSize.min, // Thay đổi từ max sang min
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withAlpha(25),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            course.programName,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                    // Program Name
+                    Text(
+                      course.programName.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black54,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    // Course Title - flexible height
+                    Flexible(
+                      child: Text(
+                        course.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          height: 1.3,
                         ),
-                        const SizedBox(height: 4),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Spacer(), // Push rating to bottom
+                    // Rating and Price
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.star,
+                          color: Color(0xFFF2D049),
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
                         Text(
-                          course.title,
+                          '${course.averageRating}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.star, color: Colors.orange, size: 11),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${course.averageRating}',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Icon(Icons.person_outline, color: Colors.grey.shade600, size: 11),
-                        const SizedBox(width: 3),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            '${course.learnerCount}',
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: Colors.grey.shade600,
+                            '(${course.learnerCount})',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
                             ),
                             overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          formatVND(course.price),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: course.price == 0
+                                ? Colors.green
+                                : Colors.black87,
                           ),
                         ),
                       ],
@@ -1368,88 +1380,65 @@ class PopularCourseCard extends StatelessWidget {
 // Discover Course Card - Vertical
 class DiscoverCourseCard extends StatelessWidget {
   final Course course;
-
-  const DiscoverCourseCard({super.key, required this.course});
+  const DiscoverCourseCard({
+    super.key,
+    required this.course,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        Get.to(() => CourseDetailScreen(
-          courseId: course.courseID,
-        ));
-      },
-      child: Card(
-        elevation: 2,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
+    return GestureDetector(
+      onTap: () => Get.to(
+            () => CourseDetailScreen(courseId: course.courseID),
+      ),
+      child: Container(
+        color: Colors.transparent, // Clickable area
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              children: [
-                (course.imageUrl.isNotEmpty)
-                    ? Image.network(
-                  course.imageUrl,
-                  width: double.infinity,
-                  height: 180,
-                  fit: BoxFit.cover,
-                )
-                    : Container(
-                  width: double.infinity,
-                  height: 180,
-                  color: Colors.grey.shade200,
-                  child: const Icon(Icons.school, color: Colors.grey, size: 60),
-                ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: course.courseType == 'Free' ? Colors.green.shade400 : Colors.orange.shade400,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      formatVND(course.price),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            // Thumbnail Left
+            ClipRRect(
+              borderRadius: BorderRadius.circular(
+                4,
+              ), // Sharp corners
+              child: course.imageUrl.isNotEmpty
+                  ? Image.network(
+                course.imageUrl,
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+              )
+                  : Container(
+                width: 100,
+                height: 100,
+                color: Colors.grey.shade200,
+              ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
+            const SizedBox(width: 16),
+            // Content Right
+            Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withAlpha(25),
-                      borderRadius: BorderRadius.circular(6),
+                  Text(
+                    course.program?.name ??
+                        'Professional Certificate',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
                     ),
-                    child: Text(
-                      course.program?.name ?? 'Chương trình',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     course.title,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
                       fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      height: 1.3,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -1457,26 +1446,40 @@ class DiscoverCourseCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.star, color: Colors.orange, size: 18),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${course.averageRating}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        color: const Color(0xFFF2D049),
+                        child: Text(
+                          '${course.averageRating}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Icon(Icons.person_outline, color: Colors.grey.shade600, size: 18),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 8),
                       Text(
                         '${course.learnerCount} học viên',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    formatVND(course.price),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: course.courseType == 'Free'
+                          ? Colors.green
+                          : Colors.black87,
+                    ),
                   ),
                 ],
               ),
@@ -1487,7 +1490,6 @@ class DiscoverCourseCard extends StatelessWidget {
     );
   }
 }
-
 // Keep old BrowseCourseCard for backward compatibility
 class BrowseCourseCard extends StatelessWidget {
   final Course course;

@@ -23,7 +23,7 @@ class NavigationMenu extends StatelessWidget {
       )),
       bottomNavigationBar: Obx(
             () => Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           child: CustomBottomNavBar(
             selectedIndex: controller.selectedIndex.value,
             onDestinationSelected: (index) =>
@@ -94,21 +94,21 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar>
     return ClipRRect(
       borderRadius: const BorderRadius.all(Radius.circular(30)),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+        filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0), // Tăng blur
         child: Container(
           height: 65,
           decoration: BoxDecoration(
-            color: Colors.grey.shade50.withOpacity(0.9), // Nền xám nhạt, đục
+            color: Colors.white.withOpacity(0.35),
             borderRadius: const BorderRadius.all(Radius.circular(30)),
             border: Border.all(
-              color: Colors.grey.shade200, // Viền xám nhạt
-              width: 1.5,
+              color: Colors.white.withOpacity(0.25),
+              width: 1.0,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08), // Shadow nhẹ
-                blurRadius: 15,
-                offset: const Offset(0, 3),
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 18,
+                offset: const Offset(0, 4),
               ),
             ],
           ),

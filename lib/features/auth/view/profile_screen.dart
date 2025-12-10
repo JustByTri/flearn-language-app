@@ -3,38 +3,44 @@ import 'package:flearn_app/features/auth/view/edit_profile_screen.dart';
 import 'package:flearn_app/features/auth/view/purchase_history_screen.dart';
 import 'package:flearn_app/features/auth/view/refund_center_screen.dart';
 import 'package:flearn_app/features/auth/view/subcription_plans.dart';
-
-import 'package:flearn_app/features/schedule/view/student_schedule_screen.dart';
 import 'package:flearn_app/features/gamification/view/daily_goal_screen.dart';
 import 'package:flearn_app/features/gamification/view/leaderboard_screen.dart';
 import 'package:flearn_app/features/gamification/viewmodel/gamification_viewmodel.dart';
+import 'package:flearn_app/features/schedule/view/student_schedule_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:flearn_app/core/constants/colors.dart';
-import 'package:flutter/services.dart';
 
+import '../../../shared/widgets/app_scaffold.dart';
 import '../../schedule/viewmodel/schedule_viewmodel.dart';
 import '../../topic/viewmodel/topic_viewmodel.dart';
 import '../view/login_screen.dart';
 import '../viewmodel/login_viewmodel.dart';
 import '../viewmodel/user_viewmodel.dart';
-import '../../../shared/widgets/app_scaffold.dart';
 
-
+// --- Coursera Style Constants ---
+const Color kCourseraBlue = Color(0xFF0056D2);
+const Color kBackgroundColor = Colors.white;
+const Color kTextPrimary = Color(0xFF1F1F1F);
+const Color kTextSecondary = Color(0xFF5E5E5E);
+const double kAvatarRadius = 50.0;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  State<ProfileScreen> createState() =>
+      _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserver {
+class _ProfileScreenState extends State<ProfileScreen>
+    with WidgetsBindingObserver {
   late final UserViewModel userViewModel;
   final loginViewModel = Get.find<LoginViewModel>();
   ScheduleViewModel? scheduleViewModel;
+
   @override
   void initState() {
     super.initState();
@@ -50,32 +56,39 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     if (Get.isRegistered<UserViewModel>()) {
       userViewModel = Get.find<UserViewModel>();
     } else {
-      userViewModel = Get.put(UserViewModel(Get.find()), permanent: true);
+      userViewModel = Get.put(
+        UserViewModel(Get.find()),
+        permanent: true,
+      );
     }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _fetchUserProfile();
       final topicVM = Get.isRegistered<TopicViewModel>()
           ? Get.find<TopicViewModel>()
-          : Get.put(TopicViewModel(Get.find()), permanent: true);
+          : Get.put(
+        TopicViewModel(Get.find()),
+        permanent: true,
+      );
       await topicVM.fetchConversationUsage();
-
       await scheduleViewModel?.fetchMyEnrollments();
     });
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this); // Hủy observer
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-
     if (state == AppLifecycleState.resumed) {
       final topicVM = Get.isRegistered<TopicViewModel>()
           ? Get.find<TopicViewModel>()
-          : Get.put(TopicViewModel(Get.find()), permanent: true);
+          : Get.put(
+        TopicViewModel(Get.find()),
+        permanent: true,
+      );
       topicVM.fetchConversationUsage();
       _fetchUserProfile();
       setState(() {});
@@ -89,22 +102,36 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   void _navigateToLogin() {
     Get.deleteAll(force: true);
     setupDI();
-    Get.offAll(() => const LoginScreen(), transition: Transition.rightToLeftWithFade);
+    Get.offAll(
+          () => const LoginScreen(),
+      transition: Transition.rightToLeftWithFade,
+    );
   }
 
   Future<void> _showLogoutConfirmation() async {
     Get.dialog(
       AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Xác nhận đăng xuất"),
-        content: const Text("Bạn có chắc chắn muốn đăng xuất không?"),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        title: const Text("Đăng xuất"),
+        content: const Text(
+          "Bạn có chắc chắn muốn đăng xuất không?",
+        ),
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: const Text("Huỷ"),
+            child: const Text(
+              "Huỷ",
+              style: TextStyle(color: kTextSecondary),
+            ),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
             onPressed: () {
               Get.back();
               _logout();
@@ -118,20 +145,19 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
 
   Future<void> _logout() async {
     try {
-      final refreshToken = GetStorage().read('refreshToken');
+      final refreshToken = GetStorage().read(
+        'refreshToken',
+      );
       if (refreshToken != null) {
         await loginViewModel.logoutApi(refreshToken);
       }
       loginViewModel.logout();
-
       Get.snackbar(
         "Đã đăng xuất",
         "Hẹn gặp lại bạn nhé!",
-        snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.black87,
         colorText: Colors.white,
       );
-
       _navigateToLogin();
     } catch (e) {
       loginViewModel.logout();
@@ -140,26 +166,28 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark, // Chữ đen cho nền trắng
+      value: SystemUiOverlayStyle.dark,
       child: AppScaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: kBackgroundColor,
         body: RefreshIndicator(
           onRefresh: _fetchUserProfile,
-          edgeOffset: 100.0,
+          color: kCourseraBlue,
+          backgroundColor: Colors.white,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildHeaderWithAvatar(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
-                  child: _buildFunctionList(),
+                _buildHeader(),
+                const Divider(
+                  height: 1,
+                  color: Color(0xFFEEEEEE),
                 ),
-                const SizedBox(height: kBottomNavigationBarHeight + 16),
+                _buildMenuSection(),
+                const SizedBox(height: 100),
               ],
             ),
           ),
@@ -168,465 +196,324 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     );
   }
 
-  Widget _buildHeaderWithAvatar() {
+  Widget _buildHeader() {
     return Obx(() {
       final user = userViewModel.user.value;
       final avatarUrl = user?.avatar;
-      final displayName = (user?.fullname != null && user!.fullname!.isNotEmpty)
-          ? user.fullname!
-          : (user?.username ?? 'Đang tải...');
+      final displayName =
+      (user?.fullname?.isNotEmpty == true)
+          ? user!.fullname!
+          : (user?.username ?? 'Học viên');
       final email = user?.email ?? "";
-
 
       final topicVM = Get.isRegistered<TopicViewModel>()
           ? Get.find<TopicViewModel>()
-          : Get.put(TopicViewModel(Get.find()), permanent: true);
+          : Get.put(
+        TopicViewModel(Get.find()),
+        permanent: true,
+      );
       final usage = topicVM.conversationUsage.value;
-      String packageName = '';
-      final type = (usage?['subscriptionType'] ?? 'free').toString().toLowerCase();
-      switch (type) {
-        case 'free':
-          packageName = 'Gói nhập vai: miễn phí';
-          break;
-        case 'basic5':
-          packageName = 'Gói nhập vai: gói tiết kiệm 5';
-          break;
-        case 'basic10':
-          packageName = 'Gói nhập vai: gói cơ bản 10';
-          break;
-        case 'basic15':
-          packageName = 'Gói nhập vai: gói nâng cao';
-          break;
-        default:
-          packageName = 'Gói nhập vai: $type';
-      }
+      final type = (usage?['subscriptionType'] ?? 'free')
+          .toString()
+          .toLowerCase();
+
+      String packageLabel = 'Gói miễn phí';
+      if (type.contains('basic'))
+        packageLabel = 'Thành viên Pro';
 
       return Container(
+        padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
         color: Colors.white,
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 40),
-            child: Column(
-              children: [
-                GestureDetector(
-                  onTap: () => Get.to(
-                        () => const EditProfileScreen(),
-                    arguments: userViewModel.user.value,
-                  ),
-                  child: _buildRankedAvatar(avatarUrl),
-                ),
-                const SizedBox(height: 16),
-                // Display Name
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                // Email
-                Text(
-                  email,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                // Package info with better UI
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 40),
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.primary.withOpacity(0.1),
-                        AppColors.primary.withOpacity(0.05),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppColors.primary.withOpacity(0.3),
-                      width: 1.5,
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: () => Get.to(
+                    () => const EditProfileScreen(),
+                arguments: userViewModel.user.value,
+              ),
+              child: _buildRankedAvatar(avatarUrl),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: kTextPrimary,
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  const SizedBox(height: 4),
+                  Text(
+                    email,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: kTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.2),
-                          shape: BoxShape.circle,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
                         ),
-                        child: const Icon(
-                          CupertinoIcons.sparkles,
-                          size: 16,
-                          color: AppColors.primary,
+                        decoration: BoxDecoration(
+                          color: kCourseraBlue.withOpacity(
+                            0.1,
+                          ),
+                          borderRadius:
+                          BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          packageLabel,
+                          style: const TextStyle(
+                            color: kCourseraBlue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
-                      Flexible(
-                        child: Text(
-                          packageName,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
+                      if (type != 'basic15')
+                        GestureDetector(
+                          onTap: () async {
+                            List<String> availablePlans =
+                            [];
+                            if (type == 'free')
+                              availablePlans = [
+                                'basic5',
+                                'basic10',
+                                'basic15',
+                              ];
+                            else if (type == 'basic5')
+                              availablePlans = [
+                                'basic10',
+                                'basic15',
+                              ];
+                            else if (type == 'basic10')
+                              availablePlans = ['basic15'];
+
+                            final result = await Get.to<bool>(
+                                  () => SubscriptionPlansScreen(
+                                availablePlans:
+                                availablePlans,
+                              ),
+                            );
+                            if (result == true) {
+                              await topicVM
+                                  .fetchConversationUsage();
+                              if (mounted) setState(() {});
+                            }
+                          },
+                          child: const Text(
+                            'Nâng cấp',
+                            style: TextStyle(
+                              color: kCourseraBlue,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              decoration:
+                              TextDecoration.underline,
+                            ),
                           ),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                // Upgrade button with solid gold color (no gradient/shadow)
-                Container(
-                  width: 160,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFD700),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () async {
-                        if (type == 'basic15') {
-                          Get.snackbar(
-                            'Thông báo',
-                            'Bạn đã nâng lên gói cao nhất.',
-                            snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: Colors.green,
-                            colorText: Colors.white,
-                          );
-                          return;
-                        }
-
-                        List<String> availablePlans = [];
-                        if (type == 'free') {
-                          availablePlans = ['basic5', 'basic10', 'basic15'];
-                        } else if (type == 'basic5') {
-                          availablePlans = ['basic10', 'basic15'];
-                        } else if (type == 'basic10') {
-                          availablePlans = ['basic15'];
-                        }
-
-                        final result = await Get.to<bool>(
-                              () => SubscriptionPlansScreen(availablePlans: availablePlans),
-                          transition: Transition.cupertino,
-                        );
-
-                        if (result == true) {
-                          final topicVM = Get.isRegistered<TopicViewModel>()
-                              ? Get.find<TopicViewModel>()
-                              : Get.put(TopicViewModel(Get.find()), permanent: true);
-                          await topicVM.fetchConversationUsage();
-                          if (mounted) setState(() {});
-                        }
-                      },
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              type == 'basic15'
-                                  ? CupertinoIcons.checkmark_seal_fill
-                                  : CupertinoIcons.arrow_up_circle_fill,
-                              color: Colors.green,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              type == 'basic15' ? 'Gói cao nhất' : 'Nâng cấp',
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       );
     });
   }
 
-  Widget _buildFunctionList() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withAlpha(20),
-            blurRadius: 15,
-            spreadRadius: 0,
-            offset: const Offset(0, 4),
-          ),
-        ],
+  Widget _buildMenuSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 20,
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildListTile(
-            icon: CupertinoIcons.person_circle,
-            label: "Chỉnh sửa hồ sơ",
-            iconColor: const Color(0xFF4A90E2),
+          _buildSectionTitle('Học tập'),
+          _buildMenuItem(
+            icon: CupertinoIcons.calendar,
+            title: 'Lịch học của tôi',
+            onTap: () =>
+                Get.to(() => const StudentScheduleScreen()),
+          ),
+          _buildMenuItem(
+            icon: CupertinoIcons.scope,
+            title: 'Mục tiêu hàng ngày',
+            onTap: () =>
+                Get.to(() => const DailyGoalScreen()),
+          ),
+          _buildMenuItem(
+            icon: CupertinoIcons.chart_bar_alt_fill,
+            title: 'Bảng xếp hạng',
+            onTap: () =>
+                Get.to(() => const LeaderboardScreen()),
+          ),
+
+          const SizedBox(height: 24),
+          _buildSectionTitle('Tài khoản'),
+          _buildMenuItem(
+            icon: CupertinoIcons.person,
+            title: 'Chỉnh sửa hồ sơ',
             onTap: () => Get.to(
                   () => const EditProfileScreen(),
               arguments: userViewModel.user.value,
             ),
           ),
-          _buildDivider(),
-          _buildListTile(
-            icon: CupertinoIcons.calendar,
-            label: "Lịch học",
-            iconColor: const Color(0xFF34C759),
-            onTap: () {
-              Get.to(
-                    () => const StudentScheduleScreen(),
-                transition: Transition.cupertino,
-              );
-            },
-          ),
-          _buildDivider(),
-          _buildListTile(
-            icon: CupertinoIcons.chart_bar,
-            label: "Mục tiêu học tập",
-            iconColor: const Color(0xFFFF9500),
-            onTap: () {
-              Get.to(
-                    () => const DailyGoalScreen(),
-                transition: Transition.cupertino,
-              );
-            },
-          ),
-          _buildDivider(),
-          _buildListTile(
-            icon: CupertinoIcons.chart_bar_alt_fill,
-            label: "Bảng xếp hạng",
-            iconColor: const Color(0xFFFFD700),
-            onTap: () {
-              Get.to(
-                    () => const LeaderboardScreen(),
-                transition: Transition.cupertino,
-              );
-            },
-          ),
-          _buildDivider(),
-          _buildListTile(
+          _buildMenuItem(
             icon: CupertinoIcons.doc_text,
-            label: "Lịch sử giao dịch",
-            iconColor: const Color(0xFF4A90E2),
-            onTap: () {
-              Get.to(
-                    () => const PurchaseHistoryScreen(),
-                transition: Transition.cupertino,
-              );
-            },
+            title: 'Lịch sử thanh toán',
+            onTap: () =>
+                Get.to(() => const PurchaseHistoryScreen()),
           ),
-          _buildDivider(),
-
-          _buildListTile(
-            icon: CupertinoIcons.paperplane,
-            label: "Gửi đơn / Xem đơn",
-            iconColor: const Color(0xFFFB8C00),
-            onTap: () {
-              Get.to(
-                    () => const RefundCenterScreen(),
-                transition: Transition.cupertino,
-              );
-            },
+          _buildMenuItem(
+            icon: CupertinoIcons.mail,
+            title: 'Trung tâm hỗ trợ / Hoàn tiền',
+            onTap: () =>
+                Get.to(() => const RefundCenterScreen()),
           ),
 
-          _buildDivider(),
-          _buildListTile(
-            icon: CupertinoIcons.arrow_right_square,
-            label: "Đăng xuất",
-            iconColor: const Color(0xFFFF3B30),
-            onTap: _showLogoutConfirmation,
+          const SizedBox(height: 24),
+          _buildMenuItem(
+            icon: CupertinoIcons.square_arrow_right,
+            title: 'Đăng xuất',
+            textColor: Colors.redAccent,
+            iconColor: Colors.redAccent,
             showArrow: false,
+            onTap: _showLogoutConfirmation,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDivider() {
+  Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.only(left: 72),
-      child: Divider(
-        height: 1,
-        thickness: 1,
-        color: Colors.grey.shade100,
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: kTextSecondary,
+          letterSpacing: 1.0,
+        ),
       ),
     );
   }
 
-  Widget _buildListTile({
+  Widget _buildMenuItem({
     required IconData icon,
-    required String label,
-    required Color iconColor,
+    required String title,
     required VoidCallback onTap,
+    Color textColor = kTextPrimary,
+    Color iconColor = kTextSecondary,
     bool showArrow = true,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: iconColor.withAlpha(25),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 24,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 22, color: iconColor),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
+            ),
+            if (showArrow)
+              const Icon(
+                CupertinoIcons.chevron_right,
+                size: 16,
+                color: Colors.grey,
               ),
-              if (showArrow)
-                Icon(
-                  CupertinoIcons.chevron_right,
-                  color: Colors.grey.shade400,
-                  size: 20,
-                ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildRankedAvatar(String? avatarUrl) {
-    // Get user rank from GamificationViewModel
-    final gamificationVM = Get.isRegistered<GamificationViewModel>()
+    final gamificationVM =
+    Get.isRegistered<GamificationViewModel>()
         ? Get.find<GamificationViewModel>()
         : null;
-
-    final userRank = gamificationVM?.userRank.value?.rank ?? 0;
+    final userRank =
+        gamificationVM?.userRank.value?.rank ?? 0;
     final isTopRank = userRank > 0 && userRank <= 3;
 
-    Color? frameColor;
-    Color? glowColor;
-
-    if (userRank == 1) {
-      frameColor = Color(0xFFFFD700); // Gold
-      glowColor = Color(0xFFFFD700);
-    } else if (userRank == 2) {
-      frameColor = Color(0xFFC0C0C0); // Silver
-      glowColor = Color(0xFFC0C0C0);
-    } else if (userRank == 3) {
-      frameColor = Color(0xFFCD7F32); // Bronze
-      glowColor = Color(0xFFCD7F32);
-    }
+    Color borderColor = Colors.transparent;
+    if (userRank == 1)
+      borderColor = const Color(0xFFFFD700);
+    else if (userRank == 2)
+      borderColor = const Color(0xFFC0C0C0);
+    else if (userRank == 3)
+      borderColor = const Color(0xFFCD7F32);
 
     return Stack(
-      clipBehavior: Clip.none,
       children: [
         Container(
+          padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: isTopRank
-                ? LinearGradient(
-              colors: [frameColor!, frameColor.withAlpha(200)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+            border: isTopRank
+                ? Border.all(color: borderColor, width: 2)
+                : null,
+          ),
+          child: CircleAvatar(
+            radius: kAvatarRadius,
+            backgroundColor: Colors.grey.shade100,
+            backgroundImage:
+            (avatarUrl != null && avatarUrl.isNotEmpty)
+                ? NetworkImage(avatarUrl)
+                : null,
+            child: (avatarUrl == null || avatarUrl.isEmpty)
+                ? Icon(
+              CupertinoIcons.person_fill,
+              color: Colors.grey.shade300,
+              size: 40,
             )
                 : null,
-            boxShadow: [
-              BoxShadow(
-                color: isTopRank
-                    ? glowColor!.withAlpha(100)
-                    : Colors.black.withAlpha(25),
-                blurRadius: isTopRank ? 20 : 15,
-                spreadRadius: isTopRank ? 3 : 2,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          padding: isTopRank ? const EdgeInsets.all(5) : EdgeInsets.zero,
-          child: Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white,
-            ),
-            padding: isTopRank ? const EdgeInsets.all(4) : EdgeInsets.zero,
-            child: CircleAvatar(
-              radius: 60,
-              backgroundColor: Colors.grey.shade100,
-              backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                  ? NetworkImage(avatarUrl)
-                  : null,
-              child: (avatarUrl == null || avatarUrl.isEmpty)
-                  ? Icon(
-                CupertinoIcons.person_fill,
-                color: Colors.grey.shade400,
-                size: 50,
-              )
-                  : null,
-            ),
           ),
         ),
         if (isTopRank)
           Positioned(
-            top: -5,
-            right: -5,
+            right: 0,
+            bottom: 0,
             child: Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [frameColor!, frameColor.withAlpha(220)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: borderColor,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 3),
-                boxShadow: [
-                  BoxShadow(
-                    color: glowColor!.withAlpha(150),
-                    blurRadius: 10,
-                    spreadRadius: 1,
-                  ),
-                ],
+                border: Border.all(
+                  color: Colors.white,
+                  width: 2,
+                ),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.emoji_events,
                 color: Colors.white,
-                size: 20,
+                size: 14,
               ),
             ),
           ),

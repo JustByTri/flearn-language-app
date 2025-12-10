@@ -1,13 +1,21 @@
-import 'package:flearn_app/shared/widgets/mainBottomNavbar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flearn_app/core/constants/colors.dart';
 import 'package:get/get.dart';
 
-import '../../../shared/controllers/navigation_controller.dart';
-import '../../course_progress/viewmodel/course_progress_viewmodel.dart';
 import '../../course_progress/model/course_progress.dart';
+import '../../course_progress/viewmodel/course_progress_viewmodel.dart';
 import 'course_unit_screen.dart';
+
+// --- Coursera/Enterprise Style Constants ---
+const Color kCourseraBlue = Color(0xFF0056D2);
+const Color kBackgroundColor = Colors.white;
+const Color kTextPrimary = Color(0xFF1F1F1F);
+const Color kTextSecondary = Color(0xFF5E5E5E);
+const Color kCardBorderColor = Color(0xFFE0E0E0);
+const double kCardRadius = 8.0;
+
+// Chiều cao an toàn (Navbar 70 + Margin 16 + Buffer 30)
+const double kBottomSafePadding = 120.0;
 
 class CourseScreen extends StatefulWidget {
   final String? topic;
@@ -18,7 +26,8 @@ class CourseScreen extends StatefulWidget {
 }
 
 class _CourseScreenState extends State<CourseScreen> {
-  final CourseProgressViewModel courseProgressViewModel = Get.find<CourseProgressViewModel>();
+  final CourseProgressViewModel courseProgressViewModel =
+  Get.find<CourseProgressViewModel>();
 
   @override
   void initState() {
@@ -31,25 +40,39 @@ class _CourseScreenState extends State<CourseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: kBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
-
-        title: const Text(
-          'Khóa học của tôi',
-          style: TextStyle(
-            color: Color(0xFF1A1A1A),
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        title: const Padding(
+          padding: EdgeInsets.only(left: 8.0),
+          child: Text(
+            'Khóa học của tôi',
+            style: TextStyle(
+              color: kTextPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 22,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            color: Colors.grey.shade200,
+            height: 1,
           ),
         ),
       ),
       body: Obx(() {
         if (courseProgressViewModel.isLoading.value) {
           return const Center(
-            child: CupertinoActivityIndicator(radius: 15, color: AppColors.primary),
+            child: CupertinoActivityIndicator(
+              radius: 15,
+              color: kCourseraBlue,
+            ),
           );
         }
 
@@ -61,13 +84,23 @@ class _CourseScreenState extends State<CourseScreen> {
           onRefresh: () async {
             await courseProgressViewModel.fetchMyCourses();
           },
-          color: AppColors.primary,
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+          color: kCourseraBlue,
+          backgroundColor: Colors.white,
+          child: ListView.separated(
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: kBottomSafePadding,
+            ),
             physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: courseProgressViewModel.courses.length,
+            itemCount:
+            courseProgressViewModel.courses.length,
+            separatorBuilder: (_, __) =>
+            const SizedBox(height: 16),
             itemBuilder: (context, index) {
-              final course = courseProgressViewModel.courses[index];
+              final course =
+              courseProgressViewModel.courses[index];
               return _buildCourseCard(course);
             },
           ),
@@ -79,17 +112,27 @@ class _CourseScreenState extends State<CourseScreen> {
   Widget _buildCourseCard(CourseProgress course) {
     return GestureDetector(
       onTap: () {
-        Get.to(() => CourseUnitScreen(
-          courseId: course.courseId,
-          courseTitle: course.courseTitle,
-          enrollmentId: course.enrollmentId,
-        ));
+        Get.to(
+              () => CourseUnitScreen(
+            courseId: course.courseId,
+            courseTitle: course.courseTitle,
+            enrollmentId: course.enrollmentId,
+          ),
+        );
       },
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        elevation: 0,
-        color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(kCardRadius),
+          border: Border.all(color: kCardBorderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -97,19 +140,22 @@ class _CourseScreenState extends State<CourseScreen> {
             children: [
               // Thumbnail
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(
+                  kCardRadius,
+                ),
                 child: SizedBox(
-                  width: 80,
-                  height: 80,
+                  width: 90,
+                  height: 90,
                   child: _buildCourseImage(course),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
 
               // Info
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                  CrossAxisAlignment.start,
                   children: [
                     // Title
                     Text(
@@ -117,75 +163,97 @@ class _CourseScreenState extends State<CourseScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1A1A1A),
-                        height: 1.25,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: kTextPrimary,
+                        height: 1.3,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
 
                     // Teacher
                     Text(
                       course.teacherName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    // Progress bar
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: course.progressPercent / 100,
-                        minHeight: 6,
-                        backgroundColor: Colors.grey.shade200,
-                        valueColor: AlwaysStoppedAnimation(
-                          course.progressPercent >= 100 ? Colors.green : AppColors.primary,
-                        ),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: kTextSecondary,
                       ),
                     ),
-                    const SizedBox(height: 4),
 
+                    const SizedBox(height: 12),
+
+                    // Progress bar
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius:
+                            BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value:
+                              course.progressPercent /
+                                  100,
+                              minHeight: 6,
+                              backgroundColor:
+                              Colors.grey.shade200,
+                              valueColor:
+                              AlwaysStoppedAnimation(
+                                course.progressPercent >=
+                                    100
+                                    ? Colors.green
+                                    : kCourseraBlue,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${course.progressPercent}%',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color:
+                            course.progressPercent >=
+                                100
+                                ? Colors.green
+                                : kCourseraBlue,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
 
                     Wrap(
-                      spacing: 6,
+                      spacing: 8,
                       runSpacing: 4,
                       children: [
-                        _buildTag(course.level),
-                        _buildTag('${course.completedLessons}/${course.totalLessons} bài'),
-                        _buildTag(course.status),
+                        if (course.level.isNotEmpty)
+                          _buildTag(
+                            course.level,
+                            Colors.blue.shade50,
+                            Colors.blue.shade700,
+                          ),
+                        _buildTag(
+                          '${course.completedLessons}/${course.totalLessons} bài',
+                          Colors.grey.shade100,
+                          kTextSecondary,
+                        ),
+                        if (course.status.isNotEmpty)
+                          _buildTag(
+                            course.status,
+                            course.status == 'Completed'
+                                ? Colors.green.shade50
+                                : Colors.orange.shade50,
+                            course.status == 'Completed'
+                                ? Colors.green.shade700
+                                : Colors.orange.shade800,
+                          ),
                       ],
                     ),
                   ],
                 ),
-              ),
-
-              const SizedBox(width: 8),
-
-              // Progress percent
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${course.progressPercent}%',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    course.language,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF888888),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -194,20 +262,22 @@ class _CourseScreenState extends State<CourseScreen> {
     );
   }
 
-  Widget _buildTag(String label) {
+  Widget _buildTag(String label, Color bg, Color text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 4,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
-          color: Color(0xFF666666),
-          fontWeight: FontWeight.w500,
+          color: text,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -216,39 +286,37 @@ class _CourseScreenState extends State<CourseScreen> {
   Widget _buildCourseImage(CourseProgress course) {
     if (course.courseImage.isEmpty) {
       return Container(
-        width: double.infinity,
-        height: 80,
-        decoration: const BoxDecoration(
-          color: Color(0xFFF5F5F5),
+        color: Colors.grey.shade100,
+        child: Icon(
+          Icons.image_outlined,
+          color: Colors.grey.shade400,
+          size: 32,
         ),
-        child: Icon(Icons.image, color: Colors.grey.shade400, size: 40),
       );
     }
 
     return Image.network(
       course.courseImage,
       width: double.infinity,
-      height: 80,
+      height: double.infinity,
       fit: BoxFit.cover,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;
         return Container(
-          width: double.infinity,
-          height: 80,
-          decoration: const BoxDecoration(
-            color: Color(0xFFF5F5F5),
+          color: Colors.grey.shade50,
+          child: const Center(
+            child: CupertinoActivityIndicator(radius: 10),
           ),
-          child: const Center(child: CupertinoActivityIndicator(radius: 12)),
         );
       },
       errorBuilder: (context, error, stackTrace) {
         return Container(
-          width: double.infinity,
-          height: 80,
-          decoration: const BoxDecoration(
-            color: Color(0xFFF5F5F5),
+          color: Colors.grey.shade100,
+          child: Icon(
+            Icons.broken_image_outlined,
+            color: Colors.grey.shade400,
+            size: 32,
           ),
-          child: Icon(Icons.broken_image, color: Colors.grey.shade400, size: 40),
         );
       },
     );
@@ -256,25 +324,49 @@ class _CourseScreenState extends State<CourseScreen> {
 
   Widget _buildEmptyState() {
     return RefreshIndicator(
-      onRefresh: () => courseProgressViewModel.fetchMyCourses(),
+      onRefresh: () =>
+          courseProgressViewModel.fetchMyCourses(),
       child: Center(
         child: ListView(
           shrinkWrap: true,
+          padding: const EdgeInsets.all(32),
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            SizedBox(height: MediaQuery.of(context).size.height * 0.2),
-            Icon(CupertinoIcons.book, size: 80, color: Colors.grey.shade300),
+            SizedBox(
+              height:
+              MediaQuery.of(context).size.height * 0.15,
+            ),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                CupertinoIcons.book,
+                size: 56,
+                color: Colors.grey.shade300,
+              ),
+            ),
             const SizedBox(height: 24),
             const Text(
-              'Bạn chưa có khóa học nào',
+              'Chưa có khóa học nào',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: kTextSecondary,
+              ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Hãy đăng ký khóa học để bắt đầu học tập.',
+            Text(
+              'Hãy đăng ký khóa học để bắt đầu hành trình học tập của bạn.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Color(0xFF666666)),
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade500,
+                height: 1.5,
+              ),
             ),
           ],
         ),
