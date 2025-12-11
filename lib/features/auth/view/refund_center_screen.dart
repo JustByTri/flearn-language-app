@@ -48,6 +48,8 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
   String? _proofImageBase64;
   File? _selectedImage;
   String? _refundEligibleError; // New: Error for refund eligibility
+  // NEW: lưu id đơn lớp học đã được tạo sẵn (auto-created) để update bank info
+  String? _prefilledClassRefundRequestId;
 
   static const Map<int, String> _requestTypeOptions = {
     0: 'Lớp bị hủy do thiếu học viên',
@@ -127,13 +129,17 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
       return;
     }
     if (_selectedRefundType == 0) { // Lớp học
-      if (_selectedEnrollmentID == null || _selectedClassID == null || _selectedClassName == null) {
-        Get.snackbar('Lỗi', 'Vui lòng chọn lớp cần hoàn tiền.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
-        return;
-      }
-      if (_selectedRequestType == null) { // GIỮ: Vẫn cần cho lớp học
-        Get.snackbar('Lỗi', 'Vui lòng chọn loại đơn.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
-        return;
+      // Nếu là đơn tự tạo (đã có refundRequestId) thì chỉ cần bank info, không tạo mới
+      final isPrefilled = _prefilledClassRefundRequestId != null;
+      if (!isPrefilled) {
+        if (_selectedEnrollmentID == null || _selectedClassID == null || _selectedClassName == null) {
+          Get.snackbar('Lỗi', 'Vui lòng chọn lớp cần hoàn tiền.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+          return;
+        }
+        if (_selectedRequestType == null) { // vẫn yêu cầu khi tạo mới
+          Get.snackbar('Lỗi', 'Vui lòng chọn loại đơn.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+          return;
+        }
       }
     } else if (_selectedRefundType == 1) { // Khóa học
       if (_selectedPurchaseId == null || _selectedCourseName == null) {
@@ -154,17 +160,28 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
     Map<String, dynamic>? result;
     try {
       if (_selectedRefundType == 0) {
-        print('selectedRequestType 0: $_selectedRequestType');
-        result = await _scheduleVM.submitRefundRequest(
-          enrollmentID: _selectedEnrollmentID!,
-          classID: _selectedClassID!,
-          className: _selectedClassName!,
-          requestType: _selectedRequestType!,
-          bankName: _bankNameController.text.trim(),
-          bankAccountNumber: accountNumber,
-          bankAccountHolderName: _bankAccountHolderNameController.text.trim(),
-          reason: _reasonController.text.trim(),
-        );
+        final isPrefilled = _prefilledClassRefundRequestId != null;
+        if (isPrefilled) {
+          // Cập nhật thông tin ngân hàng cho đơn lớp đã có
+          result = await _scheduleVM.updateClassRefundBankInfo(
+            refundRequestId: _prefilledClassRefundRequestId!,
+            bankName: _bankNameController.text.trim(),
+            bankAccountNumber: accountNumber,
+            bankAccountHolderName: _bankAccountHolderNameController.text.trim(),
+          );
+        } else {
+          print('selectedRequestType 0: $_selectedRequestType');
+          result = await _scheduleVM.submitRefundRequest(
+            enrollmentID: _selectedEnrollmentID!,
+            classID: _selectedClassID!,
+            className: _selectedClassName!,
+            requestType: _selectedRequestType!,
+            bankName: _bankNameController.text.trim(),
+            bankAccountNumber: accountNumber,
+            bankAccountHolderName: _bankAccountHolderNameController.text.trim(),
+            reason: _reasonController.text.trim(),
+          );
+        }
       } else if (_selectedRefundType == 1) {
         print('selectedRequestType 1: $_selectedRequestType');
         result = await _userVM.submitCourseRefund(
@@ -183,18 +200,11 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
             : "Gửi đơn hoàn tiền thành công.";
         Get.snackbar('Thành công', result['message'] ?? 'Gửi đơn hoàn tiền thành công.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
 
+        // Nếu vừa update đơn lớp có sẵn, chuyển sang tab xem đơn
+        final bool updatedPrefilled = _prefilledClassRefundRequestId != null && _selectedRefundType == 0;
+
         if (_selectedRefundType == 1) {
           // BỎ: Không cần add local nữa vì API fetch sẽ lấy lên
-          // final selectedPurchase = _userVM.coursePurchases.firstWhereOrNull((p) => p.purchaseId == _selectedPurchaseId);
-          // final refundAmount = selectedPurchase?.price ?? 0;
-          // final newRefund = {
-          //   'courseName': _selectedCourseName ?? 'Khóa học không xác định',
-          //   'refundAmount': refundAmount,
-          //   'status': 0,
-          //   'requestedAt': DateTime.now().toString(),
-          //   'adminNote': null,
-          // };
-          // _userVM.refundRequests.add(newRefund);
         }
 
         // LƯU purchaseId trước khi clear form
@@ -214,6 +224,12 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
             // fallback nếu không fetch được detail
             Get.back();
           }
+        } else if (updatedPrefilled) {
+          // Với đơn lớp đã có sẵn, chỉ quay về tab xem đơn
+          setState(() {
+            _tab = 1;
+            _selectedViewRefundType = 0;
+          });
         } else {
           Get.back();
         }
@@ -249,6 +265,7 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
     _proofImageBase64 = null;
     _selectedImage = null;
     _refundEligibleError = null;
+    _prefilledClassRefundRequestId = null;
     _bankNameController.clear();
     _bankAccountNumberController.clear();
     _bankAccountHolderNameController.clear();
@@ -705,41 +722,45 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
         itemBuilder: (context, idx) {
           final req = data[idx];
           final displayName = req['className'] ?? 'Không xác định';
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [BoxShadow(color: Colors.grey.withAlpha(20), blurRadius: 8, offset: const Offset(0, 2))],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis),
-                    ),
-                    const SizedBox(width: 8),
-                    Text('(Lớp học)', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text('Số tiền: ${req['refundAmount'] ?? 0}₫', style: const TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text('Trạng thái: ', style: const TextStyle(fontSize: 13)),
-                    Text(_statusText(req['status']), style: TextStyle(fontSize: 13, color: _getStatusColor(req['status']), fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text('Ngày gửi: ${req['requestedAt'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                if (req['adminNote'] != null) ...[
+          return InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _prefillFromClassRefund(req),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [BoxShadow(color: Colors.grey.withAlpha(20), blurRadius: 8, offset: const Offset(0, 2))],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('(Lớp học)', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    ],
+                  ),
                   const SizedBox(height: 4),
-                  Text('Ghi chú: ${req['adminNote']}', style: const TextStyle(fontSize: 12, color: Colors.orange)),
+                  Text('Số tiền: ${req['refundAmount'] ?? 0}₫', style: const TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text('Trạng thái: ', style: const TextStyle(fontSize: 13)),
+                      Text(_statusText(req['status']), style: TextStyle(fontSize: 13, color: _getStatusColor(req['status']), fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Ngày gửi: ${req['requestedAt'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  if (req['adminNote'] != null) ...[
+                    const SizedBox(height: 4),
+                    Text('Ghi chú: ${req['adminNote']}', style: const TextStyle(fontSize: 12, color: Colors.orange)),
+                  ],
                 ],
-              ],
+              ),
             ),
           );
         },
@@ -879,6 +900,40 @@ class _RefundCenterScreenState extends State<RefundCenterScreen> {
       maxLines: maxLines,
       decoration: _decoration(label, hint ?? ''),
     );
+  }
+
+// Thêm hàm hỗ trợ prefill khi bấm vào đơn lớp học
+  void _prefillFromClassRefund(Map req) {
+    setState(() {
+      // Chuyển sang tab Gửi đơn và loại đơn = Lớp học
+      _tab = 0;
+      _selectedRefundType = 0;
+
+      // Điền sẵn thông tin lớp từ đơn tự tạo
+      _selectedEnrollmentID = req['enrollmentID']?.toString();
+      _selectedClassID = req['classID']?.toString();
+      _selectedClassName = (req['className'] ?? req['title'] ?? 'Không xác định').toString();
+      _selectedRequestType = req['requestType'] is int ? req['requestType'] as int : null;
+      _prefilledClassRefundRequestId = (req['refundRequestId'] ?? req['id'] ?? req['refundId'])?.toString();
+
+      // Prefill ngân hàng nếu API đã có, để trống nếu thiếu
+      _bankNameController.text = (req['bankName'] ?? '').toString();
+      _bankAccountNumberController.text = (req['bankAccountNumber'] ?? req['bankAccount'] ?? '').toString();
+      _bankAccountHolderNameController.text = (req['bankAccountHolderName'] ?? req['accountHolder'] ?? '').toString();
+
+      // Prefill lý do nếu có
+      if (req['reason'] != null) {
+        _reasonController.text = req['reason'].toString();
+      }
+
+      // Reset các state khác để tránh xung đột
+      _accountNumberError = null;
+      _refundEligibleError = null;
+      _selectedPurchaseId = null;
+      _selectedCourseName = null;
+      _proofImageBase64 = null;
+      _selectedImage = null;
+    });
   }
 }
 

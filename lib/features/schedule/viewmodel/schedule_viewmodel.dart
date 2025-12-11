@@ -50,4 +50,24 @@ class ScheduleViewModel extends GetxController {
       return null;
     }
   }
+
+  Future<Map<String, dynamic>?> updateClassRefundBankInfo({
+    required String refundRequestId,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+  }) async {
+    try {
+      return await service.updateClassRefundBankInfo(
+        refundRequestId: refundRequestId,
+        bankName: bankName,
+        bankAccountNumber: bankAccountNumber,
+        bankAccountHolderName: bankAccountHolderName,
+      );
+    } catch (e) {
+      Get.snackbar('Lỗi', e.toString(), snackPosition: SnackPosition.BOTTOM);
+      return null;
+    }
+  }
+
 }

@@ -277,4 +277,41 @@ class ScheduleService implements IScheduleRepository {
     }
   }
 
+  @override
+  Future<Map<String, dynamic>> updateClassRefundBankInfo({
+    required String refundRequestId,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+  }) async {
+    final accessToken = GetStorage().read('accessToken');
+    final url = Uri.parse('https://f-learn.app/api/Refund/update-bank-info');
+    final body = {
+      "refundRequestId": refundRequestId,
+      "bankName": bankName,
+      "bankAccountNumber": bankAccountNumber,
+      "bankAccountHolderName": bankAccountHolderName,
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Authorization": "Bearer $accessToken",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode(body),
+      );
+      final jsonBody = jsonDecode(response.body);
+      if (response.statusCode == 200 && jsonBody['success'] == true) {
+        return jsonBody['data'] as Map<String, dynamic>;
+      } else {
+        throw Exception(jsonBody['message'] ?? 'Cập nhật thông tin ngân hàng thất bại');
+      }
+    } catch (e) {
+      print('[ScheduleService] updateClassRefundBankInfo Exception: $e');
+      rethrow;
+    }
+  }
+
 }

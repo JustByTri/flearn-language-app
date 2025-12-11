@@ -614,4 +614,5 @@ class AuthService implements IAuthRepository {
       print('Remove FCM Token error: ${e.message}');
     }
   }
+
 }

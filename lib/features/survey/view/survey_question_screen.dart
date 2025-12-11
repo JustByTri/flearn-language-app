@@ -38,6 +38,8 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
   bool _isCompleting = false;
   String? _translatedText;
   bool _isTranslating = false;
+  int? _lastQuestionNumber;
+  int? _totalQuestions;
 
   @override
   void initState() {
@@ -111,12 +113,17 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
     final question = surveyViewModel.currentQuestion.value;
     if (question == null) return;
 
+    // Lưu lại trạng thái để giữ progress trong lúc load câu mới
+    _lastQuestionNumber = question.questionNumber;
+    _totalQuestions ??= surveyViewModel.assessment.value?.totalQuestions;
+
     final success = await surveyViewModel.submitVoiceAnswer(
-        assessmentId: widget.assessmentId,
-        questionNumber: question.questionNumber,
-        isSkipped: isSkipped,
-        audioFilePath: recordedFilePath,
-        recordingDurationSeconds: _recordingDuration.inSeconds);
+      assessmentId: widget.assessmentId,
+      questionNumber: question.questionNumber,
+      isSkipped: isSkipped,
+      audioFilePath: recordedFilePath,
+      recordingDurationSeconds: _recordingDuration.inSeconds,
+    );
 
     if (success) {
       setState(() {
@@ -249,6 +256,13 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
 
   }
 
+  double _computeProgress(int? questionNumber, int? totalQuestions) {
+    final total = totalQuestions ?? _totalQuestions ?? 0;
+    if (total <= 0) return 0;
+    final current = (questionNumber ?? _lastQuestionNumber ?? 1) - 1;
+    return current.clamp(0, total) / total;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -263,35 +277,50 @@ class _SurveyQuestionScreenState extends State<SurveyQuestionScreen> {
       body: SafeArea(
         child: Obx(() {
           final assessment = surveyViewModel.assessment.value;
-
-
           final err = surveyViewModel.errorMessage.value;
+
+          // Hoàn thành đánh giá tự động nếu nhận được thông báo từ server
           if (err == 'ASSESSMENT_COMPLETED' ||
               (err != null && err.toLowerCase().contains('hoàn thành'))) {
             WidgetsBinding.instance.addPostFrameCallback((_) => _handleAssessmentCompletion());
             return const Center(child: CupertinoActivityIndicator());
           }
 
+          // Cập nhật tổng câu hỏi để dùng khi loading
+          _totalQuestions ??= assessment?.totalQuestions;
+
+          // Nếu đang load câu hỏi mới: giữ progress, ẩn nội dung câu hỏi
           if (surveyViewModel.isLoadingCurrentQuestion.value) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+            final progress = _computeProgress(null, assessment?.totalQuestions);
+            return Column(
+              children: [
+                AnimatedProgressBar(progress: progress),
+                const Expanded(
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  ),
+                ),
+              ],
+            );
           }
 
           final question = surveyViewModel.currentQuestion.value;
 
+          // Nếu không có câu hỏi và không phải đang hoàn thành đánh giá, tự động hoàn thành
           if (question == null && !_isCompleting) {
             WidgetsBinding.instance.addPostFrameCallback((_) => _handleAssessmentCompletion());
             return const Center(child: CupertinoActivityIndicator());
           }
 
+          // Hiển thị loading nếu đang hoàn thành đánh giá hoặc không có câu hỏi
           if (_isCompleting || question == null) {
             return const Center(child: CupertinoActivityIndicator());
           }
 
-          double progress = 0;
-          final total = assessment?.totalQuestions;
-          if (total != null && total > 0) {
-            progress = ((question.questionNumber - 1) / total).clamp(0.0, 1.0);
-          }
+          // Lưu số thứ tự câu hiện tại để giữ progress khi load câu tiếp theo
+          _lastQuestionNumber = question.questionNumber;
+
+          final progress = _computeProgress(question.questionNumber, assessment?.totalQuestions);
 
           return Column(
             children: [

@@ -1,4 +1,5 @@
 import 'package:flearn_app/di.dart';
+import 'package:flearn_app/features/course/view/course_detail_screen.dart';
 import 'package:flearn_app/features/survey/view/language_screen.dart';
 import 'package:flearn_app/features/survey/viewmodel/survey_viewmodel.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../../shared/widgets/mainBottomNavbar.dart';
 import '../model/assessment_result.dart';
 import '../../../features/auth/viewmodel/login_viewmodel.dart';
 import '../../../features/auth/view/home_screen.dart';
+import 'package:flearn_app/features/course/viewmodel/course_viewmodel.dart';
 
 class AssessmentResultScreen extends StatefulWidget {
   final AssessmentResult result;
@@ -45,6 +47,13 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
         final box = GetStorage();
         final user = box.read('user') ?? {};
         user['languageId'] = widget.result.languageId;
+        user.remove('languageCode'); // reset để Home map lại theo languageId
+        user['languageName'] = widget.result.languageName;
+        user['activeLanguage'] = {
+          'languageId': widget.result.languageId,
+          'languageCode': null,
+          'languageName': widget.result.languageName,
+        };
         box.write('user', user);
         box.write('selectedLanguageId', widget.result.languageId);
         if (!Get.isRegistered<LoginViewModel>()) {
@@ -199,11 +208,22 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
     return _buildInfoCard(
       title: 'Khóa học đề xuất',
       content: Column(
-        children: widget.result.recommendedCourses.map((course) => _buildListItem(
-          '${course.courseName} (${course.level}) - ${course.matchReason}',
-          Icons.school,
-          Colors.blue,
-        )).toList(),
+        children: widget.result.recommendedCourses.map((course) {
+          final courseId = course.courseId ?? '';
+          return _buildListItem(
+            '${course.courseName} (${course.level}) - ${course.matchReason}',
+            Icons.school,
+            Colors.blue,
+            onTap: courseId.isNotEmpty
+                ? () async {
+              if (!Get.isRegistered<CourseViewModel>()) {
+                setupDI();
+              }
+              await Get.to(() => CourseDetailScreen(courseId: courseId));
+            }
+                : null,
+          );
+        }).toList(),
       ),
     );
   }
@@ -234,21 +254,26 @@ class _AssessmentResultScreenState extends State<AssessmentResultScreen> {
     );
   }
 
-  Widget _buildListItem(String text, IconData icon, Color iconColor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: iconColor, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 16, color: AppColors.textSecondary, height: 1.4),
+  Widget _buildListItem(String text, IconData icon, Color iconColor, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: iconColor, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(fontSize: 16, color: AppColors.textSecondary, height: 1.4),
+              ),
             ),
-          ),
-        ],
+            if (onTap != null) const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }
