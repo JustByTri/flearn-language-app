@@ -50,4 +50,11 @@ abstract class IScheduleRepository {
     String? to,
   });
 
+  Future<Map<String, dynamic>> updateClassRefundBankInfo({
+    required String refundRequestId,
+    required String bankName,
+    required String bankAccountNumber,
+    required String bankAccountHolderName,
+  });
+
 }

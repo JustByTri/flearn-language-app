@@ -10,6 +10,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import '../../../shared/controllers/navigation_controller.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../course/view/course_screen.dart';
 import '../../course/view/browse_course_screen.dart';
@@ -23,6 +24,7 @@ import '../../course_progress/viewmodel/course_progress_viewmodel.dart';
 import '../../course_progress/model/course_progress.dart';
 import '../../notification/view/notification_screen.dart';
 import '../viewmodel/user_viewmodel.dart';
+import 'profile_screen.dart';
 
 
 const Color kCourseraBlue = Color(
@@ -492,15 +494,19 @@ class _HomeScreenState extends State<HomeScreen>
 
       return Row(
         children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: AppColors.primary.withAlpha(25),
-            backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                ? NetworkImage(avatarUrl)
-                : null,
-            child: (avatarUrl == null || avatarUrl.isEmpty)
-                ? const Icon(Icons.person, color: AppColors.primary, size: 24)
-                : null,
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _navigateToProfile,
+            child: CircleAvatar(
+              radius: 22,
+              backgroundColor: AppColors.primary.withAlpha(25),
+              backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                  ? NetworkImage(avatarUrl)
+                  : null,
+              child: (avatarUrl == null || avatarUrl.isEmpty)
+                  ? const Icon(Icons.person, color: AppColors.primary, size: 24)
+                  : null,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -547,6 +553,10 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       );
     });
+  }
+
+  void _navigateToProfile() {
+    Get.find<NavigationController>().selectedIndex.value = 4; // chuyển sang tab Tài khoản
   }
 
   Widget _buildSearchBar() {

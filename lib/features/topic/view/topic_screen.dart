@@ -64,7 +64,7 @@ class _TopicScreenState extends State<TopicScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         title: Text(
           "Chủ đề nhập vai",
           style: TextStyle(
