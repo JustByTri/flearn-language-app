@@ -1,6 +1,6 @@
 workflows:
   ios-unsigned-build:
-    name: iOS Unsigned Build
+    name: iOS Unsigned Build (Auto-Fix)
     instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
@@ -12,21 +12,66 @@ workflows:
         script: |
           flutter pub get
 
+      - name: Create Clean Podfile on Server
+        script: |
+          # Xóa file cũ nếu có
+          rm -f ios/Podfile
+          
+          # Tự động viết file Podfile mới chuẩn iOS 15 ngay trên server
+          cat <<EOT >> ios/Podfile
+          platform :ios, '15.0'
+          ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+          project 'Runner', {
+            'Debug' => :debug,
+            'Profile' => :release,
+            'Release' => :release,
+          }
+          def flutter_root
+            generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+            unless File.exist?(generated_xcode_build_settings_path)
+              raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+            end
+            File.foreach(generated_xcode_build_settings_path) do |line|
+              matches = line.match(/FLUTTER_ROOT\=(.*)/)
+              return matches[1] if matches
+            end
+            raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig and running flutter pub get"
+          end
+          require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+          flutter_ios_podfile_setup
+          target 'Runner' do
+            use_frameworks!
+            use_modular_headers!
+            flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+          end
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              flutter_additional_ios_build_settings(target)
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+              end
+            end
+          end
+          EOT
+
+      - name: Update Deployment Target to 15.0
+        script: |
+          # Sửa file cấu hình Xcode project lên 15.0
+          find ios -name "project.pbxproj" -exec sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' {} +
+
       - name: Install Pods
         script: |
-          find . -name "Podfile" -exec dir {} \;
           cd ios
-          pod install
+          rm -rf Podfile.lock
+          pod install --repo-update
           cd ..
 
       - name: Build iOS without signing
         script: |
-          # Build ứng dụng dạng .app bỏ qua bước ký chứng chỉ
           flutter build ios --release --no-codesign
 
       - name: Package into IPA (Manual)
         script: |
-          # Nén thủ công thành file .ipa để cài qua Sideloadly
           cd build/ios/iphoneos
           mkdir Payload
           mv Runner.app Payload/
