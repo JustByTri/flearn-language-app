@@ -1,0 +1,35 @@
+workflows:
+  ios-unsigned-build:
+    name: iOS Unsigned Build
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+
+      - name: Install Pods
+        script: |
+          find . -name "Podfile" -exec dir {} \;
+          cd ios
+          pod install
+          cd ..
+
+      - name: Build iOS without signing
+        script: |
+          # Build ứng dụng dạng .app bỏ qua bước ký chứng chỉ
+          flutter build ios --release --no-codesign
+
+      - name: Package into IPA (Manual)
+        script: |
+          # Nén thủ công thành file .ipa để cài qua Sideloadly
+          cd build/ios/iphoneos
+          mkdir Payload
+          mv Runner.app Payload/
+          zip -r -y output.ipa Payload
+    artifacts:
+      - build/ios/iphoneos/output.ipa
